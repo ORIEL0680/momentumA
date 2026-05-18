@@ -47,6 +47,32 @@ ROOM 3D (3/3) — ב-commit נפרד בהמשך.
 
 ---
 
+## [R47 / R44.5] — 2026-05-18 — ROOM 3D ברמת Apple-Maps-Flyover
+
+לבקשת הבעלים — קפיצת רמה ויזואלית ("שפר את הקיים, אל תוסיף פיצ'רים").
+מומשו שכבות הנשמה הוויזואלית. tsc/lint(0)/build/test(9/9) ירוקים.
+תלות חדשה `@react-three/postprocessing@3` — **lazy בלבד** (רק בצ'אנק
+הדינמי של Room3DScene; ה-bundle הראשי לא מושפע).
+
+### שכבות שנשלחו (1,2,3,4,7)
+- **L1 תאורה (ה-80%):** הוסר ambient/directional שטוח → `Environment preset="sunset"` (HDR אמיתי) + 2 spotlights נפחיים + `SoftShadows` (PCSS) + ACES/exposure/SRGB + fog אטמוספרי.
+- **L2 חומרים:** רצפת פרקט physical (clearcoat), מפת שולחן עם sheen על רגל דקה, בקבוקי זכוכית (transmission+ior), כיסאות מרופדים, רחבת ריקודים פועמת, זהב `toneMapped=false`.
+- **L3 post:** EffectComposer — Bloom/Vignette/ChromaticAberration/ACES ToneMapping; **מותנה ביצועים** (רק dpr≥2 וכל עוד PerformanceMonitor לא ירד).
+- **L4 פתיחה קולנועית:** `CameraControls` יחיד, רצף 0–6ש׳ (מבט-על → סיבוב → צלילה לרחבה → זווית three-quarter), דילוג בנגיעה אחת.
+- **L7 ביצועים:** כל כיסא/צלחת/אורח = draw-call אחד `<Instances>`; dpr [1,2]; PerformanceMonitor מכבה post אוטומטית.
+
+### נדחה ל-pass הבא (L5, L6)
+UI סגמנטי חדש שמחליף את כל הכפתורים + מצב WALK + long-press sheet (L5) וריפל-שיבוץ + hover-scale (L6) הם **אינטראקציות חדשות מהותיות** — לא "שיפור הקיים". מימוש חצי-אפוי ייכשל ברף ה-4/4. השליטה הקיימת (select אורח + חזרה) נשמרת כדי שכלום לא יישבר.
+
+### סטיות מתועדות
+- frameloop נשאר רציף (לא `demand`) — `demand` מקפיא רינדור במנוחה ויהרוג את הנשימה/פתיחה (נכשל בשאלת הקבלה "נושם במנוחה?"). העלות נשלטת ב-instancing+dpr+post-מותנה.
+- כיסאות = boxes מ-Instanced (לא RoundedBox מקומר) — L7 מחייב Instances, RoundedBox לא ניתן ל-instance; ה-instancing מנצח, וה"לא-פלסטיק" בא מהתאורה/חומרים/post.
+
+### אימות
+tsc/lint/build/test ירוקים; pp נשאר lazy; /seating נטען נקי. מבחן ה-Apple (וידאו 15ש׳ במכשיר + חבר לא-טכנולוגי) ו-60fps על מכשיר אמיתי = אצל הבעלים (לא ניתן headless).
+
+---
+
 ## [R46] — 2026-05-18 — שדרוג איכות ROOM 3D + תיקוני באגים
 
 לבקשת הבעלים — איכות הרבה יותר גבוהה לתלת-מימד + תיקוני באגים.
