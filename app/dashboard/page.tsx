@@ -120,7 +120,11 @@ function DashboardInner() {
             <WelcomeBanner onDismiss={() => setWelcomeDismissed(true)} />
           )}
 
-          <IntimateHero event={event} daysLeft={daysLeft} />
+          <IntimateHero
+            event={event}
+            daysLeft={daysLeft}
+            progress={progress.percent}
+          />
 
           <TodayCard state={state} daysLeft={daysLeft} />
 

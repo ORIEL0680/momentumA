@@ -1,26 +1,28 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import type { EventInfo } from "@/lib/types";
 import { EVENT_TYPE_LABELS } from "@/lib/types";
 import { EVENT_TYPE_EMOJI } from "@/lib/invitationMessage";
 import { formatEventDate } from "@/lib/format";
-import { useCountUp } from "@/lib/useCountUp";
+import { LivingSpark } from "@/components/dashboard/LivingSpark";
 
 /**
- * R41 — the intimate dashboard hero. The couple's names, the date, and
- * a big animated countdown — nothing transactional. Gradient-only
- * background (EventInfo has no cover-photo field; the spec's optional
- * `coverPhotoUrl` branch is intentionally omitted rather than adding an
- * unused schema field). `useCountUp` already honors reduced-motion.
+ * R41 — the intimate dashboard hero. R44 §1 — the static count-up was
+ * replaced by LIVING SPARK: a gold spark that evolves with the journey
+ * (it carries the "how far / how close" feeling; the day number stays
+ * as a small factual line, not a tooltip). Gradient-only background
+ * (EventInfo has no cover-photo field — spec's optional branch omitted).
  */
 export function IntimateHero({
   event,
   daysLeft,
+  progress,
 }: {
   event: EventInfo;
   /** null until the client mounts (useNow) — render a calm placeholder. */
   daysLeft: number | null;
+  /** 0–100 journey progress — enriches the spark's aria description. */
+  progress?: number;
 }) {
   const names = event.partnerName
     ? `${event.hostName} ו-${event.partnerName}`
@@ -30,7 +32,6 @@ export function IntimateHero({
   const dateStr = formatEventDate(event.date, "long");
 
   const safeDays = daysLeft != null && daysLeft > 0 ? daysLeft : 0;
-  const animDays = useCountUp(safeDays);
   const past = daysLeft != null && daysLeft < 0;
   const today = daysLeft === 0;
 
@@ -83,45 +84,43 @@ export function IntimateHero({
           </p>
         )}
 
-        <div className="mt-10">
-          {daysLeft == null ? (
-            <div
-              className="inline-flex items-center gap-2 text-sm"
-              style={{ color: "var(--foreground-muted)" }}
-            >
-              <Sparkles size={14} className="text-[--accent]" />
-              סופרים את הימים…
-            </div>
-          ) : past ? (
-            <div className="text-2xl md:text-3xl font-bold gradient-gold">
-              🎉 חגגתם! תודה שתכננתם איתנו
-            </div>
-          ) : today ? (
-            <div className="text-3xl md:text-5xl font-extrabold gradient-gold">
-              🎉 היום הגדול הגיע!
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <div
-                className="text-xs uppercase tracking-[0.25em]"
+        <div className="mt-6 flex flex-col items-center">
+          <LivingSpark
+            daysUntilEvent={daysLeft}
+            progress={progress}
+            size={300}
+          />
+          <div className="mt-3 text-center">
+            {daysLeft == null ? (
+              <span
+                className="text-sm"
                 style={{ color: "var(--foreground-muted)" }}
               >
-                עוד
-              </div>
-              <div
-                className="font-extrabold gradient-gold ltr-num tabular-nums leading-none mt-2"
-                style={{ fontSize: "clamp(3.5rem, 14vw, 6rem)" }}
-              >
-                {animDays}
-              </div>
-              <div
-                className="text-base md:text-lg mt-1"
+                סופרים את הימים…
+              </span>
+            ) : past ? (
+              <span className="text-xl md:text-2xl font-bold gradient-gold">
+                🎉 חגגתם! תודה שתכננתם איתנו
+              </span>
+            ) : today ? (
+              <span className="text-2xl md:text-4xl font-extrabold gradient-gold">
+                🎉 היום הגדול הגיע!
+              </span>
+            ) : (
+              <span
+                className="text-lg md:text-xl"
                 style={{ color: "var(--foreground-soft)" }}
               >
+                <strong
+                  className="gradient-gold ltr-num"
+                  style={{ fontSize: "clamp(1.75rem, 6vw, 2.5rem)" }}
+                >
+                  {safeDays}
+                </strong>{" "}
                 {safeDays === 1 ? "יום לאירוע" : "ימים לאירוע"}
-              </div>
-            </div>
-          )}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </section>

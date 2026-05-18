@@ -4,6 +4,20 @@
 
 ---
 
+## [R44 · 1/3] — 2026-05-18 — LIVING SPARK (ניצוץ זהב חי בדשבורד)
+
+ראשון מתוך 3 מהפכות עיצוב להשקה (commit לכל פיצ'ר). הקאונטדאון הסטטי
+בדשבורד הוחלף ב-LIVING SPARK — ניצוץ זהב Canvas2D שמתפתח לאורך המסע.
+tsc/lint(0)/build/test(9/9) ירוקים. ללא תלות חיצונית חדשה, ללא מיגרציה.
+
+- `components/dashboard/LivingSpark.tsx` — Canvas2D וניל (אפס ספריות), rAF יחיד עם cleanup מלא, 40 חלקיקים. התפתחות לפי ימים-לאירוע (פזור→התקבצות→הילה→פעימה→התפוצצות ביום→זר אור). פלטת זהב. API אימפרטיבי מוכן: `flash/ripple/shake` (לא ממציאים טריגרים — הדשבורד יקרא כשיזהה שינוי). `prefers-reduced-motion` → SVG סטטי של השלב הנוכחי (אפס אנימציה, listener עם cleanup). `aria-label` דינמי.
+- `IntimateHero` — הקאונטדאון הוחלף ב-LivingSpark; מספר הימים נשאר כשורת מידע קטנה (לא tooltip). הוסרו imports שלא בשימוש; `progress` עובר מהדשבורד ל-aria.
+- אימות: tsc/lint/build/test ירוקים; delta bundle אפסי (וניל, אפס deps); /dashboard נטען נקי. בדיקת 60fps בטלפון אמיתי = אצל הבעלים (מוסכם).
+
+פיצ'רים 2 (TIME SPIRAL) ו-3 (ROOM 3D) — ב-commits נפרדים בהמשך.
+
+---
+
 ## [R43] — 2026-05-18 — צ'אט ספק↔זוג (Inbox חכם + realtime)
 
 תקשורת מובנית בין זוג לספק: צ'אט realtime per-lead, Inbox לספק עם
