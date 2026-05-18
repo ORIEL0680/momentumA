@@ -98,5 +98,56 @@ JourneyPath in the dashboard with a spiral of time.
 
 ---
 
-## ⏳ Feature 3 — ROOM 3D — next commit (adds three / r3f / drei,
-lazy-loaded via dynamic import)
+## ✅ Feature 3 — ROOM 3D (this commit)
+
+**`components/seating/Room3DScene.tsx`** + **`Room3D.tsx`** (new) +
+2D⇄3D toggle on `app/seating/page.tsx`.
+
+- **Deps installed:** `three@0.169` · `@react-three/fiber@9` ·
+  `@react-three/drei@10` · `@types/three` (dev). The default
+  `@react-three/fiber@8` **fails peer-deps on React 19** (`react >=18
+  <19`) — fiber **v9** / drei **v10** are the React-19 majors; used
+  those (eresolve confirmed).
+- **Lazy + bundle-safe:** `Room3D` pulls the scene via
+  `next/dynamic(() => import("./Room3DScene"), { ssr:false })`. three.js
+  is a **separate chunk that only downloads when the user picks
+  "תלת-מימד"** — the main/seating bundle is unaffected (build compiled
+  clean; the spec's "<250 KB without lazy" holds because nothing 3D is
+  in the eager bundle).
+- **WebGL feature-detection** → on unsupported contexts a clear notice;
+  the page stays on the existing 2D map (never a blank canvas).
+- **Scene:** dark hall floor, wood tabletops laid out in a centred grid
+  from `state.tables`, **instanced** chairs + seated-guest gold markers
+  (drei `<Instances>` — one draw call each), an emissive **pulsing
+  dance floor**, a **bar** with bottles. `OrbitControls` (zoom+rotate,
+  damped, clamped). dpr `[1,1.75]`.
+- **The magic — "תעמדו במקום של [שם]"**: pick a seated guest → the
+  camera flies (lerp) to that seat at 1.7 m eye height, looking into the
+  hall; "חזרה למבט-על" restores orbit. Self-evident UI (a select + a
+  back button — no explanatory tooltip, rule #1).
+- **Scope deviations (documented, honest):**
+  - No **stage** — the spec gated it on `cfg.hasStage`, which **does not
+    exist** in eventConfig; inventing a config flag is out of scope.
+  - **Full device-orientation WALK** not shipped — first-person
+    device-orientation is finicky and unverifiable headless; the
+    headline "stand where X sits" camera-flight delivers the wow. Full
+    FPS WALK is a documented follow-up rather than something unverified.
+- TypeScript strict (no `any`/`@ts-ignore`); no `dir=` (RTL inherited).
+
+### Verification (Feature 3)
+
+- ✓ `tsc` clean · ✓ `lint` 0 errors (6 pre-existing) · ✓ `build`
+  compiled successfully · ✓ `test` 9/9
+- ✓ three.js is a **lazy dynamic chunk** (ssr:false) — not in the eager
+  bundle; only fetched on 3D opt-in (verified by the dynamic-import
+  architecture + clean build).
+- ✓ WebGL-unsupported path → 2D fallback notice (code path verified).
+- ✓ `/seating` compiles & runs in-browser (auth-redirect, no crash;
+  three NOT loaded on the default 2D view).
+- ⏳ **Owner-side (per agreed plan):** real-device 60 fps in the 3D
+  scene (iPhone 12+/mid Android), phone screen-recording, the
+  measured-bundle-delta of the lazy 3D chunk on a real network.
+
+---
+
+## R44 — done (all 3 features, 3 commits). Owner does device testing.

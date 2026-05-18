@@ -16,6 +16,8 @@
     "preinstall-check": "npm audit --omit=dev --audit-level=high || true"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "@supabase/supabase-js": "^2.105.3",
     "@tanstack/react-virtual": "^3.13.24",
     "@types/qrcode": "^1.5.6",
@@ -25,13 +27,15 @@
     "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.169.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.5",
     "tailwindcss": "^4",

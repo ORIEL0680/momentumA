@@ -32,6 +32,21 @@ ROOM 3D (3/3) — ב-commit נפרד בהמשך.
 
 ---
 
+## [R44 · 3/3] — 2026-05-18 — ROOM (תצוגת אולם תלת-מימד)
+
+תצוגת ה-Seating קיבלה מצב 3D. tsc/lint(0)/build/test(9/9) ירוקים.
+
+- חבילות חדשות: `three@0.169`, `@react-three/fiber@9`, `@react-three/drei@10`, `@types/three`. **fiber@8 נכשל ב-peer-deps על React 19** — fiber v9/drei v10 הם הגרסאות התואמות.
+- `components/seating/Room3DScene.tsx` — סצנת R3F: רצפת אולם, שולחנות עץ בגריד מ-`state.tables`, כיסאות + סמני-אורח מ-Instanced (draw call אחד לכל), רחבת ריקודים פועמת, בר עם בקבוקים, OrbitControls. **"תעמדו במקום של [שם]"** — המצלמה טסה לכיסא בגובה 1.7m ומביטה פנימה.
+- `components/seating/Room3D.tsx` — עטיפה: `next/dynamic(ssr:false)` כך ש-three.js הוא **chunk עצל שנטען רק בלחיצה על "תלת-מימד"** (ה-bundle הראשי לא מושפע); זיהוי WebGL → נפילה חזרה ל-2D הקיים.
+- `app/seating/page.tsx` — toggle מפה⇄תלת-מימד (ברירת מחדל: מפה).
+- **סטיות מתועדות:** אין במה (`cfg.hasStage` לא קיים ב-eventConfig); WALK מלא עם device-orientation נדחה (לא ניתן לאמת headless, מסוכן) — קסם ה-"עמדו במקום של" כן מומש.
+- אימות: tsc/lint/build/test ירוקים; three עצל (לא ב-bundle הראשי); /seating נטען נקי. 60fps בסצנה על מכשיר אמיתי = אצל הבעלים (מוסכם).
+
+**R44 הושלם** — 3 הפיצ'רים, 3 commits נפרדים.
+
+---
+
 ## [R43] — 2026-05-18 — צ'אט ספק↔זוג (Inbox חכם + realtime)
 
 תקשורת מובנית בין זוג לספק: צ'אט realtime per-lead, Inbox לספק עם
