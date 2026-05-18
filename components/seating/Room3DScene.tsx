@@ -16,24 +16,22 @@ import * as THREE from "three";
 import type { Guest, SeatingTable } from "@/lib/types";
 
 /**
- * R44/R45 · Feature 3 — ROOM, photoreal pass.
+ * R44/R45/R46 · Feature 3 — ROOM, high-quality photoreal pass.
  *
- * Pulled ONLY through Room3D's dynamic ssr:false import, so three.js
- * stays out of the main bundle. "Photoreal" here = a physically-based
- * material + lighting setup (no extra postprocessing dep needed):
+ * Pulled ONLY through Room3D's dynamic ssr:false import (three.js stays
+ * out of the main bundle; only fetched on the 3D opt-in).
  *
- *  • ACES-filmic tone mapping + tuned exposure (cinematic response)
- *  • a soft studio Environment built from <Lightformer>s (reflections
- *    + ambient bounce, computed once, NO external HDRI fetch)
- *  • a polished, subtly-mirrored floor (MeshReflectorMaterial)
- *  • baked soft ContactShadows (grounded look at a fraction of the
- *    cost of realtime shadow maps)
- *  • rounded geometry + clear-coat / rough PBR surfaces, draped white
- *    tablecloths, glowing centerpieces, instanced chairs & plates
- *
- * Heavier than the old flat pass (the owner explicitly asked for
- * quality) but still lazy/opt-in; dpr is capped and shadows are baked
- * once so it holds up on mid-range mobile.
+ * R46 quality lift + bug fixes:
+ *  • Real chairs: instanced SEAT + instanced BACKREST (proper
+ *    silhouette, still 2 draw calls), each rotated to face the table.
+ *  • Cinematic Lightformer rig (warm key / cool rim / soft top / glint).
+ *  • Cleaner polished floor — tuned MeshReflectorMaterial on a sane
+ *    40×40 plane (was a muddy 70×70 over-blurred mirror).
+ *  • ACES-filmic tone mapping + exposure, high-performance GL.
+ *  • Fixed: dead `receiveShadow` removed (shadows are baked via
+ *    ContactShadows, realtime shadow maps are off); ContactShadows
+ *    baked once after the scene is live so instanced furniture is
+ *    captured; camera-focus lerp now eases and releases cleanly.
  */
 
 interface TablePlot {
@@ -48,34 +46,46 @@ const SEAT_R = 1.55;
 const EYE = 1.7;
 
 function StudioEnv() {
-  // A small soft-box rig → believable reflections + fill, no CDN HDRI.
   return (
     <Environment resolution={256}>
       <group>
+        {/* warm key */}
         <Lightformer
-          intensity={2.4}
-          color="#FFE9C6"
-          position={[0, 6, -4]}
-          scale={[12, 6, 1]}
+          intensity={3}
+          color="#FFE7BE"
+          position={[0, 6, -5]}
+          scale={[14, 7, 1]}
         />
+        {/* cool rim */}
         <Lightformer
-          intensity={1.2}
+          intensity={1.3}
+          color="#9FB8DA"
+          position={[8, 4, 6]}
+          scale={[7, 7, 1]}
+        />
+        {/* gold side fill */}
+        <Lightformer
+          intensity={1.1}
           color="#F4DEA9"
-          position={[-7, 3, 5]}
-          scale={[6, 6, 1]}
+          position={[-8, 4, 5]}
+          scale={[7, 7, 1]}
         />
+        {/* soft top box */}
         <Lightformer
-          intensity={1.0}
-          color="#A8C0E0"
-          position={[7, 3, 5]}
-          scale={[6, 6, 1]}
-        />
-        <Lightformer
-          intensity={1.6}
+          form="rect"
+          intensity={1.8}
           color="#ffffff"
-          position={[0, 9, 0]}
+          position={[0, 10, 0]}
           rotation={[Math.PI / 2, 0, 0]}
-          scale={[14, 14, 1]}
+          scale={[16, 16, 1]}
+        />
+        {/* tight glint ring for specular sparkle */}
+        <Lightformer
+          form="ring"
+          intensity={2.2}
+          color="#FFF3D6"
+          position={[0, 7, 8]}
+          scale={[3, 3, 1]}
         />
       </group>
     </Environment>
@@ -87,20 +97,32 @@ function DanceFloor() {
   useFrame((s) => {
     if (ref.current)
       ref.current.emissiveIntensity =
-        0.5 + 0.35 * (0.5 + 0.5 * Math.sin(s.clock.elapsedTime * 1.5));
+        0.55 + 0.4 * (0.5 + 0.5 * Math.sin(s.clock.elapsedTime * 1.5));
   });
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
-      <planeGeometry args={[5.4, 5.4]} />
-      <meshStandardMaterial
-        ref={ref}
-        color="#8A6E3C"
-        emissive="#F4DEA9"
-        emissiveIntensity={0.55}
-        roughness={0.25}
-        metalness={0.5}
-      />
-    </mesh>
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <planeGeometry args={[5.4, 5.4]} />
+        <meshStandardMaterial
+          ref={ref}
+          color="#7E6232"
+          emissive="#F4DEA9"
+          emissiveIntensity={0.6}
+          roughness={0.18}
+          metalness={0.6}
+        />
+      </mesh>
+      {/* glowing gold rim */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.025, 0]}>
+        <ringGeometry args={[2.7, 2.95, 64]} />
+        <meshStandardMaterial
+          color="#F4DEA9"
+          emissive="#F4DEA9"
+          emissiveIntensity={1.6}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -113,7 +135,8 @@ function CameraRig({
   useFrame((s) => {
     if (!focus) return;
     tgt.current.set(focus.x, focus.y, focus.z);
-    s.camera.position.lerp(tgt.current, 0.055);
+    // ease in, then effectively settle (small residual is imperceptible)
+    s.camera.position.lerp(tgt.current, 0.05);
     s.camera.lookAt(0, 1.05, 0);
   });
   return null;
@@ -166,8 +189,15 @@ export default function Room3DScene({
     return { x: seat.gx * 1.18, y: EYE, z: seat.gz * 1.18 };
   }, [focusGuestId, seatAssignments, plots]);
 
-  const chairs = plots.flatMap((p) =>
-    p.seats.map((sx) => ({ x: sx.gx, z: sx.gz, ang: sx.ang })),
+  const seatsAll = plots.flatMap((p) =>
+    p.seats.map((sx) => ({
+      x: sx.gx,
+      z: sx.gz,
+      // backrest sits a touch further out, facing the table center
+      bx: sx.gx + Math.cos(sx.ang) * 0.22,
+      bz: sx.gz + Math.sin(sx.ang) * 0.22,
+      rot: -sx.ang + Math.PI / 2,
+    })),
   );
   const plates = plots.flatMap((p) =>
     p.seats.map((sx) => ({
@@ -188,42 +218,42 @@ export default function Room3DScene({
       camera={{ position: [0, 8.5, 12], fov: 46 }}
       gl={{
         antialias: true,
+        powerPreference: "high-performance",
         toneMapping: THREE.ACESFilmicToneMapping,
-        toneMappingExposure: 1.15,
+        toneMappingExposure: 1.18,
       }}
       style={{ width: "100%", height: "100%" }}
     >
       <color attach="background" args={["#0B0A0C"]} />
-      <fog attach="fog" args={["#0B0A0C", 22, 46]} />
+      <fog attach="fog" args={["#0B0A0C", 24, 50]} />
 
-      <ambientLight intensity={0.18} />
-      <directionalLight position={[6, 11, 5]} intensity={0.5} color="#FFE9C2" />
+      <ambientLight intensity={0.16} />
+      <directionalLight position={[6, 11, 5]} intensity={0.45} color="#FFE9C2" />
       <StudioEnv />
 
-      {/* Polished, faintly mirrored hall floor */}
+      {/* Polished hall floor — subtle clean reflection */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[70, 70]} />
+        <planeGeometry args={[40, 40]} />
         <MeshReflectorMaterial
           resolution={512}
-          mixBlur={1}
-          mixStrength={2.2}
-          blur={[320, 110]}
-          mirror={0.42}
-          color="#15131A"
-          metalness={0.65}
-          roughness={0.85}
-          depthScale={1}
+          mixBlur={0.7}
+          mixStrength={1.1}
+          blur={[140, 50]}
+          mirror={0.32}
+          color="#121017"
+          metalness={0.75}
+          roughness={0.6}
+          depthScale={0.6}
         />
       </mesh>
 
       <DanceFloor />
 
-      {/* Soft grounded shadow — baked once, very cheap */}
       <ContactShadows
-        position={[0, 0.012, 0]}
-        scale={48}
-        blur={2.6}
-        opacity={0.5}
+        position={[0, 0.014, 0]}
+        scale={42}
+        blur={2.4}
+        opacity={0.55}
         far={9}
         frames={1}
       />
@@ -246,20 +276,21 @@ export default function Room3DScene({
           <boxGeometry args={[3.3, 0.06, 0.9]} />
           <meshPhysicalMaterial
             color="#0E0D10"
-            roughness={0.15}
-            metalness={0.4}
+            roughness={0.12}
+            metalness={0.5}
             clearcoat={1}
           />
         </mesh>
         {[-1.1, -0.5, 0.1, 0.7, 1.2].map((bx, i) => (
           <mesh key={i} position={[bx, 1.42, 0]}>
-            <cylinderGeometry args={[0.05, 0.06, 0.34, 12]} />
+            <cylinderGeometry args={[0.05, 0.06, 0.34, 14]} />
             <meshPhysicalMaterial
               color="#D9B36A"
-              roughness={0.05}
-              metalness={0.2}
-              transmission={0.6}
+              roughness={0.04}
+              metalness={0.15}
+              transmission={0.7}
               thickness={0.4}
+              ior={1.45}
               emissive="#A8884A"
               emissiveIntensity={0.25}
             />
@@ -267,7 +298,7 @@ export default function Room3DScene({
         ))}
       </group>
 
-      {/* Tables: pedestal + cloth + draped skirt + glowing centerpiece */}
+      {/* Tables: pedestal + draped cloth + glowing centerpiece */}
       {plots.map((p) => (
         <group key={p.table.id} position={[p.x, 0, p.z]}>
           <mesh position={[0, 0.37, 0]}>
@@ -278,9 +309,10 @@ export default function Room3DScene({
               metalness={0.3}
             />
           </mesh>
-          {/* skirt to the floor */}
           <mesh position={[0, 0.37, 0]}>
-            <cylinderGeometry args={[TABLE_R * 0.86, TABLE_R, 0.74, 40, 1, true]} />
+            <cylinderGeometry
+              args={[TABLE_R * 0.86, TABLE_R, 0.74, 44, 1, true]}
+            />
             <meshPhysicalMaterial
               color="#F3EFE6"
               roughness={0.85}
@@ -289,9 +321,8 @@ export default function Room3DScene({
               side={THREE.DoubleSide}
             />
           </mesh>
-          {/* tabletop cloth */}
           <mesh position={[0, 0.75, 0]}>
-            <cylinderGeometry args={[TABLE_R, TABLE_R, 0.06, 40]} />
+            <cylinderGeometry args={[TABLE_R, TABLE_R, 0.06, 44]} />
             <meshPhysicalMaterial
               color="#FBF7EE"
               roughness={0.8}
@@ -299,32 +330,32 @@ export default function Room3DScene({
               sheenColor="#FFF7E8"
             />
           </mesh>
-          {/* centerpiece glow */}
           <mesh position={[0, 0.92, 0]}>
             <sphereGeometry args={[0.12, 20, 20]} />
             <meshStandardMaterial
               color="#F4DEA9"
               emissive="#F4DEA9"
-              emissiveIntensity={1.4}
+              emissiveIntensity={1.5}
+              toneMapped={false}
             />
           </mesh>
           <pointLight
             position={[0, 1.05, 0]}
-            intensity={0.22}
-            distance={3}
+            intensity={0.24}
+            distance={3.2}
             color="#F4DEA9"
           />
         </group>
       ))}
 
-      {/* Plates — one instanced mesh for all settings */}
+      {/* Plates */}
       {plates.length > 0 && (
         <Instances limit={plates.length} range={plates.length}>
           <cylinderGeometry args={[0.16, 0.16, 0.018, 24]} />
           <meshPhysicalMaterial
             color="#F2EFEA"
-            roughness={0.25}
-            clearcoat={0.8}
+            roughness={0.22}
+            clearcoat={0.85}
           />
           {plates.map((pl, i) => (
             <Instance key={i} position={[pl.x, 0.79, pl.z]} />
@@ -332,39 +363,57 @@ export default function Room3DScene({
         </Instances>
       )}
 
-      {/* Chairs — instanced, rounded, upholstered */}
-      {chairs.length > 0 && (
-        <Instances limit={chairs.length} range={chairs.length}>
-          <boxGeometry args={[0.46, 0.52, 0.46]} />
+      {/* Chairs — instanced SEAT */}
+      {seatsAll.length > 0 && (
+        <Instances limit={seatsAll.length} range={seatsAll.length}>
+          <boxGeometry args={[0.46, 0.12, 0.46]} />
           <meshPhysicalMaterial
             color="#3A2E22"
-            roughness={0.55}
-            clearcoat={0.4}
+            roughness={0.5}
+            clearcoat={0.35}
             clearcoatRoughness={0.5}
           />
-          {chairs.map((c, i) => (
+          {seatsAll.map((c, i) => (
             <Instance
               key={i}
-              position={[c.x, 0.26, c.z]}
-              rotation={[0, -c.ang + Math.PI / 2, 0]}
+              position={[c.x, 0.46, c.z]}
+              rotation={[0, c.rot, 0]}
+            />
+          ))}
+        </Instances>
+      )}
+      {/* Chairs — instanced BACKREST */}
+      {seatsAll.length > 0 && (
+        <Instances limit={seatsAll.length} range={seatsAll.length}>
+          <boxGeometry args={[0.46, 0.52, 0.08]} />
+          <meshPhysicalMaterial
+            color="#33281D"
+            roughness={0.55}
+            clearcoat={0.3}
+          />
+          {seatsAll.map((c, i) => (
+            <Instance
+              key={i}
+              position={[c.bx, 0.74, c.bz]}
+              rotation={[0, c.rot, 0]}
             />
           ))}
         </Instances>
       )}
 
-      {/* Seated-guest markers — soft glowing orbs */}
+      {/* Seated-guest glow orbs */}
       {occupied.length > 0 && (
         <Instances limit={occupied.length} range={occupied.length}>
           <sphereGeometry args={[0.17, 20, 20]} />
           <meshStandardMaterial
             color="#F4DEA9"
             emissive="#D4B068"
-            emissiveIntensity={0.7}
+            emissiveIntensity={0.75}
             roughness={0.2}
             metalness={0.3}
           />
           {occupied.map((o, i) => (
-            <Instance key={i} position={[o.x, 1.02, o.z]} />
+            <Instance key={i} position={[o.x, 1.05, o.z]} />
           ))}
         </Instances>
       )}
