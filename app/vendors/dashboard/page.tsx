@@ -22,6 +22,7 @@ import {
   Clock,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { VendorInboxCard } from "@/components/chat/VendorInboxCard";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
 import { VendorNav } from "@/components/vendors/VendorNav";
@@ -420,6 +421,9 @@ export default function VendorDashboardPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-5 pt-6 space-y-6">
+        {/* R43 — vendor chat inbox entry (unread count). */}
+        <VendorInboxCard />
+
         {/* R18 §I — fresh-vendor onboarding banner. */}
         {isFreshVendor && publicUrl && (
           <section

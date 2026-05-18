@@ -4,6 +4,25 @@
 
 ---
 
+## [R43] — 2026-05-18 — צ'אט ספק↔זוג (Inbox חכם + realtime)
+
+תקשורת מובנית בין זוג לספק: צ'אט realtime per-lead, Inbox לספק עם
+הצעות תשובה מ-AI. tsc/lint(0)/build(51 ראוטים, 4 חדשים)/test(9/9)
+ירוקים. ה-migration כבר רצה אצל הבעלים בנקודת הביקורת.
+
+### נוסף
+- migration `vendor_chat_messages` (RLS דו-צדדי, טריגר 20/lead/שעה, realtime).
+- `/api/chat/send` (Bearer, RLS-authorized, rate-limit, SMS best-effort), `lib/useVendorChat.ts` (realtime + cleanup קפדני).
+- `ChatWindow` (בועות, ✓/✓✓, realtime), `VendorChatLauncher` ב-`/vendor/[slug]` (מסתתר אם אין lead פעיל).
+- `/vendors/dashboard/inbox` split-view (סיכום AI, badge, urgency 🟢/🟡/🔴) + Smart-Reply (3 הצעות AI, cache per-message), כרטיס Inbox בדשבורד.
+- `/api/ai/chat-assist` (summary/tags/urgency, ספאם→נקרא) + `/api/ai/smart-replies` — fail-soft, rate-limit 50/יום.
+- `ChatBell` בכותרת — מונה הודעות שלא נקראו (fail-soft, realtime).
+
+### הערה
+SMS couple→vendor נדחה: טלפון הספק ב-vendor_landings חסום ל-RLS של הזוג (היה צריך RPC = מיגרציה ידנית נוספת). vendor→couple עובד; הפיד החי + ה-badge הם ההתראה לכיוון השני. מתועד.
+
+---
+
 ## [R42] — 2026-05-18 — דף נחיתה יוקרתי + מחירי השקה (₪99 / ₪199)
 
 דף הבית עוצב מחדש מהיסוד כדף מכירה: hook → כאב → פתרון → mockup →

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchVendorBySlug, getVendorPhotoUrl } from "@/lib/vendorStudio";
 import { jsonLdSafe } from "@/lib/jsonLdSafe";
 import { VendorLandingClient } from "@/components/vendor-studio/VendorLandingClient";
+import { VendorChatLauncher } from "@/components/chat/VendorChatLauncher";
 
 /**
  * R20 Phase 9 — public vendor landing page.
@@ -155,6 +156,8 @@ export default async function VendorLandingPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: jsonLdSafe(jsonLd) }}
       />
       <VendorLandingClient vendor={vendor} />
+      {/* R43 — couple chat entry; self-hides unless an active lead exists. */}
+      <VendorChatLauncher slug={slug} />
     </>
   );
 }

@@ -13,6 +13,7 @@ import { useIsAdmin } from "@/lib/useIsAdmin";
 import { useVendorContext } from "@/lib/useVendorContext";
 import { UpgradePlanModal } from "./UpgradePlanModal";
 import { EventSwitcher } from "./EventSwitcher";
+import { ChatBell } from "./chat/ChatBell";
 import { eventSlots } from "@/lib/eventSlots";
 import { HEADER_NAV } from "@/lib/navigation";
 import { useAppState } from "@/lib/store";
@@ -136,6 +137,7 @@ export function Header() {
         <div className="hidden md:flex items-center gap-2">
           {isAdmin && <AdminBadge />}
           {isVendor && <VendorBadge />}
+          <ChatBell />
           <EventSwitcher />
           <SyncBadge status={syncStatus} />
 
