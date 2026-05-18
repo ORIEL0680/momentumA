@@ -51,6 +51,52 @@ count-up in the dashboard hero with an evolving gold spark.
 
 ---
 
-## ⏳ Feature 2 — TIME SPIRAL — next commit
-## ⏳ Feature 3 — ROOM 3D — next commit (will add three / r3f / drei,
+## ✅ Feature 2 — TIME SPIRAL (this commit)
+
+**`components/dashboard/TimeSpiral.tsx`** (new) — replaces the linear
+JourneyPath in the dashboard with a spiral of time.
+
+- SVG `viewBox 600×600`, today at the centre, ~18 months unfurling
+  **counter-clockwise** over 3 turns; a faint guide-spiral path so dots
+  read as "on the line".
+- Data = `state.checklist` (`ChecklistItem` with `dueDate`/`done`/
+  `phase` — the only *dated* task data; journey steps have no dates).
+  Tasks with no `dueDate` fall back to the phase midpoint via
+  `PHASE_WINDOWS`. Dot radius: critical (אולם/קייטרינג/צלם/…)=11 else 6;
+  fill: done `#F4DEA9` · urgent (≤14d, open) `#EF6767` · open `#4A4A4A`.
+  Hover → CSS scale 1.3 + a `<title>` data tooltip (task + status —
+  informational, not a how-to, per rule #1).
+- **Unified Pointer Events** (no separate mouse/touch): 2-pointer
+  pinch-zoom (0.5–3×) + 1-pointer drag-to-rotate around centre + wheel
+  zoom; `touch-action:none`. framer-motion `useSpring` smooths
+  scale/rotate (no new dep — framer-motion already installed).
+- At ≥80% done → gold `feDropShadow` glow on the whole spiral group.
+- **Reconciliation (documented):** the spec said "make JourneyPath the
+  fallback", but JourneyPath renders high-level *journey steps*, not the
+  dated *checklist* the spiral plots. Forcing it would be the wrong data
+  shape. So the honest a11y / `prefers-reduced-motion` fallback is a
+  built-in **date-ordered `<ol>`** of every task with full
+  `aria-label`s (title · status · due date). `useReducedMotion()` is the
+  robust signal (no fake "a11y-tools detector"). JourneyPath stays in
+  the repo (still a valid component), just no longer dashboard-rendered;
+  its dashboard import was removed (lint-clean).
+- `Date.now()` would trip `react-hooks/purity` inside `useMemo` → uses
+  the shared `useNow()` hook; a calm placeholder renders until it
+  resolves (no Date.now in render). `now==null` guard is after all hooks.
+- TypeScript strict (no `any`/`@ts-ignore`); no `dir=` (RTL inherited).
+
+### Verification (Feature 2)
+
+- ✓ `tsc` clean · ✓ `lint` 0 errors (6 pre-existing) · ✓ `build`
+  compiled · ✓ `test` 9/9
+- ✓ **No new dependency** (framer-motion already in package.json) →
+  bundle delta ≈ one component.
+- ✓ reduced-motion path is a separate non-motion render branch (verified
+  via `useReducedMotion()` + code path).
+- ✓ `/dashboard` compiles & runs in-browser (auth-redirect, no crash).
+- ⏳ Owner-side: real-device 60 fps pinch/drag, phone recording.
+
+---
+
+## ⏳ Feature 3 — ROOM 3D — next commit (adds three / r3f / drei,
 lazy-loaded via dynamic import)
