@@ -47,6 +47,21 @@ ROOM 3D (3/3) — ב-commit נפרד בהמשך.
 
 ---
 
+## [R48] — 2026-05-18 — סריקת תקלת 3D + הקשחה
+
+הבעלים דיווח על תקלה בתלת-מימד. ה-3D עולה רק מאחורי auth+אירוע+opt-in
+(לא ניתן לשחזר headless) — סרקתי את צינור R47 והקשחתי את החשודים +
+רשת ביטחון גורפת. tsc/lint(0)/build/test(9/9) ירוקים.
+
+- **חשוד #1 שתוקן:** `Environment preset="sunset"` מושך HDRI מ-CDN בזמן ריצה ו-suspends עליו — כשל רשת/CDN חסום זורק בתוך Suspense ללא fallback ⇒ כל ה-Canvas נופל. הוחזר ל-rig של `<Lightformer>` בתוך הסצנה (כמו R45/R46 שעבד) — אותה תחושת HDR חם, אפס רשת.
+- **רשת ביטחון (התיקון האמיתי):** `Room3D` עוטף עכשיו את הסצנה הדינמית ב-`<ErrorBoundary>` עם fallback נקי — **כל** תקלת runtime ב-three/drei/pp/camera-controls יורדת בחן במקום לשבור את העמוד; toggle ה-2D נשאר עובד.
+- intro עכשיו כולו `setLookAt` דטרמיניסטי (הוסר `.rotate()` מ-top-down שגורם gimbal/NaN ב-camera-controls).
+- `ChromaticAberration offset` עכשיו `THREE.Vector2` אמיתי (tuple עלול לשבור את ה-pass ב-pp v3 בזמן ריצה).
+
+אומת: tsc/lint/build/test ירוקים; הצ'אנקים נשארים lazy; /seating נטען נקי. אישור סופי שהתקלה נעלמה = במכשיר (ה-ErrorBoundary מבטיח שגם אם משהו אחר ייכשל ב-GPU מסוים — האפליקציה כבר לא נשברת).
+
+---
+
 ## [R47 / R44.5] — 2026-05-18 — ROOM 3D ברמת Apple-Maps-Flyover
 
 לבקשת הבעלים — קפיצת רמה ויזואלית ("שפר את הקיים, אל תוסיף פיצ'רים").

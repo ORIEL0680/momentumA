@@ -6,6 +6,7 @@ import {
   Instances,
   Instance,
   Environment,
+  Lightformer,
   SoftShadows,
   CameraControls,
   PerformanceMonitor,
@@ -105,14 +106,17 @@ function Rig({
 
     (async () => {
       try {
-        c.setLookAt(0, 13, 0.01, 0, 0, 0, false);
-        // 0–2s slow top rotation
-        await c.rotate(Math.PI * 0.5, 0, true);
+        // R48 — all deterministic setLookAt (was `.rotate()` from a
+        // perfectly top-down pose, which gimbals/NaNs the azimuth in
+        // camera-controls). Tiny offsets keep us off the exact pole.
+        c.setLookAt(0.01, 14, 0.01, 0, 0, 0, false);
+        // 0–2s: high orbit-in from above
+        await c.setLookAt(6, 11, 6, 0, 0, 0, true);
         if (cancelled || introDone.current) return;
-        // 2–4s descend toward the dance floor
-        await c.setLookAt(2, 4, 5, 0, 0.5, 0, true);
+        // 2–4s: descend toward the dance floor
+        await c.setLookAt(3, 4.5, 6, 0, 0.5, 0, true);
         if (cancelled || introDone.current) return;
-        // 4–6s settle into a three-quarter hero angle
+        // 4–6s: settle into the three-quarter hero angle
         await c.setLookAt(7.5, 4, 8.5, 0, 0.8, 0, true);
       } catch {
         /* controls torn down mid-flight — fine */
@@ -226,7 +230,47 @@ function Scene({
         onIncline={() => onPerfChange(false)}
       />
       <SoftShadows size={25} samples={16} />
-      <Environment preset="sunset" background={false} />
+      {/* R48 — was Environment preset="sunset", which fetches an HDRI
+          from a CDN at runtime (Suspense + network failure = the "3D
+          fault" with no fallback). Back to a deterministic in-scene
+          Lightformer studio rig: same warm HDR feel, zero network. */}
+      <Environment resolution={256}>
+        <group>
+          <Lightformer
+            intensity={3}
+            color="#FFE7BE"
+            position={[0, 6, -5]}
+            scale={[14, 7, 1]}
+          />
+          <Lightformer
+            intensity={1.3}
+            color="#9FB8DA"
+            position={[8, 4, 6]}
+            scale={[7, 7, 1]}
+          />
+          <Lightformer
+            intensity={1.1}
+            color="#F4DEA9"
+            position={[-8, 4, 5]}
+            scale={[7, 7, 1]}
+          />
+          <Lightformer
+            form="rect"
+            intensity={1.8}
+            color="#ffffff"
+            position={[0, 10, 0]}
+            rotation={[Math.PI / 2, 0, 0]}
+            scale={[16, 16, 1]}
+          />
+          <Lightformer
+            form="ring"
+            intensity={2.2}
+            color="#FFF3D6"
+            position={[0, 7, 8]}
+            scale={[3, 3, 1]}
+          />
+        </group>
+      </Environment>
 
       <spotLight
         position={[0, 6, 0]}
@@ -399,7 +443,9 @@ function Scene({
             mipmapBlur
           />
           <Vignette eskil={false} offset={0.1} darkness={0.45} />
-          <ChromaticAberration offset={[0.0005, 0.0005]} />
+          <ChromaticAberration
+            offset={new THREE.Vector2(0.0005, 0.0005)}
+          />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
         </EffectComposer>
       )}

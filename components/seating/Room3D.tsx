@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import type { Guest, SeatingTable } from "@/lib/types";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 /**
  * R44 · Feature 3 — ROOM 3D lazy wrapper.
@@ -83,12 +84,32 @@ export function Room3D({
           background: "#0A0A0B",
         }}
       >
-        <Room3DScene
-          tables={tables}
-          guests={guests}
-          seatAssignments={seatAssignments}
-          focusGuestId={focusGuestId}
-        />
+        {/* R48 — any runtime fault in three/drei/postprocessing/
+            camera-controls (shader compile, lost context, HDRI, etc.)
+            degrades to a clear notice instead of breaking the view.
+            The 2D map toggle on the page stays fully usable. */}
+        <ErrorBoundary
+          fallback={
+            <div className="h-full flex items-center justify-center p-8 text-center">
+              <div>
+                <p className="font-semibold">תצוגת ה-3D נתקלה בבעיה</p>
+                <p
+                  className="mt-2 text-sm"
+                  style={{ color: "var(--foreground-soft)" }}
+                >
+                  חזרו לתצוגת &quot;מפה&quot; — הכול עובד שם כרגיל.
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <Room3DScene
+            tables={tables}
+            guests={guests}
+            seatAssignments={seatAssignments}
+            focusGuestId={focusGuestId}
+          />
+        </ErrorBoundary>
       </div>
 
       {seated.length > 0 && (
