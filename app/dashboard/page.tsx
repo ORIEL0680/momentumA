@@ -13,7 +13,7 @@ import { useNow, daysUntil } from "@/lib/useNow";
 import { LiveModeCTA } from "@/components/LiveModeCTA";
 import { InvitationActivityCard } from "@/components/dashboard/InvitationActivityCard";
 import { IntimateHero } from "@/components/dashboard/IntimateHero";
-import { TimeSpiral } from "@/components/dashboard/TimeSpiral";
+import { JourneyPath } from "@/components/dashboard/JourneyPath";
 import {
   ArrowLeft,
   Users,
@@ -128,10 +128,12 @@ function DashboardInner() {
 
           <TodayCard state={state} daysLeft={daysLeft} />
 
-          {/* R44 §2 — TIME SPIRAL replaces the linear JourneyPath
-              (kept in the repo as a component, no longer rendered here;
-              the spiral's own reduced-motion branch is the a11y list). */}
-          <TimeSpiral checklist={state.checklist} eventDate={event.date} />
+          {/* R45 — TIME SPIRAL removed per owner; back to the linear
+              JourneyPath. */}
+          <JourneyPath
+            steps={getJourneyForState(state)}
+            progress={progress}
+          />
 
           <LiveModeCTA daysLeft={daysLeft} />
 

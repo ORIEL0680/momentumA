@@ -47,6 +47,19 @@ ROOM 3D (3/3) — ב-commit נפרד בהמשך.
 
 ---
 
+## [R45] — 2026-05-18 — ביטול TIME SPIRAL + ROOM 3D פוטוריאליסטי
+
+לבקשת הבעלים: פיצ'ר 2 (TIME SPIRAL) בוטל לגמרי; פיצ'ר 3 (ROOM 3D) שודרג
+לאיכות פוטוריאליסטית. tsc/lint(0)/build/test(9/9) ירוקים. ללא תלות
+חדשה, ללא מיגרציה.
+
+- **בוטל TIME SPIRAL:** `components/dashboard/TimeSpiral.tsx` נמחק; הדשבורד הוחזר ל-`JourneyPath` הליניארי (הרכיב נשמר ב-repo — שחזור נקי). אין אזכורים שנותרו.
+- **ROOM 3D פוטוריאליסטי** (`Room3DScene.tsx` נכתב מחדש, עדיין lazy מאחורי `dynamic(ssr:false)` — three.js לא ב-bundle הראשי): ACES tone mapping + exposure, Environment מ-`<Lightformer>` (השתקפויות+מילוי, ללא HDRI חיצוני), רצפה מלוטשת ממוראת (`MeshReflectorMaterial`), `ContactShadows` רכים אפויים, חומרי PBR (בר clear-coat, בקבוקי זכוכית transmission, מפות שולחן לבנות עם sheen, פוסטמנטים, centerpiece זוהר + point-light), צלחות+כיסאות מסובבים Instanced, רחבת ריקודים פועמת, ערפל לעומק. נשמר: instancing, dpr `[1,2]`, OrbitControls, וקסם **"תעמדו במקום של [שם]"**.
+- סטיות (כמו R44): אין במה (`cfg.hasStage` לא קיים); WALK עם device-orientation נדחה.
+- אימות: tsc/lint/build/test ירוקים; אפס deps חדשים; three נשאר lazy; /dashboard ו-/seating נטענים נקי. 60fps בסצנה הפוטוריאליסטית על מכשיר אמיתי = אצל הבעלים (מוסכם).
+
+---
+
 ## [R43] — 2026-05-18 — צ'אט ספק↔זוג (Inbox חכם + realtime)
 
 תקשורת מובנית בין זוג לספק: צ'אט realtime per-lead, Inbox לספק עם
