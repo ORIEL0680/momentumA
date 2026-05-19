@@ -237,23 +237,36 @@ function Scene({
   const orbs = plots.flatMap((p) =>
     p.seats.filter((sx) => sx.taken).map((sx) => ({ x: sx.gx, z: sx.gz })),
   );
-  // Per-seat guest-name labels (occupied seats only — visually correct
-  // and bounds the troika Text count to the guest list, not all
-  // chairs). Hard cap for extreme events so a 600-guest hall can't
-  // tank the GPU with text meshes.
-  const nameLabels =
-    orbs.length > 400
-      ? []
-      : plots.flatMap((p) =>
-          p.seats
-            .filter((sx) => sx.name)
-            .map((sx) => ({
-              key: `${p.table.id}-${sx.ang.toFixed(3)}`,
-              x: sx.gx,
-              z: sx.gz,
-              name: sx.name as string,
-            })),
-        );
+  // R51 — THE real "stuck on a long loading screen" cause: R49
+  // rendered a Hebrew troika SDF <Text> (in a per-frame <Billboard>)
+  // for EVERY occupied seat. A 150–400-guest hall = hundreds of SDF
+  // text meshes whose layout/shaping froze the main thread for
+  // seconds. It's a freeze, not an error, and `onReady`-on-mount
+  // cancelled the R50 watchdog *before* the stall — so it persisted.
+  //
+  // Fix: guest-name labels render ONLY for the focused table (≤ one
+  // tableful, ~12 max). At initial load there is no focus → ZERO name
+  // labels → no freeze. Table NUMBERS still show for every table
+  // (cheap: digits, ≈#tables). Pick "תעמדו במקום של…" to reveal a
+  // table's names. Rendering every guest's Hebrew SDF label at once
+  // simply isn't feasible at interactive rates — this is the correct
+  // bound, not a regression of intent.
+  type Label = { key: string; x: number; z: number; name: string };
+  let nameLabels: Label[] = [];
+  if (focusGuestId) {
+    const tid = seatAssignments[focusGuestId];
+    const fp = tid ? plots.find((pl) => pl.table.id === tid) : null;
+    if (fp) {
+      nameLabels = fp.seats
+        .filter((sx) => sx.name)
+        .map((sx) => ({
+          key: `${fp.table.id}-${sx.ang.toFixed(3)}`,
+          x: sx.gx,
+          z: sx.gz,
+          name: sx.name as string,
+        }));
+    }
+  }
 
   return (
     <>
