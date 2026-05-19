@@ -176,8 +176,22 @@ function OnboardingInner() {
         return !!date;
       case 2:
         return !!region;
-      case 3:
-        return !!budgetTotal && !!guestEstimate;
+      case 3: {
+        // R50-1 — "" / "0" / "-5" / "abc" all used to pass (!!"0" is
+        // true), persisting guestEstimate:0 → divide-by-zero in every
+        // per-guest calculation (balance avg, seating, cost). Require
+        // sane positive numbers; whole guests, 1..5000.
+        const b = Number(budgetTotal);
+        const g = Number(guestEstimate);
+        return (
+          Number.isFinite(b) &&
+          b > 0 &&
+          b <= 100_000_000 &&
+          Number.isInteger(g) &&
+          g >= 1 &&
+          g <= 5000
+        );
+      }
       default:
         return false;
     }
@@ -188,6 +202,20 @@ function OnboardingInner() {
     // Defense in depth: canNext should already block this, but never persist
     // a minor event without guardian consent.
     if (MINOR_EVENT_TYPES.includes(type) && !guardianConsent) return;
+    // R50-1 — defense in depth: never persist a non-positive / NaN
+    // budget or guest count (canNext already blocks the UI path).
+    const bNum = Number(budgetTotal);
+    const gNum = Number(guestEstimate);
+    if (
+      !Number.isFinite(bNum) ||
+      bNum <= 0 ||
+      bNum > 100_000_000 ||
+      !Number.isInteger(gNum) ||
+      gNum < 1 ||
+      gNum > 5000
+    ) {
+      return;
+    }
     const existing = state.event;
     // Preserve a prior consent timestamp on edit; otherwise stamp now.
     const consentRecord = MINOR_EVENT_TYPES.includes(type)
