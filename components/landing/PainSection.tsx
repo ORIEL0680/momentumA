@@ -61,7 +61,7 @@ export function PainSection() {
         >
           זה לא אתם.{" "}
           <span className="gradient-gold">
-            זה המוצרים שזורקים עליכם 12 כלים לעבודה אחת.
+            זאת המציאות של 12 כלים שלא מדברים אחד עם השני.
           </span>
         </p>
       </div>

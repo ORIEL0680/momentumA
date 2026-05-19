@@ -4,6 +4,27 @@
 
 ---
 
+## [R58] — 2026-05-19 — שכתוב מלא של עמוד הנחיתה (קופי + פיצ׳רים + יוקרה)
+
+ממש את ה-spec "R48" (R48 תפוס → R58 ברצף). tsc/lint(0)/build/
+test(75/75) ירוקים. ללא תלות חדשה, ללא מיגרציה. כל הסקציות Server
+Components, אפס תמונות חיצוניות (CSS/SVG inline).
+
+- **קופי קריטי:** הוסרו כל "ללא/בלי כרטיס אשראי" / "ללא חתימת אשראי לחינם" (Stripe רק Q3 2026 — טענה מטעה) → "התחלה חינמית · ללא התחייבות". (`Hero`, `PricingSection`, `FinalCTA`)
+- **עברית/אחידות:** וואצפ→וואטסאפ; כל ה-CTAs ללשון רבים (התחל→התחילו); נוסחו מחדש Pain/Solution/HonestStats/FinalCTA לפי ה-spec.
+- `components/landing/FeatureGrid.tsx` (חדש) — 12 פיצ׳רים, grid 1/2/3, צ׳יפ אייקון זהב (color-mix על `--gold-100`), hover lift+glow.
+- `components/landing/AppShowcase.tsx` (שכתוב) — 3 mockup-טלפונים CSS (דשבורד/מוזמנים/Live), notch, gold reflection, רקע נקודות-זהב, 6 callouts עם SVG connector.
+- `components/landing/TrustSection.tsx` (חדש) — "תשתית של בנק. חוויה של רויאלטי." + 3 עמודי אבטחה/תשתית/תמיכה.
+- `FAQ` — 2 ניסוחים תוקנו + 4 שאלות חדשות (סוגי אירועים, פרטיות, PWA/native, 100 הראשונים).
+- `Hero` — badge "Israeli Startup", 2 orbs עדינים (rose/emerald 0.15), social-proof (4 avatars + 27 זוגות), h1 → `gradient-gold-shimmer`.
+- `PricingSection` — "73 מקומות נשארו מתוך 100", שורת "מאובטח על ידי:" (Supabase/Twilio/OpenAI/Vercel, font-mono), trust-row → ביטול/החזר/תמיכה אנושית.
+- `app/globals.css` — `@keyframes goldShimmer` + `.gradient-gold-shimmer` (טוקני `--gold-*`, reduced-motion→static, נוסף ל-print override); `.glow-orb-rose`/`.glow-orb-emerald`.
+- `app/page.tsx` — FeatureGrid אחרי Solution, TrustSection אחרי Pricing.
+- **סטייה מתועדת:** AppShowcase ללא קרוסלת-JS/עיגון-פיקסל (חוק Server-Components) — 3 טלפונים בשורה (מרכזי מודגש) + connector כמוטיב SVG; הכוונה מולאה, zero-JS ויציב.
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות ב-terms, לא קשורות) · build ok · 75/75 · strict 0 any. ⏳ ביקורת ויזואלית/Lighthouse — owner-side.
+
+---
+
 ## [R57] — 2026-05-19 — תיקון אוטנטיקציה אחרי מעבר ל-moomentum.events
 
 ממש את ה-spec "R47" (R47 כבר תפוס → R57 ברצף). תיקון הבאג

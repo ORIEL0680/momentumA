@@ -295,6 +295,10 @@ body {
 .glow-orb-gold { background: radial-gradient(circle, rgba(212,176,104,0.6), transparent 70%); }
 .glow-orb-cool { background: radial-gradient(circle, rgba(80,140,200,0.5), transparent 70%); }
 .glow-orb-warm { background: radial-gradient(circle, rgba(200,80,140,0.4), transparent 70%); }
+/* R48 — soft accent orbs for the landing hero (kept very low opacity
+   inline so they read as ambience, not noise). */
+.glow-orb-rose { background: radial-gradient(circle, rgba(214,164,196,0.55), transparent 70%); }
+.glow-orb-emerald { background: radial-gradient(circle, rgba(110,180,150,0.5), transparent 70%); }
 
 /* Mesh image placeholders */
 .mesh-1 { background-color: #1a1a24; background-image: radial-gradient(at 20% 30%, #3a2a55 0, transparent 50%), radial-gradient(at 80% 70%, #553a55 0, transparent 50%); }
@@ -333,6 +337,32 @@ body {
 
 @keyframes pulse-gold { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,176,104,0.4); } 50% { box-shadow: 0 0 0 12px rgba(212,176,104,0); } }
 .pulse-gold { animation: pulse-gold 2s ease-out infinite; }
+
+/* R48 — flowing gold sheen on the two biggest headlines (Hero h1,
+   FinalCTA h2). Theme-aware: uses the --gold-* tokens, not hex, so it
+   adapts to light/dark. Falls back to a static gold gradient under
+   reduced-motion (see below) — never disappears. */
+@keyframes goldShimmer {
+  0%, 100% { background-position: -200% 0; }
+  50%      { background-position: 200% 0; }
+}
+.gradient-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--gold-100) 0%,
+    var(--gold-500) 50%,
+    var(--gold-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: goldShimmer 8s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gradient-gold-shimmer { animation: none; }
+}
 
 /* Polaroid card */
 .polaroid {
@@ -425,7 +455,7 @@ body {
     color: #18181b !important;
     page-break-inside: avoid;
   }
-  .gradient-text, .gradient-gold, .gradient-cool {
+  .gradient-text, .gradient-gold, .gradient-cool, .gradient-gold-shimmer {
     background: none !important;
     -webkit-text-fill-color: #18181b !important;
     color: #18181b !important;

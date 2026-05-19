@@ -3,8 +3,10 @@ import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { PainSection } from "@/components/landing/PainSection";
 import { SolutionSection } from "@/components/landing/SolutionSection";
+import { FeatureGrid } from "@/components/landing/FeatureGrid";
 import { AppShowcase } from "@/components/landing/AppShowcase";
 import { PricingSection } from "@/components/landing/PricingSection";
+import { TrustSection } from "@/components/landing/TrustSection";
 import { HonestStats } from "@/components/landing/HonestStats";
 import { FAQ } from "@/components/landing/FAQ";
 import { FinalCTA } from "@/components/landing/FinalCTA";
@@ -22,8 +24,10 @@ export default function LandingPage() {
         <Hero />
         <PainSection />
         <SolutionSection />
+        <FeatureGrid />
         <AppShowcase />
         <PricingSection />
+        <TrustSection />
         <HonestStats />
         <FAQ />
         <FinalCTA />

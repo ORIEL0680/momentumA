@@ -1,7 +1,7 @@
 const SOLUTIONS = [
   {
     emoji: "🎯",
-    title: "רשימת מוזמנים שמדברת עם וואצפ",
+    title: "ניהול מוזמנים מובנה ל-WhatsApp",
     body: "הזמנה אישית לכל אורח — 15 שניות לכולם. RSVP אוטומטי בלי שום תוסף. תדעו בזמן אמת מי מגיע, עם כמה אנשים, ואיך לחלק שולחנות.",
   },
   {
@@ -29,7 +29,7 @@ export function SolutionSection() {
           className="text-center font-bold"
           style={{ fontSize: "clamp(2rem, 6vw, 3rem)" }}
         >
-          <span className="gradient-gold">במקום זה — תהיו במצב הזה</span>
+          <span className="gradient-gold">במקום הכאוס — שלוש פעולות, מקום אחד</span>
         </h2>
 
         <div className="mt-14 grid gap-5 md:grid-cols-3">

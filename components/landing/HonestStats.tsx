@@ -16,7 +16,7 @@ const STATS = [
   },
   { value: "9", label: "סוגי אירועים", sub: "חתונה, בר/בת מצווה, ברית ועוד" },
   { value: "5", label: "מחשבונים חכמים", sub: "עלות-לאורח, אלכוהול, AI ועוד" },
-  { value: "100%", label: "בעברית", sub: "מכבד RTL ושבת" },
+  { value: "100%", label: "בעברית", sub: "עברית רהוטה · תמיכה אנושית" },
 ];
 
 export function HonestStats() {
@@ -57,7 +57,7 @@ export function HonestStats() {
             className="mt-9 text-sm"
             style={{ color: "var(--foreground-soft)" }}
           >
-            🚀 פלטפורמת ההשקה — הצטרפו וקבלו השפעה אישית על מה שנבנה
+            ✨ אנחנו בונים את Momentum יחד איתכם — 100 הזוגות הראשונים מקבלים שיחה אישית עם המייסד
           </p>
         </div>
       </div>

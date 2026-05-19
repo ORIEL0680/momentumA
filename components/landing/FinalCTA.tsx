@@ -11,10 +11,10 @@ export function FinalCTA() {
       />
       <div className="max-w-3xl mx-auto px-5 sm:px-8 text-center relative z-10">
         <h2
-          className="font-extrabold tracking-tight leading-[1.1] gradient-gold"
+          className="font-extrabold tracking-tight leading-[1.1] gradient-gold-shimmer"
           style={{ fontSize: "clamp(2.25rem, 7vw, 4rem)" }}
         >
-          רוצים לתכנן את האירוע — אבל לחיות אותו?
+          תכננו את האירוע. חיו את הרגעים.
         </h2>
         <p
           className="mt-6 mx-auto max-w-xl leading-relaxed"
@@ -23,7 +23,7 @@ export function FinalCTA() {
             color: "var(--foreground-soft)",
           }}
         >
-          התחילו עכשיו, בחינם. בלי כרטיס אשראי. תוך 5 דקות יש לכם אירוע מנוהל.
+          התחילו עכשיו — התחלה חינמית · ללא התחייבות. תוך 5 דקות יש לכם אירוע מנוהל.
         </p>
 
         <div className="mt-10 flex justify-center">
@@ -35,7 +35,7 @@ export function FinalCTA() {
             className="btn-gold inline-flex items-center justify-center gap-2"
             style={{ minHeight: 66, fontSize: "1.15rem", padding: "0 2.5rem" }}
           >
-            התחל את המסע
+            התחילו את המסע
             <ArrowLeft size={20} />
           </Link>
         </div>

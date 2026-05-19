@@ -64,7 +64,7 @@ export function PricingSection() {
               className="btn-secondary mt-8 w-full inline-flex items-center justify-center"
               style={{ minHeight: 52 }}
             >
-              התחל בחינם
+              התחילו בחינם
             </Link>
           </div>
 
@@ -88,7 +88,16 @@ export function PricingSection() {
             >
               🔥 השקה
             </span>
-            <div className="text-sm" style={{ color: "var(--accent)" }}>
+            <div
+              className="text-xs font-semibold"
+              style={{ color: "var(--accent)" }}
+            >
+              73 מקומות נשארו מתוך 100
+            </div>
+            <div
+              className="mt-2 text-sm"
+              style={{ color: "var(--accent)" }}
+            >
               לאירוע מושלם — חד-פעמי
             </div>
             <div className="mt-3 flex items-end gap-3">
@@ -121,7 +130,7 @@ export function PricingSection() {
               className="btn-gold mt-8 w-full inline-flex items-center justify-center"
               style={{ minHeight: 56, fontSize: "1.05rem" }}
             >
-              התחל פיילוט — ₪99
+              הצטרפו להשקה — ₪99
             </Link>
             <div
               className="mt-3 text-center text-xs"
@@ -162,7 +171,7 @@ export function PricingSection() {
               className="btn-secondary mt-8 w-full inline-flex items-center justify-center"
               style={{ minHeight: 52 }}
             >
-              הצטרפו כספק
+              פתחו דף ספק
             </Link>
           </div>
         </div>
@@ -173,7 +182,23 @@ export function PricingSection() {
         >
           <span>✓ ביטול בכל רגע</span>
           <span>✓ החזר מלא 30 יום</span>
-          <span>✓ ללא חתימת אשראי לחינם</span>
+          <span>✓ תמיכה אנושית</span>
+        </div>
+
+        {/* R48 — tech trust badges (text-only, no external assets). */}
+        <div
+          className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          <span>מאובטח על ידי:</span>
+          {["Supabase", "Twilio", "OpenAI", "Vercel"].map((name) => (
+            <span
+              key={name}
+              className="font-mono opacity-60 hover:opacity-100 transition"
+            >
+              {name}
+            </span>
+          ))}
         </div>
       </div>
     </section>

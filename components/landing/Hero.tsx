@@ -2,9 +2,10 @@ import Link from "next/link";
 import { ArrowLeft, PlayCircle } from "lucide-react";
 
 /**
- * R42 — the landing hero. One calm gold orb, a launch banner, the
- * emotional H1, two CTAs and a trust line. Server component (no client
- * JS) — fade-up is CSS only.
+ * R48 — the landing hero. Calm gold orb + two very-soft accent orbs, a
+ * "made in Israel" badge, the launch banner, the emotional shimmering
+ * H1, two CTAs, a social-proof row and a trust line. Server component
+ * (no client JS) — fade-up + shimmer are CSS only.
  */
 export function Hero() {
   return (
@@ -13,11 +14,32 @@ export function Hero() {
         aria-hidden
         className="glow-orb glow-orb-gold w-[820px] h-[820px] -top-72 left-1/2 -translate-x-1/2 opacity-40"
       />
+      {/* R48 — two whisper-quiet accent orbs for depth (don't shout). */}
+      <div
+        aria-hidden
+        className="glow-orb glow-orb-rose w-[360px] h-[360px] -top-20 left-0 opacity-[0.15]"
+      />
+      <div
+        aria-hidden
+        className="glow-orb glow-orb-emerald w-[420px] h-[420px] bottom-0 right-0 opacity-[0.15]"
+      />
 
       <div className="max-w-4xl mx-auto px-5 sm:px-8 text-center relative z-10">
+        {/* Made-in-Israel badge */}
+        <div
+          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] sm:text-xs fade-up"
+          style={{
+            background: "var(--input-bg)",
+            border: "1px solid var(--border)",
+            color: "var(--foreground-muted)",
+          }}
+        >
+          ✨ Israeli Startup · נבנה בישראל
+        </div>
+
         {/* Launch banner */}
         <div
-          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs sm:text-sm fade-up"
+          className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs sm:text-sm fade-up"
           style={{
             background:
               "linear-gradient(135deg, rgba(244,222,169,0.16), rgba(168,136,74,0.10))",
@@ -36,7 +58,7 @@ export function Hero() {
           style={{ animationDelay: "0.05s" }}
         >
           <span
-            className="block gradient-gold"
+            className="block gradient-gold-shimmer"
             style={{ fontSize: "clamp(2.75rem, 9vw, 4.75rem)" }}
           >
             תכננו את האירוע.
@@ -57,7 +79,7 @@ export function Hero() {
             animationDelay: "0.1s",
           }}
         >
-          בלי 300 הודעות בוואצפ. בלי 12 אקסלים. בלי בלאגן.
+          בלי 300 הודעות בוואטסאפ. בלי 12 אקסלים. בלי בלאגן.
           <br className="hidden sm:block" />
           האפליקציה היחידה בארץ שמנהלת לכם את כל האירוע במקום אחד.
         </p>
@@ -71,7 +93,7 @@ export function Hero() {
             className="btn-gold inline-flex items-center justify-center gap-2 w-full sm:w-auto"
             style={{ minHeight: 60, fontSize: "1.05rem", padding: "0 2rem" }}
           >
-            התחל בחינם
+            התחילו בחינם
             <ArrowLeft size={18} />
           </Link>
           <a
@@ -84,13 +106,34 @@ export function Hero() {
           </a>
         </div>
 
+        {/* Social proof — number is hardcoded for now (dynamic later). */}
+        <div
+          className="mt-6 inline-flex items-center gap-3 text-xs fade-up"
+          style={{ color: "var(--foreground-muted)", animationDelay: "0.18s" }}
+        >
+          <div className="flex -space-x-2" aria-hidden>
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="w-7 h-7 rounded-full border-2"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                  borderColor: "var(--background)",
+                }}
+              />
+            ))}
+          </div>
+          <span>הצטרפו ל-27 זוגות שכבר בנו את האירוע שלהם</span>
+        </div>
+
         <div
           className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs sm:text-sm fade-up"
           style={{ color: "var(--foreground-muted)", animationDelay: "0.2s" }}
         >
-          <span>✓ ללא כרטיס אשראי</span>
+          <span>✓ התחלה חינמית · ללא התחייבות</span>
           <span>✓ ביטול בכל רגע</span>
-          <span>✓ בעברית, בארץ, בעיצוב יוקרתי</span>
+          <span>✓ מותאם לישראל · בעיצוב יוקרתי · תמיכה אנושית</span>
         </div>
       </div>
     </section>
