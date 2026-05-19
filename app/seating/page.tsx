@@ -1360,8 +1360,8 @@ function TableModal({
             </div>
           )}
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>מקומות (כמה אנשים יושבים)</label>
-            <input className="input" type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+            <label htmlFor="table-capacity" className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>מקומות (כמה אנשים יושבים)</label>
+            <input id="table-capacity" className="input" type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           </div>
 
           {/* R16 — circle tag. If this field matches the same field on a

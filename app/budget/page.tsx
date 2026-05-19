@@ -419,22 +419,22 @@ function AddBudgetModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>שם פריט <span style={{ color: "var(--accent)" }}>*</span></label>
-            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="לדוגמה: אולם הכוכב" autoFocus />
+            <label htmlFor="budget-title" className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>שם פריט <span style={{ color: "var(--accent)" }}>*</span></label>
+            <input id="budget-title" className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="לדוגמה: אולם הכוכב" autoFocus />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>עלות צפויה ₪ <span style={{ color: "var(--accent)" }}>*</span></label>
-              <input className="input" type="number" inputMode="decimal" min={0} value={estimated} onChange={(e) => setEstimated(e.target.value)} placeholder="50000" />
+              <label htmlFor="budget-estimated" className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>עלות צפויה ₪ <span style={{ color: "var(--accent)" }}>*</span></label>
+              <input id="budget-estimated" className="input" type="number" inputMode="decimal" min={0} value={estimated} onChange={(e) => setEstimated(e.target.value)} placeholder="50000" />
             </div>
             <div>
-              <label className="block text-sm text-white/70 mb-1.5">עלות בפועל ₪</label>
-              <input className="input" type="number" inputMode="decimal" min={0} value={actual} onChange={(e) => setActual(e.target.value)} />
+              <label htmlFor="budget-actual" className="block text-sm text-white/70 mb-1.5">עלות בפועל ₪</label>
+              <input id="budget-actual" className="input" type="number" inputMode="decimal" min={0} value={actual} onChange={(e) => setActual(e.target.value)} />
             </div>
           </div>
           <div>
-            <label className="block text-sm text-white/70 mb-1.5">שולם עד כה ₪</label>
-            <input className="input" type="number" inputMode="decimal" min={0} value={paid} onChange={(e) => setPaid(e.target.value)} />
+            <label htmlFor="budget-paid" className="block text-sm text-white/70 mb-1.5">שולם עד כה ₪</label>
+            <input id="budget-paid" className="input" type="number" inputMode="decimal" min={0} value={paid} onChange={(e) => setPaid(e.target.value)} />
           </div>
         </div>
         {!isValid && (title || estimated) && (
