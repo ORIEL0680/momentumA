@@ -4,6 +4,20 @@
 
 ---
 
+## [R55 · יום 2/3] — 2026-05-19 — SMART INPUT: קלט קולי + אישור + מאזן
+
+המשך ה-spec "R45 — SMART INPUT" (יום 1 = R54). יום 2: רכיב הקול,
+זרימת אישור חובה, וחיבור לעמוד המאזן. tsc/lint(0)/build/test(75/75)
+ירוקים. ללא תלות חדשה, ללא מיגרציה.
+
+- `lib/useSpeechRecognition.ts` — hook דק מעל Web Speech API (he-IL): תמיכה/אי-תמיכה, start/stop, transcript סופי + interim חי, שגיאות (חסימת מיקרופון/אין-דיבור/כללי), restart שקוף בין sessions. **פרטיות: התמליל נשאר אך ורק ב-state — אפס רשת.** טייפים מינימליים (אין `any`/`@ts-ignore`); עומד בכללי react-hooks (lazy useState init, אין setState-in-effect, אין ref ב-render).
+- `components/balance/VoiceCapture.tsx` — capture (מיקרופון + תמליל חי) → review: כל רשומה = `parseHebrew`+`matchName` מול האורחים שהגיעו, שדה סכום לעריכה, עד 3 צ'יפים של התאמות + סיבה, "דלג", checkbox הכללה. **שום כתיבה ל-store מהרכיב** — רק `onApply` אחרי "אשר והחל". אישור אנושי חובה לכל קלט; חסר-התאמה → טיפול ידני.
+- `app/balance/page.tsx` — כפתור "קלט קולי" בסרגל + מודאל; `applyVoiceRows` קורא `actions.setGuestEnvelope` רק לשורות שאושרו (amount>0); הרשימה מתעדכנת אוטומטית.
+- **דחייה מתועדת (יום 3):** Edge OCR (OpenAI Vision — מפתח שרת, אסור ב-bundle), `EnvelopeScan` (מצלמה), `SmartInputFAB`.
+- אימות: `tsc` נקי · `lint` 0 errors (6 warnings קודמות) · `build` Compiled successfully (/balance) · `vitest` 75/75 · אפס deps · אפס מיגרציה. ⏳ בדיקת מיקרופון בפועל (he-IL, הרשאה, דיוק) — owner-side, דורש מכשיר אמיתי.
+
+---
+
 ## [R54 · יום 1/3] — 2026-05-19 — SMART INPUT למאזן (שכבת לוגיקה + טסטים)
 
 ממש את ה-spec "R45 — SMART INPUT" (השם R45 כבר תפוס בהיסטוריה →

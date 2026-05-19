@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { EmptyEventState } from "@/components/EmptyEventState";
 import { PrintButton } from "@/components/PrintButton";
 import { BalanceSkeleton } from "@/components/skeletons/PageSkeletons";
+import { VoiceCapture, type VoiceApplyRow } from "@/components/balance/VoiceCapture";
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import type { Guest } from "@/lib/types";
@@ -24,6 +25,7 @@ import {
   ArrowDownUp,
   Repeat,
   Info,
+  Mic,
 } from "lucide-react";
 
 type FilterMode = "all" | "filled" | "empty";
@@ -35,6 +37,13 @@ export default function BalancePage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterMode>("all");
   const [sortByGiven, setSortByGiven] = useState(false);
+  const [showVoice, setShowVoice] = useState(false);
+
+  const applyVoiceRows = (voiceRows: VoiceApplyRow[]) => {
+    for (const r of voiceRows) {
+      if (r.amount > 0) actions.setGuestEnvelope(r.guestId, r.amount);
+    }
+  };
 
   useEffect(() => {
     if (userHydrated && !user) {
@@ -148,6 +157,16 @@ export default function BalancePage() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
+                <button
+                  onClick={() => setShowVoice(true)}
+                  className="text-xs rounded-full px-3.5 py-1.5 inline-flex items-center gap-1.5 font-semibold transition shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                    color: "var(--gold-button-text)",
+                  }}
+                >
+                  <Mic size={13} /> קלט קולי
+                </button>
                 <FilterPill icon={<Filter size={12} />} label="הכל" active={filter === "all"} onClick={() => setFilter("all")} />
                 <FilterPill icon={<Check size={12} />} label="מולא" active={filter === "filled"} onClick={() => setFilter("filled")} />
                 <FilterPill icon={<Mail size={12} />} label="חסר" active={filter === "empty"} onClick={() => setFilter("empty")} />
@@ -181,6 +200,14 @@ export default function BalancePage() {
             </>
           )}
         </div>
+
+        {showVoice && (
+          <VoiceCapture
+            guests={attended}
+            onApply={applyVoiceRows}
+            onClose={() => setShowVoice(false)}
+          />
+        )}
       </main>
     </>
   );
