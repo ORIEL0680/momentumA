@@ -14,6 +14,25 @@ import {
 
 const FONT_HEB = "/fonts/heebo-heb.ttf";
 const FONT_LAT = "/fonts/heebo-lat.ttf";
+
+// R52 — "real wedding" palette: warm, rich, evening. Replaces the
+// gold-on-black "keynote" look with walnut + candle warmth. Tablecloths
+// rotate white → blush → sage per table for real visual richness
+// without clutter. (Phase-2 of the R44.6 spec; the per-table
+// candle/point-light phases are deliberately deferred — a dynamic light
+// per table would re-introduce the very lag this feature kept hitting.)
+const WP = {
+  floor: "#3A2818",
+  walls: "#1F1810",
+  fog: "#2A1F18",
+  ambient: "#FFE4B5",
+  candle: "#FF8C42",
+  rose: "#E8B4B8",
+  teal: "#79C6D8",
+  gold: "#F4DEA9",
+  cushionDark: "#2A1F1A",
+} as const;
+const LINENS = ["#F8F4ED", "#F5DCDF", "#D4DEC9"] as const;
 import {
   EffectComposer,
   Bloom,
@@ -270,8 +289,8 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={["#0A0A0F"]} />
-      <fog attach="fog" args={["#0A0A0F", 15, 35]} />
+      <color attach="background" args={[WP.walls]} />
+      <fog attach="fog" args={[WP.fog, 14, 32]} />
 
       <PerformanceMonitor
         onDecline={() => onPerfChange(true)}
@@ -284,8 +303,8 @@ function Scene({
           hemisphere + the spot/accent lights below light the stylized
           hall deterministically with ZERO async / zero suspense / zero
           extra download (also shrinks the lazy chunk). */}
-      <hemisphereLight args={["#FFE7BE", "#1A1622", 0.6]} />
-      <ambientLight intensity={0.14} />
+      <hemisphereLight args={[WP.ambient, "#1A120A", 0.55]} />
+      <ambientLight intensity={0.16} color={WP.ambient} />
 
       <spotLight
         position={[0, 6, 0]}
@@ -336,11 +355,11 @@ function Scene({
       >
         <planeGeometry args={[30, 30]} />
         <meshPhysicalMaterial
-          color="#2A1F15"
-          roughness={0.35}
-          clearcoat={0.8}
-          clearcoatRoughness={0.15}
-          metalness={0.05}
+          color={WP.floor}
+          roughness={0.4}
+          clearcoat={0.7}
+          clearcoatRoughness={0.2}
+          metalness={0.04}
         />
       </mesh>
 
@@ -372,23 +391,23 @@ function Scene({
         ))}
       </group>
 
-      {/* Tables: leg + sheened white cloth + glow when occupied */}
-      {plots.map((p) => (
+      {/* Tables: leg + alternating-linen cloth + warm glow when seated */}
+      {plots.map((p, i) => (
         <group key={p.table.id} position={[p.x, 0, p.z]}>
           <mesh position={[0, 0.375, 0]} castShadow>
             <cylinderGeometry args={[0.04, 0.04, 0.75, 12]} />
-            <meshStandardMaterial color="#1A1620" roughness={0.5} />
+            <meshStandardMaterial color={WP.cushionDark} roughness={0.5} />
           </mesh>
           <mesh position={[0, 0.77, 0]} castShadow receiveShadow>
             <cylinderGeometry args={[TABLE_R, TABLE_R, 0.04, 44]} />
             <meshPhysicalMaterial
-              color="#F5F0E8"
-              roughness={0.7}
+              color={LINENS[i % LINENS.length]}
+              roughness={0.75}
               sheen={1}
-              sheenColor="#FFFFFF"
+              sheenColor="#FFF6E9"
               sheenRoughness={0.5}
-              emissive="#F4DEA9"
-              emissiveIntensity={p.occupied ? 0.05 : 0}
+              emissive={WP.candle}
+              emissiveIntensity={p.occupied ? 0.06 : 0}
             />
           </mesh>
           <mesh position={[0, 0.94, 0]}>
