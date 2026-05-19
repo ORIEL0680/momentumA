@@ -29,7 +29,7 @@ manager via a single-use accept link, delivered over **two channels**
 ### Required env
 
 - **`NEXT_PUBLIC_SITE_URL`** — **required.** The public origin (e.g.
-  `https://momentum-psi-ten.vercel.app`). Without it the accept link in
+  `https://moomentum.events`). Without it the accept link in
   the invite falls back to a relative path and won't open from WhatsApp
   on the manager's phone.
 

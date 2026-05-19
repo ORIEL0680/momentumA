@@ -4,6 +4,26 @@
 
 ---
 
+## [R56] — 2026-05-19 — מעבר לדומיין moomentum.events (תיקון רפרנסים)
+
+ממש את ה-spec "R46 — מעבר לדומיין" (R46 כבר תפוס בהיסטוריה →
+הסבב ממוספר R56 ברצף). deadline: לפני השקה 26.5. החלפת כל הופעות
+`momentum-psi-ten.vercel.app` → `moomentum.events` + redirects
+ל-canonical. tsc/lint(0)/build/test(75/75) ירוקים. ללא תלות חדשה,
+ללא מיגרציה. **ללא נגיעה ב-Vercel/Supabase/OAuth — ידני.**
+
+- `app/layout.tsx` — `SITE_URL` fallback → `https://moomentum.events` (env עדיין מנצח); נוסף `alternates.canonical` ו-`openGraph.url` (env-driven).
+- `app/terms/page.tsx` — סעיף הגדרות: הדומיין הישן → `moomentum.events`.
+- `app/manifest.webmanifest/route.ts` — נוסף `id` יציב (env-driven) + `scope:"/"`; `start_url`/`scope` נשארו יחסיים.
+- `README.md` / `.env.example` — דוגמת/ברירת `NEXT_PUBLIC_SITE_URL` → `moomentum.events`; נוסף `NEXT_PUBLIC_APP_URL`. `.env.local` (gitignored) עודכן מקומית.
+- `vercel.json` — `redirects` 301: `www.moomentum.events` ו-`momentum-psi-ten.vercel.app` → apex (הדומיין הישן ימשיך לענות אך יפנה — שומר קישורים שנשלחו).
+- `DEPLOYMENT.md` — שלב 5 עודכן ל-`moomentum.events` + צעדי DNS/Vercel/Supabase/OAuth הידניים.
+- הקוד כבר env-driven (`lib/origin.ts`/`NEXT_PUBLIC_SITE_URL`) — אין domain hardcoded ב-invitation/shortLinks וכו'. אין sitemap/robots/manifest.json בריפו (לא נוצרו — מחוץ ל-scope).
+- אימות: `tsc` נקי · `lint` 0 errors (6 warnings קודמות) · `build` Compiled successfully · `vitest` 75/75 · grep מאשר אפס `momentum-psi-ten` פרט לכלל ה-redirect ותיעודו.
+- **לידני (owner):** Vercel Domains + env, Supabase Auth URLs, Google OAuth redirect URIs, ובדיקות פוסט-פריסה.
+
+---
+
 ## [R55 · יום 2/3] — 2026-05-19 — SMART INPUT: קלט קולי + אישור + מאזן
 
 המשך ה-spec "R45 — SMART INPUT" (יום 1 = R54). יום 2: רכיב הקול,

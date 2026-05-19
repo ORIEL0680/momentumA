@@ -23,6 +23,21 @@
     }
   },
 
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.moomentum.events" }],
+      "destination": "https://moomentum.events/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "momentum-psi-ten.vercel.app" }],
+      "destination": "https://moomentum.events/:path*",
+      "permanent": true
+    }
+  ],
+
   "cleanUrls": true,
   "trailingSlash": false
 }

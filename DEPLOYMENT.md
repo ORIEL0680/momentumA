@@ -133,16 +133,20 @@ Free tier: 3000 מיילים/חודש. מספיק לאלפי בקשות ספקי
 
 ---
 
-## שלב 5 — Domain (אופציונלי בהתחלה)
+## שלב 5 — Domain
 
-אפשר לדחות ולקבל בהתחלה את הדומיין הזמני של Vercel (`momentum-tal.vercel.app`).
+**דומיין הפרודקשן הוא `moomentum.events`** (apex). הקוד כבר מצביע אליו
+(`NEXT_PUBLIC_SITE_URL`, fallback ב-`app/layout.tsx`, redirects
+ב-`vercel.json`: `www` ו-`momentum-psi-ten.vercel.app` → apex, 301).
 
-כשתרצה domain אמיתי:
-1. רכוש domain (Cloudflare Registrar הכי זול = $9-15/שנה)
-2. ב-Cloudflare DNS:
+הגדרה ידנית ב-Vercel (פעם אחת):
+1. ב-Vercel → Settings → Domains → Add → `moomentum.events` (+ `www`)
+2. ב-DNS של הדומיין:
    - Type: CNAME, Name: `@`, Target: `cname.vercel-dns.com`, Proxy: OFF
    - Type: CNAME, Name: `www`, Target: `cname.vercel-dns.com`, Proxy: OFF
-3. ב-Vercel (אחרי שלב 6) → Settings → Domains → Add → הזן את הדומיין
+3. סמן את `moomentum.events` כ-Production domain
+4. עדכן Supabase Auth (Site URL + Redirect URLs) ו-Google OAuth
+   (Authorized redirect URIs) לדומיין החדש — **לפני** שמשתמשים נכנסים
 
 ---
 
@@ -167,7 +171,7 @@ vercel
 - **Directory?** → `./` (Enter)
 - **Auto-detect settings?** → Y
 
-יבנה ויעלה. תקבל URL זמני כמו `https://momentum-tal.vercel.app`.
+יבנה ויעלה. תקבל URL זמני של preview (למשל `https://momentum-<hash>.vercel.app`). הדומיין הראשי בפרודקשן הוא `https://moomentum.events`.
 
 ### 6.3 Production deploy
 ```bash

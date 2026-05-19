@@ -18,7 +18,7 @@ const heebo = Heebo({
 // (WhatsApp / social scrapers reject relative ones). NEXT_PUBLIC_SITE_URL
 // wins in prod; the deployed domain is the safe fallback.
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://momentum-psi-ten.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://moomentum.events";
 
 // R32 — the static brand card. Every route in the App Router inherits
 // this; only routes with their own generateMetadata override it.
@@ -35,6 +35,9 @@ export const metadata: Metadata = {
   description:
     "מרעיון ראשון ועד האורח האחרון. כל מה שאתה צריך לתכנון אירוע מושלם, במקום אחד.",
   manifest: "/manifest.webmanifest",
+  alternates: {
+    canonical: SITE_URL,
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -43,6 +46,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Momentum — מומנטום אירועים",
+    url: SITE_URL,
     locale: "he_IL",
     images: [OG_IMAGE],
   },
