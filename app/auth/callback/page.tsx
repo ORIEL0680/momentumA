@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabase, SUPABASE_ENABLED } from "@/lib/supabase";
+import { logError } from "@/lib/error-tracker";
 import { syncOnLogin } from "@/lib/sync";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -106,6 +107,11 @@ function CallbackInner() {
           // or "User from sub claim..." style internals. Show a static
           // Hebrew message; full error stays in console for devs.
           console.error("[auth/callback] exchangeCodeForSession", exchangeErr);
+          void logError({
+            type: "auth",
+            message: `exchangeCodeForSession: ${exchangeErr.message}`,
+            url: window.location.origin + "/auth/callback",
+          });
           setErrorMessage("לא הצלחנו לאמת את ההתחברות. נסה להתחבר שוב.");
           setStatus("error");
           return;
@@ -131,6 +137,11 @@ function CallbackInner() {
 
       if (error || !session) {
         if (error) console.error("[auth/callback] getSession", error);
+        void logError({
+          type: "auth",
+          message: `getSession: ${error ? error.message : "no active session"}`,
+          url: window.location.origin + "/auth/callback",
+        });
         setErrorMessage(
           "לא נמצא session פעיל. ייתכן שהקישור פג תוקף — נסה להתחבר שוב.",
         );

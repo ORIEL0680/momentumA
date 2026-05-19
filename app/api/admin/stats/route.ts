@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  dayBuckets,
+  pctDelta,
+  parseUpcomingEvents,
+  type Sparkline,
+  type Delta,
+  type AdminEventSummary,
+} from "@/lib/admin/queries";
 
 /**
  * Admin dashboard aggregates.
@@ -64,6 +72,18 @@ interface AdminStats {
     label: string;
     timestamp: string;
   }>;
+  // ── R59 (R49) — additive enrichment for the new /admin screen.
+  // Legacy /admin/dashboard ignores these; nothing here is breaking.
+  series: {
+    users_7d: Sparkline;
+    events_7d: Sparkline;
+  };
+  deltas: {
+    users_7d: Delta;
+    events_7d: Delta;
+  };
+  upcoming_events: AdminEventSummary[];
+  errors_last_24h: number;
 }
 
 interface AuthUser {
@@ -177,17 +197,77 @@ export async function GET(req: NextRequest) {
     // The payload is a JSON blob; we count rows + filter by created/updated.
     const eventsRes = (await adminClient
       .from("app_states")
-      .select("user_id, updated_at", { count: "exact" })) as {
-      data: { user_id: string; updated_at: string }[] | null;
+      .select("user_id, updated_at, payload", { count: "exact" })) as {
+      data:
+        | { user_id: string; updated_at: string; payload: unknown }[]
+        | null;
       count: number | null;
     };
+    const stateRows = eventsRes.data ?? [];
     const eventsTotal = eventsRes.count ?? 0;
-    const eventsActive = (eventsRes.data ?? []).filter(
+    const eventsActive = stateRows.filter(
       (e) => e.updated_at && new Date(e.updated_at) >= monthAgo,
     ).length;
-    const eventsNewWeek = (eventsRes.data ?? []).filter(
+    const eventsNewWeek = stateRows.filter(
       (e) => e.updated_at && new Date(e.updated_at) >= weekAgo,
     ).length;
+
+    // ── R59 (R49) — sparklines + 7d-vs-prev-7d deltas + upcoming. ──
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const usersSeries = dayBuckets(
+      allUsers.map((u) => u.created_at),
+      7,
+      now,
+    );
+    const eventsSeries = dayBuckets(
+      stateRows.map((e) => e.updated_at),
+      7,
+      now,
+    );
+    const usersPrev7 = allUsers.filter(
+      (u) =>
+        u.created_at &&
+        new Date(u.created_at) >= twoWeeksAgo &&
+        new Date(u.created_at) < weekAgo,
+    ).length;
+    const eventsPrev7 = stateRows.filter(
+      (e) =>
+        e.updated_at &&
+        new Date(e.updated_at) >= twoWeeksAgo &&
+        new Date(e.updated_at) < weekAgo,
+    ).length;
+    const usersDelta: Delta = {
+      value: pctDelta(newWeek, usersPrev7),
+      period: "השבוע",
+    };
+    const eventsDelta: Delta = {
+      value: pctDelta(eventsNewWeek, eventsPrev7),
+      period: "השבוע",
+    };
+    const upcomingEvents = parseUpcomingEvents(
+      stateRows.map((r) => ({
+        user_id: r.user_id,
+        payload: r.payload,
+        updated_at: r.updated_at,
+      })),
+      5,
+      now,
+    );
+
+    // error_logs may not exist yet (migration is run manually). Treat
+    // any failure as 0 so the dashboard never 500s on a missing table.
+    let errorsLast24h = 0;
+    try {
+      const errRes = (await adminClient
+        .from("error_logs")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", dayAgo.toISOString())) as { count: number | null };
+      errorsLast24h = errRes.count ?? 0;
+    } catch {
+      errorsLast24h = 0;
+    }
 
     // ─── VENDORS ───
     const [
@@ -385,6 +465,10 @@ export async function GET(req: NextRequest) {
         total_cost_cents: aiCostTotal,
       },
       recent_activity: activity.slice(0, 15),
+      series: { users_7d: usersSeries, events_7d: eventsSeries },
+      deltas: { users_7d: usersDelta, events_7d: eventsDelta },
+      upcoming_events: upcomingEvents,
+      errors_last_24h: errorsLast24h,
     };
 
     return NextResponse.json(stats);

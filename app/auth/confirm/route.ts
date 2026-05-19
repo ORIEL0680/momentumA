@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient, type EmailOtpType } from "@supabase/supabase-js";
+import { logError } from "@/lib/error-tracker";
 
 /**
  * Email-confirmation route handler (R20 fix).
@@ -93,6 +94,14 @@ export async function GET(request: NextRequest) {
       name: error.name,
       origin,
     });
+    await logError(
+      {
+        type: "auth",
+        message: `confirm verifyOtp: ${error.message}`,
+        url: `${origin}/auth/confirm`,
+      },
+      origin,
+    );
     return NextResponse.redirect(
       `${origin}/auth/callback?error=${encodeURIComponent(error.message)}`,
     );

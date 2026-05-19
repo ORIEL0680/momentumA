@@ -4,6 +4,25 @@
 
 ---
 
+## [R59] — 2026-05-19 — Admin Dashboard למייסד (מותאם לארכיטקטורה הקיימת)
+
+ממש את ה-spec "R49" (R49 תפוס → R59). **המשתמש אישר: "התאם
+לארכיטקטורה הקיימת"** — ה-spec הניח סכמה רלציונית שלא קיימת
+(האפליקציה: JSON-blob per-user ב-app_states + admin_emails + route
+service-role קיים). tsc/lint(0)/build/test(75/75) ירוקים. 1 migration
+ידני, ללא תלות חדשה.
+
+- `supabase/migrations/2026-05-19-error-logs.sql` (חדש) — `error_logs` + RLS (קריאה לאדמין, כתיבה רק service-role). `lib/error-tracker.ts` + `app/api/admin/log-error` (service-role insert, caps, ללא טוקנים).
+- `lib/admin/server.ts` — `requireAdmin()` (anon+JWT → admin_emails תחת RLS → service-role). הגבול האבטחתי האמיתי. `components/admin/AdminGuard.tsx` — client guard ל-UX, non-admin → /dashboard שקט. (אין middleware gate — סשן ב-localStorage, אין cookie ל-SSR; מתועד.)
+- `/api/admin/stats` — הורחב additively (legacy /admin/dashboard ממשיך לעבוד): sparklines 7d, deltas, upcoming events מ-app_states JSON, errors_last_24h (graceful). `/api/admin/users` + `/api/admin/errors` חדשים (service-role). `lib/admin/{queries,realtime,types}.ts`.
+- UI סגנון Stripe בשפת הזהב: `StatCard`/`MiniChart`/`ActivityFeed` (realtime) + `app/admin/page.tsx` (KPIs, פעולות דחופות, אירועים קרובים, פיד חי) + sub-pages users/users[id]/vendors·applications/events/errors.
+- `logError` חובר ל-auth callback (client) + confirm route (server).
+- **סטיות (מאושרות):** admin_emails במקום is_admin/admin_users (כבר seeded — אין UUID להכניס, email-based); events מ-app_states JSON, users מ-Auth API (אין user_profiles/events tables); revenue placeholder (Stripe Q3); usage chart 7d (לא 30d).
+- **ידני:** הרצת migration error-logs ב-Supabase; `talhemo132@gmail.com` כבר admin; `SUPABASE_SERVICE_ROLE_KEY` ב-Vercel env (כבר נדרש להיום).
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות, לא בקבצי admin) · build ok · 75/75 · strict 0 any · כל query ב-try/catch.
+
+---
+
 ## [R58] — 2026-05-19 — שכתוב מלא של עמוד הנחיתה (קופי + פיצ׳רים + יוקרה)
 
 ממש את ה-spec "R48" (R48 תפוס → R58 ברצף). tsc/lint(0)/build/
