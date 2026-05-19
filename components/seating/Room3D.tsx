@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import type { Guest, SeatingTable } from "@/lib/types";
@@ -49,6 +49,22 @@ export function Room3D({
   const supported = useMemo(() => webglOK(), []);
   const [focusGuestId, setFocusGuestId] = useState<string | null>(null);
 
+  // R50 — watchdog. The ErrorBoundary catches *errors*, not an
+  // infinite-suspense / very-slow chunk ("stuck on a long loading
+  // screen"). The scene calls onReady the moment it mounts; if that
+  // hasn't happened within 15s we stop the endless spinner and offer
+  // the 2D map + a one-tap retry (remounts the scene).
+  const [phase, setPhase] = useState<"wait" | "ready" | "slow">("wait");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!supported || phase === "ready") return;
+    const t = window.setTimeout(
+      () => setPhase((p) => (p === "ready" ? p : "slow")),
+      15000,
+    );
+    return () => window.clearTimeout(t);
+  }, [supported, phase, attempt]);
+
   const seated = useMemo(
     () =>
       guests
@@ -70,6 +86,36 @@ export function Room3D({
         >
           ממשיכים עם תצוגת המפה הרגילה — הכול עובד כרגיל.
         </p>
+      </div>
+    );
+  }
+
+  if (phase === "slow") {
+    return (
+      <div
+        className="rounded-3xl p-8 text-center"
+        style={{
+          background: "var(--input-bg)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <p className="font-semibold">טעינת התלת-מימד לוקחת זמן</p>
+        <p
+          className="mt-2 text-sm"
+          style={{ color: "var(--foreground-soft)" }}
+        >
+          חזרו לתצוגת &quot;מפה&quot; — הכול עובד שם מיד.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setPhase("wait");
+            setAttempt((a) => a + 1);
+          }}
+          className="btn-secondary text-sm mt-4"
+        >
+          נסו שוב
+        </button>
       </div>
     );
   }
@@ -104,10 +150,12 @@ export function Room3D({
           }
         >
           <Room3DScene
+            key={attempt}
             tables={tables}
             guests={guests}
             seatAssignments={seatAssignments}
             focusGuestId={focusGuestId}
+            onReady={() => setPhase("ready")}
           />
         </ErrorBoundary>
       </div>

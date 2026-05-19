@@ -5,8 +5,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import {
   Instances,
   Instance,
-  Environment,
-  Lightformer,
   SoftShadows,
   CameraControls,
   PerformanceMonitor,
@@ -267,47 +265,14 @@ function Scene({
         onIncline={() => onPerfChange(false)}
       />
       <SoftShadows size={25} samples={16} />
-      {/* R48 — was Environment preset="sunset", which fetches an HDRI
-          from a CDN at runtime (Suspense + network failure = the "3D
-          fault" with no fallback). Back to a deterministic in-scene
-          Lightformer studio rig: same warm HDR feel, zero network. */}
-      <Environment resolution={256}>
-        <group>
-          <Lightformer
-            intensity={3}
-            color="#FFE7BE"
-            position={[0, 6, -5]}
-            scale={[14, 7, 1]}
-          />
-          <Lightformer
-            intensity={1.3}
-            color="#9FB8DA"
-            position={[8, 4, 6]}
-            scale={[7, 7, 1]}
-          />
-          <Lightformer
-            intensity={1.1}
-            color="#F4DEA9"
-            position={[-8, 4, 5]}
-            scale={[7, 7, 1]}
-          />
-          <Lightformer
-            form="rect"
-            intensity={1.8}
-            color="#ffffff"
-            position={[0, 10, 0]}
-            rotation={[Math.PI / 2, 0, 0]}
-            scale={[16, 16, 1]}
-          />
-          <Lightformer
-            form="ring"
-            intensity={2.2}
-            color="#FFF3D6"
-            position={[0, 7, 8]}
-            scale={[3, 3, 1]}
-          />
-        </group>
-      </Environment>
+      {/* R50 — removed drei <Environment>. It builds an env-map behind
+          an internal Suspense; in this drei/three combo it could never
+          resolve → the "stuck on a long loading screen" report. A
+          hemisphere + the spot/accent lights below light the stylized
+          hall deterministically with ZERO async / zero suspense / zero
+          extra download (also shrinks the lazy chunk). */}
+      <hemisphereLight args={["#FFE7BE", "#1A1622", 0.6]} />
+      <ambientLight intensity={0.14} />
 
       <spotLight
         position={[0, 6, 0]}
@@ -557,12 +522,19 @@ export default function Room3DScene({
   guests,
   seatAssignments,
   focusGuestId,
+  onReady,
 }: {
   tables: SeatingTable[];
   guests: Guest[];
   seatAssignments: Record<string, string>;
   focusGuestId: string | null;
+  /** R50 — fired once on mount so the wrapper can cancel its
+   *  "stuck loading" watchdog (mount = chunk downloaded + rendered;
+   *  no <Environment> suspense anymore, so this is effectively "3D up"). */
+  onReady?: () => void;
 }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onReady?.(); }, []);
   // L7 — effects only on capable GPUs; PerformanceMonitor can revoke.
   const [lowPerf, setLowPerf] = useState(false);
   const highDpr = useMemo(
