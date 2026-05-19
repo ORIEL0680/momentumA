@@ -433,6 +433,10 @@ export default function SeatingPage() {
                     tables={state.tables}
                     guests={eligibleGuests}
                     seatAssignments={state.seatAssignments}
+                    onTableTap={(id) => {
+                      const t = state.tables.find((tb) => tb.id === id);
+                      if (t) setEditingTable(t);
+                    }}
                   />
                 ) : (
                   <div

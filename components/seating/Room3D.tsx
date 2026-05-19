@@ -41,10 +41,14 @@ export function Room3D({
   tables,
   guests,
   seatAssignments,
+  onTableTap,
 }: {
   tables: SeatingTable[];
   guests: Guest[];
   seatAssignments: Record<string, string>;
+  /** R53 — tap a table in 3D → open its editor (host edits capacity/
+   *  name; a long "knights' table" shows long in 3D automatically). */
+  onTableTap?: (tableId: string) => void;
 }) {
   const supported = useMemo(() => webglOK(), []);
   const [focusGuestId, setFocusGuestId] = useState<string | null>(null);
@@ -156,6 +160,7 @@ export function Room3D({
             seatAssignments={seatAssignments}
             focusGuestId={focusGuestId}
             onReady={() => setPhase("ready")}
+            onTableTap={onTableTap}
           />
         </ErrorBoundary>
       </div>

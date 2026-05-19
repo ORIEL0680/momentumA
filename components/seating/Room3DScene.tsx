@@ -21,16 +21,20 @@ const FONT_LAT = "/fonts/heebo-lat.ttf";
 // without clutter. (Phase-2 of the R44.6 spec; the per-table
 // candle/point-light phases are deliberately deferred — a dynamic light
 // per table would re-introduce the very lag this feature kept hitting.)
+// R53 — "still way too black": brightened to a lit evening hall, not a
+// void. Lighter warm walnut floor / champagne walls, lifted fog, far
+// stronger ambient + accents (incl. an emerald).
 const WP = {
-  floor: "#3A2818",
-  walls: "#1F1810",
-  fog: "#2A1F18",
-  ambient: "#FFE4B5",
-  candle: "#FF8C42",
-  rose: "#E8B4B8",
-  teal: "#79C6D8",
-  gold: "#F4DEA9",
-  cushionDark: "#2A1F1A",
+  floor: "#6B4A2C",
+  walls: "#3A2C20",
+  fog: "#4A3826",
+  ambient: "#FFEFD2",
+  candle: "#FFA94D",
+  rose: "#F0BFC4",
+  teal: "#86D0DE",
+  emerald: "#3E7A66",
+  gold: "#F6E2A6",
+  cushionDark: "#3A2A1F",
 } as const;
 const LINENS = ["#F8F4ED", "#F5DCDF", "#D4DEC9"] as const;
 import {
@@ -97,21 +101,41 @@ function DanceFloor() {
         0.4 + 0.4 * (0.5 + 0.5 * Math.sin(s.clock.elapsedTime * 1.6));
   });
   return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.02, 0]}
-      receiveShadow
-    >
-      <planeGeometry args={[6, 6]} />
-      <meshStandardMaterial
-        ref={ref}
-        color="#F4DEA9"
-        emissive="#F4DEA9"
-        emissiveIntensity={0.5}
-        roughness={0.3}
-        metalness={0.4}
+    <group>
+      {/* R53 — the centerpiece: a clearly-read luxe dance floor with a
+          glowing gold rim, polished reflective inlay + a soft uplight. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.018, 0]}>
+        <ringGeometry args={[3.0, 3.5, 64]} />
+        <meshStandardMaterial
+          color="#F6E2A6"
+          emissive="#F6E2A6"
+          emissiveIntensity={1.6}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, 0]}
+        receiveShadow
+      >
+        <circleGeometry args={[3.0, 64]} />
+        <meshStandardMaterial
+          ref={ref}
+          color="#E9C77E"
+          emissive="#F6E2A6"
+          emissiveIntensity={0.6}
+          roughness={0.18}
+          metalness={0.65}
+        />
+      </mesh>
+      <pointLight
+        position={[0, 1.4, 0]}
+        intensity={26}
+        distance={9}
+        decay={2}
+        color="#FFE6B0"
       />
-    </mesh>
+    </group>
   );
 }
 
@@ -186,6 +210,7 @@ function Scene({
   focusGuestId,
   effects,
   onPerfChange,
+  onTableTap,
 }: {
   tables: SeatingTable[];
   guests: Guest[];
@@ -193,6 +218,7 @@ function Scene({
   focusGuestId: string | null;
   effects: boolean;
   onPerfChange: (low: boolean) => void;
+  onTableTap?: (tableId: string) => void;
 }) {
   const plots = useMemo<TablePlot[]>(() => {
     const n = tables.length;
@@ -290,7 +316,7 @@ function Scene({
   return (
     <>
       <color attach="background" args={[WP.walls]} />
-      <fog attach="fog" args={[WP.fog, 14, 32]} />
+      <fog attach="fog" args={[WP.fog, 22, 55]} />
 
       <PerformanceMonitor
         onDecline={() => onPerfChange(true)}
@@ -303,15 +329,15 @@ function Scene({
           hemisphere + the spot/accent lights below light the stylized
           hall deterministically with ZERO async / zero suspense / zero
           extra download (also shrinks the lazy chunk). */}
-      <hemisphereLight args={[WP.ambient, "#1A120A", 0.55]} />
-      <ambientLight intensity={0.16} color={WP.ambient} />
+      <hemisphereLight args={[WP.ambient, "#3A2A1A", 1.15]} />
+      <ambientLight intensity={0.4} color={WP.ambient} />
 
       <spotLight
-        position={[0, 6, 0]}
-        angle={0.4}
+        position={[0, 7, 0]}
+        angle={0.6}
         penumbra={0.5}
-        intensity={8}
-        color="#F4DEA9"
+        intensity={16}
+        color={WP.gold}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
@@ -319,33 +345,16 @@ function Scene({
         position={[-7.5, 5, -7.5]}
         angle={0.6}
         penumbra={0.5}
-        intensity={3}
-        color="#D4B068"
+        intensity={6}
+        color="#E8C684"
       />
-      {/* R49 — cinematic colour separation: a soft rose wash on one
-          side, a cool teal on the other. Keeps gold the hero but gives
-          the room real "event" colour & depth (Apple-keynote vibe). */}
-      <pointLight
-        position={[11, 4, -9]}
-        intensity={42}
-        distance={26}
-        decay={2}
-        color="#E8A6CC"
-      />
-      <pointLight
-        position={[-11, 4, 9]}
-        intensity={36}
-        distance={26}
-        decay={2}
-        color="#79C6D8"
-      />
-      <pointLight
-        position={[0, 3, 11]}
-        intensity={26}
-        distance={22}
-        decay={2}
-        color="#F4DEA9"
-      />
+      {/* R53 — brighter, richer colour wash: rose / teal / gold / a
+          soft emerald, so the hall reads colourful & lit, not black. */}
+      <pointLight position={[11, 5, -9]} intensity={90} distance={32} decay={2} color={WP.rose} />
+      <pointLight position={[-11, 5, 9]} intensity={80} distance={32} decay={2} color={WP.teal} />
+      <pointLight position={[0, 4, 12]} intensity={70} distance={30} decay={2} color={WP.gold} />
+      <pointLight position={[-10, 5, -10]} intensity={55} distance={28} decay={2} color={WP.emerald} />
+      <pointLight position={[10, 5, 10]} intensity={48} distance={26} decay={2} color={WP.candle} />
 
       {/* L2 — parquet floor */}
       <mesh
@@ -393,7 +402,16 @@ function Scene({
 
       {/* Tables: leg + alternating-linen cloth + warm glow when seated */}
       {plots.map((p, i) => (
-        <group key={p.table.id} position={[p.x, 0, p.z]}>
+        <group
+          key={p.table.id}
+          position={[p.x, 0, p.z]}
+          onPointerDown={(e) => {
+            // R53 — tap a table in 3D → open its editor. stopPropagation
+            // so the tap doesn't also drag the camera.
+            e.stopPropagation();
+            onTableTap?.(p.table.id);
+          }}
+        >
           <mesh position={[0, 0.375, 0]} castShadow>
             <cylinderGeometry args={[0.04, 0.04, 0.75, 12]} />
             <meshStandardMaterial color={WP.cushionDark} roughness={0.5} />
@@ -555,6 +573,7 @@ export default function Room3DScene({
   seatAssignments,
   focusGuestId,
   onReady,
+  onTableTap,
 }: {
   tables: SeatingTable[];
   guests: Guest[];
@@ -564,6 +583,8 @@ export default function Room3DScene({
    *  "stuck loading" watchdog (mount = chunk downloaded + rendered;
    *  no <Environment> suspense anymore, so this is effectively "3D up"). */
   onReady?: () => void;
+  /** R53 — tap a table in 3D → edit it. */
+  onTableTap?: (tableId: string) => void;
 }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { onReady?.(); }, []);
@@ -598,6 +619,7 @@ export default function Room3DScene({
         focusGuestId={focusGuestId}
         effects={effects}
         onPerfChange={setLowPerf}
+        onTableTap={onTableTap}
       />
     </Canvas>
   );
