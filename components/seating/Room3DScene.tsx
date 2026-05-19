@@ -10,7 +10,12 @@ import {
   SoftShadows,
   CameraControls,
   PerformanceMonitor,
+  Text,
+  Billboard,
 } from "@react-three/drei";
+
+const FONT_HEB = "/fonts/heebo-heb.ttf";
+const FONT_LAT = "/fonts/heebo-lat.ttf";
 import {
   EffectComposer,
   Bloom,
@@ -53,8 +58,15 @@ interface TablePlot {
   table: SeatingTable;
   x: number;
   z: number;
+  num: number;
   occupied: boolean;
-  seats: { gx: number; gz: number; ang: number; taken: boolean }[];
+  seats: {
+    gx: number;
+    gz: number;
+    ang: number;
+    taken: boolean;
+    name: string | null;
+  }[];
 }
 
 const TABLE_R = 0.9;
@@ -175,19 +187,27 @@ function Scene({
       const x = (col - (cols - 1) / 2) * gap;
       const z = (row - (Math.ceil(n / cols) - 1) / 2) * gap;
       const seatN = Math.min(12, Math.max(1, table.capacity));
-      const assigned = guests.filter(
+      const tableGuests = guests.filter(
         (g) => seatAssignments[g.id] === table.id,
-      ).length;
+      );
       const seats = Array.from({ length: seatN }, (_, k) => {
         const ang = (k / seatN) * Math.PI * 2;
         return {
           gx: x + Math.cos(ang) * SEAT_R,
           gz: z + Math.sin(ang) * SEAT_R,
           ang,
-          taken: k < assigned,
+          taken: k < tableGuests.length,
+          name: k < tableGuests.length ? tableGuests[k].name : null,
         };
       });
-      return { table, x, z, occupied: assigned > 0, seats };
+      return {
+        table,
+        x,
+        z,
+        num: table.number ?? i + 1,
+        occupied: tableGuests.length > 0,
+        seats,
+      };
     });
   }, [tables, guests, seatAssignments]);
 
@@ -219,6 +239,23 @@ function Scene({
   const orbs = plots.flatMap((p) =>
     p.seats.filter((sx) => sx.taken).map((sx) => ({ x: sx.gx, z: sx.gz })),
   );
+  // Per-seat guest-name labels (occupied seats only — visually correct
+  // and bounds the troika Text count to the guest list, not all
+  // chairs). Hard cap for extreme events so a 600-guest hall can't
+  // tank the GPU with text meshes.
+  const nameLabels =
+    orbs.length > 400
+      ? []
+      : plots.flatMap((p) =>
+          p.seats
+            .filter((sx) => sx.name)
+            .map((sx) => ({
+              key: `${p.table.id}-${sx.ang.toFixed(3)}`,
+              x: sx.gx,
+              z: sx.gz,
+              name: sx.name as string,
+            })),
+        );
 
   return (
     <>
@@ -287,6 +324,30 @@ function Scene({
         penumbra={0.5}
         intensity={3}
         color="#D4B068"
+      />
+      {/* R49 — cinematic colour separation: a soft rose wash on one
+          side, a cool teal on the other. Keeps gold the hero but gives
+          the room real "event" colour & depth (Apple-keynote vibe). */}
+      <pointLight
+        position={[11, 4, -9]}
+        intensity={42}
+        distance={26}
+        decay={2}
+        color="#E8A6CC"
+      />
+      <pointLight
+        position={[-11, 4, 9]}
+        intensity={36}
+        distance={26}
+        decay={2}
+        color="#79C6D8"
+      />
+      <pointLight
+        position={[0, 3, 11]}
+        intensity={26}
+        distance={22}
+        decay={2}
+        color="#F4DEA9"
       />
 
       {/* L2 — parquet floor */}
@@ -431,6 +492,44 @@ function Scene({
           ))}
         </Instances>
       )}
+
+      {/* R49 — every table shows its number; every taken chair shows
+          its guest's name. Billboarded so they stay readable from any
+          camera angle / during the flyover. Hebrew via the served
+          Heebo subset; numbers via the Latin subset. */}
+      {plots.map((p) => (
+        <Billboard key={`num-${p.table.id}`} position={[p.x, 1.5, p.z]}>
+          <Text
+            font={FONT_LAT}
+            fontSize={0.5}
+            color="#F4DEA9"
+            outlineWidth={0.02}
+            outlineColor="#1A1206"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {String(p.num)}
+          </Text>
+        </Billboard>
+      ))}
+      {nameLabels.map((l) => (
+        <Billboard key={`nm-${l.key}`} position={[l.x, 0.66, l.z]}>
+          <Text
+            font={FONT_HEB}
+            fontSize={0.15}
+            color="#FFF7E6"
+            outlineWidth={0.007}
+            outlineColor="#000000"
+            anchorX="center"
+            anchorY="middle"
+            maxWidth={1.2}
+            textAlign="center"
+            direction="rtl"
+          >
+            {l.name}
+          </Text>
+        </Billboard>
+      ))}
 
       <Rig focus={focus} />
 
