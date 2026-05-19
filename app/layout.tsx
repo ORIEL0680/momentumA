@@ -6,6 +6,12 @@ import { AssistantWidget } from "@/components/AssistantWidget";
 import { ToastHost } from "@/components/Toast";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { ScrollProgress } from "@/components/ScrollProgress";
+import { validateEnv } from "@/lib/env-validate";
+
+// R47 — one-shot startup check (server module scope). Logs loudly if
+// NEXT_PUBLIC_SITE_URL is missing / stale / non-https after the
+// moomentum.events migration. Production only — never throws.
+if (process.env.NODE_ENV === "production") validateEnv();
 
 const heebo = Heebo({
   variable: "--font-heebo",

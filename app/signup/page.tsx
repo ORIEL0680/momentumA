@@ -49,7 +49,13 @@ function SignupPageInner() {
 
   const cloudEnabled = userActions.cloudEnabled();
   const providers = useAuthProviders();
-  const [error, setError] = useState<string | null>(null);
+  // R47 — seed from ?error= (a failed OAuth/confirm redirect that bounced
+  // back here) at first render, so the existing red banner shows it
+  // instead of a blank page. Lazy init — no setState-in-effect.
+  const [error, setError] = useState<string | null>(() => {
+    const e = searchParams.get("error");
+    return e ? decodeURIComponent(e) : null;
+  });
   const [busy, setBusy] = useState(false);
   const [consented, setConsented] = useState(false);
   // R18 §1B — when the user taps an auth button before ticking the

@@ -40,6 +40,19 @@ function CallbackInner() {
     }, 12000);
 
     const finish = async () => {
+      // R47 — structured client log for the domain-migration debug.
+      // Visible in the browser console (DevTools) so a user can screenshot
+      // it. Only presence of code/token is logged — they are credentials.
+      console.log("[auth/callback]", {
+        host: window.location.host,
+        origin: window.location.origin,
+        code_present: !!search.get("code"),
+        token_hash_present: !!search.get("token_hash"),
+        type: search.get("type"),
+        error: search.get("error"),
+        error_description: search.get("error_description"),
+      });
+
       // 1. If cloud sync isn't even configured, this page shouldn't be hit. Bounce home.
       if (!SUPABASE_ENABLED) {
         router.replace("/signup");

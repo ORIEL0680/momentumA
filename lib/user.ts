@@ -5,7 +5,30 @@ import { getSupabase, SUPABASE_ENABLED } from "./supabase";
 import { syncOnLogin } from "./sync";
 import { STORAGE_KEYS } from "./storage-keys";
 import { normalizeIsraeliPhone } from "./phone";
-import { tryGetPublicOrigin } from "./origin";
+
+/**
+ * R47 — the auth return URL MUST point at the same origin the user is
+ * currently on (apex / www / preview), NOT a pinned env origin.
+ *
+ * Previously this used `tryGetPublicOrigin()`, which returns
+ * NEXT_PUBLIC_SITE_URL first. After the moomentum.events migration that
+ * meant a user signing in *on* moomentum.events was redirected back
+ * through whatever the env said — the session cookie is host-scoped, so
+ * the callback landed on a different host than the cookie and the login
+ * silently failed.
+ *
+ * This module is `"use client"`, so `window` is always available; the
+ * SSR guard is purely defensive — returning undefined lets Supabase fall
+ * back to its configured Site URL rather than emit a relative URL.
+ *
+ * (Note: lib/origin.ts is still env-first ON PURPOSE — WhatsApp/RSVP
+ * links need a stable absolute origin even during SSR. Only the
+ * interactive auth redirect must follow the live browser origin.)
+ */
+function authCallbackUrl(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return `${window.location.origin}/auth/callback`;
+}
 
 export type SignupMethod = "google" | "apple" | "phone" | "email";
 
@@ -182,17 +205,10 @@ export const userActions = {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        // Redirect through our callback page so we can finalize the session
-        // and pull the cloud state into localStorage before landing on
-        // /onboarding. Use tryGetPublicOrigin so prod respects the
-        // NEXT_PUBLIC_SITE_URL env var instead of whatever
-        // window.location.origin happens to be (tunnel domains, preview
-        // deploys, etc). Falls back to undefined which lets Supabase use
-        // its configured Site URL.
-        redirectTo: (() => {
-          const o = tryGetPublicOrigin();
-          return o ? `${o}/auth/callback` : undefined;
-        })(),
+        // R47 — finalize the session on our callback page, returning to
+        // the SAME origin the user is on (see authCallbackUrl). Falls
+        // back to undefined → Supabase uses its configured Site URL.
+        redirectTo: authCallbackUrl(),
       },
     });
     if (error) throw error;
@@ -238,11 +254,10 @@ export const userActions = {
         // Stash the name in user_metadata so the verify-email landing page
         // can read it back without us having to round-trip through profiles.
         data: { full_name: name.trim() },
-        // Where Supabase redirects after the confirmation link is clicked.
-        emailRedirectTo: (() => {
-          const o = tryGetPublicOrigin();
-          return o ? `${o}/auth/callback` : undefined;
-        })(),
+        // R47 — Supabase redirects here after the email confirmation link
+        // is clicked; return to the same origin the user signed up from
+        // (see authCallbackUrl).
+        emailRedirectTo: authCallbackUrl(),
       },
     });
     if (error) throw error;

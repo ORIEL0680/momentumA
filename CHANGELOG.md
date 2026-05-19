@@ -4,6 +4,25 @@
 
 ---
 
+## [R57] — 2026-05-19 — תיקון אוטנטיקציה אחרי מעבר ל-moomentum.events
+
+ממש את ה-spec "R47" (R47 כבר תפוס → R57 ברצף). תיקון הבאג
+"לא מצליח להיכנס מהדומיין החדש". tsc/lint(0)/build/test(75/75)
+ירוקים. ללא תלות חדשה, ללא מיגרציה. ללא נגיעה ב-Supabase/OAuth/Vercel
+(עודכנו ידנית ע"י המשתמש).
+
+- **השורש:** `lib/user.ts` בנה `redirectTo`/`emailRedirectTo` דרך `tryGetPublicOrigin()` שמחזיר `NEXT_PUBLIC_SITE_URL` קודם. עוגיית session היא host-scoped → כניסה מ-moomentum.events נחתה ב-callback על host אחר מה-cookie → ההתחברות נכשלה בשקט.
+- `lib/user.ts` — הוסר import `tryGetPublicOrigin`; נוסף `authCallbackUrl()` → ``${window.location.origin}/auth/callback`` (המודול `"use client"`; SSR-guard→undefined→Supabase Site URL). תוקנו `signInWithOAuth.redirectTo` ו-`signUpWithEmail.emailRedirectTo`. **`lib/origin.ts` לא נגע** — env-first בכוונה לקישורי WhatsApp/RSVP.
+- `app/auth/confirm/route.ts` — `console.log("[auth/confirm]",…)` בתחילת GET + `console.error` בכשל verifyOtp (Vercel Functions Logs). טוקנים לא נרשמים — רק נוכחות.
+- `app/auth/callback/page.tsx` — `console.log("[auth/callback]",…)` מובנה בתחילת finish (debug client / צילום-מסך). UI השגיאה הידידותי כבר היה קיים.
+- `app/signup/page.tsx` — seed ל-`error` מ-`?error=` ב-lazy useState init (לא setState-in-effect) → ה-banner האדום הקיים מציג שגיאה במקום מסך ריק.
+- `lib/env-validate.ts` (חדש) — `validateEnv()` מזהיר אם `NEXT_PUBLIC_SITE_URL` חסר/ישן/לא-https; נקרא פעם אחת ב-`app/layout.tsx` (server, production, לא זורק).
+- `middleware.ts` — נבדק: CSP-only, ללא host enforcement. ללא שינוי. `vercel.json` redirects כבר ב-R56.
+- **סטייה מתועדת:** ה-spec הניח `app/auth/callback/route.ts`; בפועל זה client page + `auth/confirm/route.ts`. יושמה הכוונה על המבנה האמיתי; נשמר redirect ל-`/auth/callback?error=` (mapping עשיר) במקום `/signup` (היה רגרסיה).
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות ב-terms, לא קשורות) · build Compiled successfully · vitest 75/75 · strict, 0 any. ⏳ מבחן קבלה (כניסה חיה מ-moomentum.events + Vercel Logs) — owner-side.
+
+---
+
 ## [R56] — 2026-05-19 — מעבר לדומיין moomentum.events (תיקון רפרנסים)
 
 ממש את ה-spec "R46 — מעבר לדומיין" (R46 כבר תפוס בהיסטוריה →

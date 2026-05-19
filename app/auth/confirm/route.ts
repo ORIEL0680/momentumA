@@ -38,6 +38,19 @@ export async function GET(request: NextRequest) {
   const origin = publicOrigin(request);
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
+
+  // R47 — structured server log for the domain-migration debug. Shows in
+  // Vercel → Functions Logs when a user clicks an email-confirm link.
+  // No token value is logged (only presence) — tokens are credentials.
+  console.log("[auth/confirm]", {
+    host: request.headers.get("host"),
+    forwarded_host: request.headers.get("x-forwarded-host"),
+    origin,
+    token_present: !!tokenHash,
+    type,
+    error: searchParams.get("error"),
+    error_description: searchParams.get("error_description"),
+  });
   // Some templates pass `next` instead of `redirect_to`; honor both for
   // forwards-compat. Default lands on /auth/callback so the client can run
   // syncOnLogin + decide where to send the user.
@@ -71,6 +84,15 @@ export async function GET(request: NextRequest) {
   if (error) {
     // The most common failures here are expired tokens (24-hour TTL) and
     // tokens that have already been consumed (re-clicking an old link).
+    // R47 — structured error log (Vercel Functions Logs). The friendly
+    // Hebrew message is mapped client-side on /auth/callback; we keep
+    // redirecting there (richer error mapping) rather than /signup.
+    console.error("[auth/confirm] verifyOtp failed", {
+      message: error.message,
+      status: error.status,
+      name: error.name,
+      origin,
+    });
     return NextResponse.redirect(
       `${origin}/auth/callback?error=${encodeURIComponent(error.message)}`,
     );
