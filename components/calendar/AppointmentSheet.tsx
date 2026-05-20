@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Plus, X } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { showToast } from "@/components/Toast";
 import {
@@ -14,9 +14,14 @@ import {
   createAppointment,
   updateAppointment,
   deleteAppointment,
+  updateChecklist,
   type Appointment,
 } from "@/lib/calendar/appointments";
 import { formatHebrewDate } from "@/lib/calendar/hebrew-calendar";
+import {
+  newChecklistItemId,
+  type ChecklistItem,
+} from "@/lib/calendar/checklist-templates";
 
 /**
  * R67 (R56) — appointment create/edit modal.
@@ -66,6 +71,13 @@ export interface AppointmentSheetProps {
   editing?: Appointment | null;
   /** When creating: pre-fill the date (default = today). */
   initialDate?: Date;
+  /**
+   * R68 — for the smart-day-balance hint. Returns the count of OTHER
+   * appointments already scheduled on a given local-iso day (YYYY-MM-DD),
+   * excluding the row currently being edited. Optional — when omitted,
+   * the hint just never shows.
+   */
+  appointmentsOnDay?: (iso: string) => number;
   onClose: () => void;
   onSaved: (a: Appointment) => void;
   onDeleted?: (id: string) => void;
@@ -74,6 +86,7 @@ export interface AppointmentSheetProps {
 export function AppointmentSheet({
   editing,
   initialDate,
+  appointmentsOnDay,
   onClose,
   onSaved,
   onDeleted,
@@ -105,6 +118,19 @@ export function AppointmentSheet({
     editing?.color ?? CATEGORY_COLORS[editing?.category ?? "other"],
   );
   const [busy, setBusy] = useState(false);
+
+  // R68 — local checklist state (only meaningful when editing an
+  // existing row; the create path seeds the checklist on save).
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
+    editing?.checklist ?? [],
+  );
+  // True after the local checklist diverges from what's in the DB.
+  // Drives the debounced auto-save effect below. Starts false → no
+  // save fires on mount; only after the user actually toggles/adds.
+  const [checklistDirty, setChecklistDirty] = useState(false);
+  // Inputs for "+ הוסף שורה" per group.
+  const [newQuestion, setNewQuestion] = useState("");
+  const [newBring, setNewBring] = useState("");
 
   // Apply a template: fills title/category/duration/color, leaves date.
   const applyTemplate = (tplId: string) => {
@@ -206,6 +232,63 @@ export function AppointmentSheet({
     // edit each independently. (Auto-shift on every keystroke felt
     // janky in early iterations.)
   }, [startStr]);
+
+  // R68 — debounced checklist auto-save. Only fires after the user
+  // actually toggles/adds (checklistDirty). The setState inside the
+  // setTimeout callback is async, so the lint rule against synchronous
+  // setState-in-effect doesn't apply.
+  useEffect(() => {
+    if (!editing || !checklistDirty) return;
+    const t = setTimeout(() => {
+      updateChecklist(editing.id, checklistItems).then((saved) => {
+        if (saved) onSaved(saved);
+        setChecklistDirty(false);
+      });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [editing, checklistItems, checklistDirty, onSaved]);
+
+  const toggleChecklistItem = (id: string) => {
+    setChecklistItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, checked: !it.checked } : it)),
+    );
+    setChecklistDirty(true);
+  };
+
+  const removeChecklistItem = (id: string) => {
+    setChecklistItems((prev) => prev.filter((it) => it.id !== id));
+    setChecklistDirty(true);
+  };
+
+  const addChecklistItem = (type: ChecklistItem["type"]) => {
+    const label = type === "question" ? newQuestion.trim() : newBring.trim();
+    if (!label) return;
+    setChecklistItems((prev) => [
+      ...prev,
+      {
+        id: newChecklistItemId(type),
+        label,
+        checked: false,
+        type,
+      },
+    ]);
+    if (type === "question") setNewQuestion("");
+    else setNewBring("");
+    setChecklistDirty(true);
+  };
+
+  // R68 (Part 7) — smart day-balance hint. Compute count of existing
+  // appointments on the chosen day (excluding the one being edited).
+  // Shown as an inline notice when ≥ 3; spec wanted a confirm modal
+  // but the inline hint achieves the same awareness with much less
+  // surface area and no extra component.
+  const otherSameDayCount = appointmentsOnDay
+    ? appointmentsOnDay(dateStr)
+    : 0;
+
+  const questionItems = checklistItems.filter((i) => i.type === "question");
+  const bringItems = checklistItems.filter((i) => i.type === "bring");
+  const checkedCount = checklistItems.filter((i) => i.checked).length;
 
   return (
     <Modal
@@ -315,6 +398,24 @@ export function AppointmentSheet({
           </div>
         </div>
 
+        {/* R68 (Part 7) — smart day-balance inline hint. Surfaces when
+            the chosen day already has ≥3 other appointments. Inline
+            warning instead of the spec's blocking confirm modal —
+            less friction, same awareness. */}
+        {otherSameDayCount >= 3 && (
+          <div
+            className="text-sm rounded-xl px-3 py-2.5"
+            style={{
+              background: "color-mix(in srgb, #fb923c 10%, transparent)",
+              border: "1px solid color-mix(in srgb, #fb923c 35%, transparent)",
+              color: "var(--foreground-soft)",
+            }}
+          >
+            💡 כבר יש <span className="ltr-num">{otherSameDayCount}</span>{" "}
+            פגישות באותו יום. שיקלו לפזר על 2 ימים כדי לא להעמיס.
+          </div>
+        )}
+
         <div>
           <label
             htmlFor="appt-location"
@@ -384,6 +485,56 @@ export function AppointmentSheet({
           </div>
         </div>
 
+        {/* R68 (Part 1) — checklist. Only shown when editing an
+            existing appointment; fresh ones get their checklist seeded
+            on save and the user reopens the sheet to see it.
+            Auto-saves 500ms after the last toggle/add. */}
+        {editing && checklistItems.length > 0 && (
+          <div
+            className="rounded-xl p-3"
+            style={{
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-bold">
+                צ׳קליסט לפגישה
+              </span>
+              <span
+                className="text-xs ltr-num"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                {checkedCount}/{checklistItems.length}
+                {checklistDirty ? " · שומר…" : ""}
+              </span>
+            </div>
+
+            <ChecklistGroup
+              title="📝 שאלות לשאול"
+              items={questionItems}
+              onToggle={toggleChecklistItem}
+              onRemove={removeChecklistItem}
+              newInput={newQuestion}
+              setNewInput={setNewQuestion}
+              onAdd={() => addChecklistItem("question")}
+              placeholder="שאלה נוספת…"
+            />
+            <div className="mt-4">
+              <ChecklistGroup
+                title="📦 מה להביא"
+                items={bringItems}
+                onToggle={toggleChecklistItem}
+                onRemove={removeChecklistItem}
+                newInput={newBring}
+                setNewInput={setNewBring}
+                onAdd={() => addChecklistItem("bring")}
+                placeholder="פריט נוסף…"
+              />
+            </div>
+          </div>
+        )}
+
         <div
           className="flex items-center gap-2 pt-3"
           style={{ borderTop: "1px solid var(--border)" }}
@@ -423,5 +574,103 @@ export function AppointmentSheet({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Single checklist group (questions OR bring). Internal to the Sheet. */
+function ChecklistGroup({
+  title,
+  items,
+  onToggle,
+  onRemove,
+  newInput,
+  setNewInput,
+  onAdd,
+  placeholder,
+}: {
+  title: string;
+  items: ChecklistItem[];
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  newInput: string;
+  setNewInput: (s: string) => void;
+  onAdd: () => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <div
+        className="text-xs font-semibold mb-2"
+        style={{ color: "var(--foreground-soft)" }}
+      >
+        {title}
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((it) => (
+          <li
+            key={it.id}
+            className="flex items-center gap-2 group"
+          >
+            <input
+              id={`chk-${it.id}`}
+              type="checkbox"
+              checked={it.checked}
+              onChange={() => onToggle(it.id)}
+              className="w-4 h-4 shrink-0"
+              style={{ accentColor: "var(--accent)" }}
+            />
+            <label
+              htmlFor={`chk-${it.id}`}
+              className="flex-1 text-sm cursor-pointer leading-snug"
+              style={{
+                color: it.checked
+                  ? "var(--foreground-muted)"
+                  : "var(--foreground-soft)",
+                textDecoration: it.checked ? "line-through" : "none",
+              }}
+            >
+              {it.label}
+            </label>
+            <button
+              type="button"
+              onClick={() => onRemove(it.id)}
+              aria-label="הסר פריט"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition w-7 h-7 rounded-full inline-flex items-center justify-center shrink-0"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              <X size={13} aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-2 mt-2.5">
+        <input
+          type="text"
+          value={newInput}
+          onChange={(e) => setNewInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onAdd();
+            }
+          }}
+          placeholder={placeholder}
+          className="input flex-1 !py-1.5 text-sm"
+        />
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={!newInput.trim()}
+          aria-label="הוסף שורה"
+          className="w-9 h-9 rounded-full inline-flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            border: "1px solid var(--border-gold)",
+            color: "var(--accent)",
+          }}
+        >
+          <Plus size={14} aria-hidden />
+        </button>
+      </div>
+    </div>
   );
 }

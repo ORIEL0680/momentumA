@@ -4,6 +4,31 @@
 
 ---
 
+## [R68] — 2026-05-20 — Calendar upgrade layer MVP (R57)
+
+ממש את ה-spec "R57" ב-5 חלקים נקיים (אישור scope מהמשתמש). 8 ה-parts
+המקוריות → ירדו ל-5 (DnD/multi-views/AI brief/geo-fence/family-share
+דחויים בגלל deps/Pro plan/missing push infra/scope). אפס dep חדש.
+
+- `supabase/migrations/2026-05-20-calendar-pro.sql` — `appointments.checklist jsonb` + `calendar_sync_tokens`. הסרתי `meeting_briefs` ו-`calendar_shares` מה-spec — משרתים רק parts שמודחים.
+- `lib/calendar/checklist-templates.ts` (חדש) — 8 קטגוריות, `buildChecklist`, `checklistProgress`.
+- `lib/calendar/appointments.ts` — `checklist` ב-Appointment, seed ב-`createAppointment`, `updateChecklist` חדש.
+- `components/calendar/AppointmentSheet.tsx` — checklist section (edit mode), 2 קבוצות (שאלות/להביא), checkboxes + custom add + delete, debounced auto-save 500ms. סטטוס "שומר…" + progress chip.
+- `components/calendar/AppointmentSheet.tsx` — **smart day balance** inline hint (כתום) כשיש ≥3 פגישות באותו יום. inline במקום Confirm modal — סטייה מ-spec לטובת פחות חיכוך.
+- `lib/supabase/service.ts` (חדש) — `createServiceClient()` עם `server-only` guard.
+- `app/api/calendar/ics/[token]/route.ts` — public RFC-5545 iCal feed. token-based auth, line-folding 75-octet, escape RFC §3.3.11, UTC, 15min cache. 404 על invalid token (לא חושף קיום).
+- `app/api/calendar/sync-token/route.ts` — JWT-auth'd GET (return/create) + DELETE (rotate). 192-bit URL-safe random token.
+- `components/calendar/CalendarSyncSection.tsx` (חדש) — UI ב-/settings: copy URL + rotate עם confirmation + הוראות Google/Apple.
+- `app/settings/page.tsx` — `<Section icon={Calendar} title="סנכרון לוח שנה">` חדש לפני "עזרה והדרכה".
+- `app/calendar/print/page.tsx` (חדש) — print-friendly table view (A4 RTL, header עם wedding title + countdown, `@media print` להסתרת chrome).
+- `components/calendar/CalendarMonth.tsx` — כפתור 🖨 → /calendar/print.
+
+**Deferred (R69+ post-launch):** DnD (`@dnd-kit/*` deps), week/day/agenda views, AI brief cron (needs Vercel Pro + SW + VAPID), geo-fence (no lat/lng columns + no Places integration), family-share.
+
+**אימות:** tsc נקי · lint 0 err (6 warnings קודמות) · build ok (`/calendar/print`, `/api/calendar/ics/[token]`, `/api/calendar/sync-token`) · 75/75 · אפס dep חדש. הdeploy ייעשה דרך `vercel --prod` (לקח מ-R66).
+
+---
+
 ## [R67] — 2026-05-20 — Calendar appointments + Wedding Brain + Header cleanup (R56)
 
 ממש את ה-spec "R56". בR55 בחרת MVP; ב-R56 חזרת לסט מלא. השמטתי בכוונה

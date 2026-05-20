@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
   Plus,
+  Printer,
 } from "lucide-react";
 import {
   getPriceInfo,
@@ -205,6 +207,17 @@ export function CalendarMonth({
           >
             <ChevronLeft size={16} aria-hidden />
           </button>
+          <Link
+            href="/calendar/print"
+            aria-label="גרסה להדפסה"
+            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--foreground-soft)",
+            }}
+          >
+            <Printer size={15} aria-hidden />
+          </Link>
           <button
             type="button"
             onClick={() => onAddClick()}

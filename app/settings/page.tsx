@@ -20,6 +20,7 @@ import { deleteCloudData } from "@/lib/sync";
 import { formatEventDate } from "@/lib/format";
 import { showToast } from "@/components/Toast";
 import { resetTour } from "@/lib/useFirstLogin";
+import { CalendarSyncSection } from "@/components/calendar/CalendarSyncSection";
 import {
   ArrowRight,
   User,
@@ -38,6 +39,7 @@ import {
   X,
   RefreshCw,
   AlertCircle,
+  Calendar,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -380,6 +382,11 @@ export default function SettingsPage() {
               <button onClick={() => window.print()} className="btn-secondary mt-3 text-sm py-2 px-4 inline-flex items-center gap-2">
                 <Printer size={14} /> הדפס את העמוד הזה
               </button>
+            </Section>
+
+            {/* R68 — Google / Apple Calendar sync (iCal feed). */}
+            <Section icon={<Calendar size={20} />} title="סנכרון לוח שנה">
+              <CalendarSyncSection />
             </Section>
 
             {/* R61 — Help & tutorial: re-run the first-time welcome tour. */}

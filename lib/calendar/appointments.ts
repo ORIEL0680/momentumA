@@ -15,6 +15,10 @@
 
 import { getSupabase } from "@/lib/supabase";
 import type { AppointmentCategory } from "./wedding-brain";
+import {
+  buildChecklist,
+  type ChecklistItem,
+} from "./checklist-templates";
 
 export interface Appointment {
   id: string;
@@ -31,6 +35,10 @@ export interface Appointment {
   source: "manual" | "ai_suggestion";
   ai_status: "pending" | "accepted" | "dismissed" | null;
   is_completed: boolean;
+  /** R68 — per-appointment checklist (jsonb in DB). Empty array on
+   *  rows that pre-date the R68 migration; new manual rows get the
+   *  category's default questions/bring list. */
+  checklist: ChecklistItem[];
   created_at: string;
   updated_at: string;
 }
@@ -89,6 +97,9 @@ export async function createAppointment(
   const { data: userRes } = await supabase.auth.getUser();
   const uid = userRes?.user?.id;
   if (!uid) return null;
+  // R68 — seed the checklist for fresh rows so the user lands on a
+  // useful set of questions/bring items the moment they save.
+  const checklist = buildChecklist(input.category);
   const { data, error } = (await supabase
     .from("appointments")
     .insert({
@@ -103,6 +114,7 @@ export async function createAppointment(
       source: "manual",
       vendor_id: input.vendor_id ?? null,
       event_id: input.event_id ?? null,
+      checklist,
     })
     .select("*")
     .single()) as { data: Appointment | null; error: { message: string } | null };
@@ -189,4 +201,28 @@ export async function dismissSuggestion(id: string): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+/**
+ * R68 — persist a checklist update. Returns the updated row so the
+ * caller can replace its local copy (useful when the parent state
+ * cache holds the appointment).
+ */
+export async function updateChecklist(
+  id: string,
+  checklist: ChecklistItem[],
+): Promise<Appointment | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = (await supabase
+    .from("appointments")
+    .update({ checklist })
+    .eq("id", id)
+    .select("*")
+    .single()) as { data: Appointment | null; error: { message: string } | null };
+  if (error) {
+    console.error("[calendar/updateChecklist]", error.message);
+    return null;
+  }
+  return data;
 }

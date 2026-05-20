@@ -199,6 +199,23 @@ export function CalendarClient() {
             onClose={() => setSheetOpen(false)}
             onSaved={handleSaved}
             onDeleted={handleDeleted}
+            appointmentsOnDay={(iso) => {
+              // R68 (Part 7) — count OTHER appointments on the given
+              // local-iso day. Excludes the one being edited so the
+              // hint doesn't double-count it.
+              const editingId = sheetEditing?.id;
+              let n = 0;
+              for (const a of visibleAppointments) {
+                if (editingId && a.id === editingId) continue;
+                // Same local-iso day as the one passed in.
+                const d = new Date(a.start_at);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, "0");
+                const day = String(d.getDate()).padStart(2, "0");
+                if (`${y}-${m}-${day}` === iso) n += 1;
+              }
+              return n;
+            }}
           />
         )}
 
