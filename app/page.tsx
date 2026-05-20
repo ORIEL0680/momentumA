@@ -56,6 +56,7 @@ export default async function LandingPage() {
     <>
       <script
         nonce={nonce}
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: REDIRECT_SCRIPT }}
       />
       <Header />

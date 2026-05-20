@@ -65,6 +65,7 @@ export default async function SignupPage({
     <>
       <script
         nonce={nonce}
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: buildRedirectScript(next) }}
       />
       <SignupClient />

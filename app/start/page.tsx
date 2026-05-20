@@ -48,6 +48,7 @@ export default async function StartPage() {
     <>
       <script
         nonce={nonce}
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: ROUTING_SCRIPT }}
       />
       <StartClient />

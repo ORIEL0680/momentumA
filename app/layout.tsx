@@ -123,8 +123,21 @@ export default async function RootLayout({
       className={`${heebo.variable} h-full antialiased`}
     >
       <head>
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootScript }} />
-        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: plausibleBootScript }} />
+        {/* R70 (R59) — `suppressHydrationWarning` on nonce'd scripts.
+            Browsers strip `nonce` from the DOM after parsing (security),
+            so React's hydration sees nonce="" on the client and warns.
+            The scripts execute server-side once anyway; the suppress
+            is the documented Next.js pattern for CSP nonce inline. */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeBootScript }}
+        />
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: plausibleBootScript }}
+        />
       </head>
       <body className="min-h-full flex flex-col">
         <ErrorListener />

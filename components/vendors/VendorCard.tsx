@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 
@@ -74,15 +74,22 @@ function VendorCardImpl({
   // R18 §H — first-run "add to my list" affordance. Once the user has
   // saved any vendor we drop the in-body pill (the overlay +/✓ badge is
   // enough once they know the pattern). Persisted so it survives reloads.
+  //
+  // R70 (R59): server render starts in the "hidden" state (true), then
+  // a post-mount effect reads localStorage and flips to "show pill" only
+  // for first-time users. Doing the localStorage read in the useState
+  // initializer caused a hydration mismatch: SSR returned true (window
+  // undefined), client returned false (no key yet) → React bailed out
+  // of patching the tree on /vendors.
   const HAS_SAVED_KEY = "momentum.has_saved_vendor.v1";
-  const [hasSavedEver, setHasSavedEver] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true; // SSR: hide to avoid flash
+  const [hasSavedEver, setHasSavedEver] = useState<boolean>(true);
+  useEffect(() => {
     try {
-      return window.localStorage.getItem(HAS_SAVED_KEY) === "1";
+      setHasSavedEver(window.localStorage.getItem(HAS_SAVED_KEY) === "1");
     } catch {
-      return false;
+      setHasSavedEver(false);
     }
-  });
+  }, []);
 
   const markSavedEver = () => {
     if (hasSavedEver) return;
