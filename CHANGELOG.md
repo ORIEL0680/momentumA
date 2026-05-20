@@ -4,6 +4,25 @@
 
 ---
 
+## [R62] — 2026-05-20 — ניתוב: משתמש מחובר → ישר לדשבורד (R52)
+
+ממש את ה-spec "R52" עם adapt-to-architecture (אישור מהמשתמש). הסשן
+ב-localStorage לא בcookie → server-component getUser() תמיד מחזיר
+null → ה-redirect הסטנדרטי לא יורה. במקום זה, **inline pre-paint
+script** שרץ סינכרונית ב-SSR HTML לפני paint. אין flash בשני
+המקרים (מחובר ולא). tsc/lint(0)/build/test(75/75) ירוקים.
+
+- `app/page.tsx` — async server component. nonce מ-`headers()` + סקריפט שבודק `^sb-.*-auth-token$` ב-localStorage ועושה `location.replace("/dashboard")` אם נמצא.
+- `app/signup/page.tsx` (rewrite) + `app/signup/SignupClient.tsx` (חדש, התוכן הישן עם named export). ה-wrapper קורא `searchParams.next` (וגם `returnTo` legacy), מסנן open-redirect (חייב להתחיל ב-`/` יחיד, לא `//`/`/\\`, לא תווים מסוכנים, עטיפת `JSON.stringify`), ומזריק סקריפט redirect.
+- `app/start/page.tsx` — async server עם 2 בדיקות בסקריפט: אין session→`/signup?returnTo=/start`; יש session ויש `event.id` ב-`momentum.app.v1`→`/dashboard`; אחרת StartClient.
+- Header — נבדק: כבר עושה `useUser()` + gating נכון. אין שינוי.
+- `lib/supabase/server.ts` — **לא נוצר בכוונה** (cookie-SSR לא יעבוד פה; ייצר בלבול בעתיד).
+- אבטחה: כל ה-inline scripts נושאים `nonce` מ-CSP. הפילטר על `next` מונע open-redirect.
+- **סטייה מתועדת:** ה-spec ביקש useEffect+router.push נאסר וגם getUser+redirect ב-Server Component. שני אלה לא עובדים פה (אחד גורם flash, השני לא רואה session). בחרתי דפוס שלישי: inline pre-paint script, אותו דפוס שכבר משמש ב-`app/layout.tsx` ל-theme.
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות) · build ok · 75/75 · strict 0 any · אין dep / migration / שינוי DB.
+
+---
+
 ## [R61] — 2026-05-20 — R51-תוספת: WelcomeTour hardening
 
 תוספת ל-R60. 3 דרישות: "סיום ההדרכה" בכל שלב, עיגון "לעולם לא שוב",
