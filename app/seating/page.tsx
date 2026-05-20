@@ -12,7 +12,6 @@ import { Avatar } from "@/components/Avatar";
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import type { Guest, SeatingTable } from "@/lib/types";
-import { Room3D } from "@/components/seating/Room3D";
 import { smartArrangement, type TableExplanation } from "@/lib/seatingAlgorithm";
 import {
   Plus,
@@ -56,8 +55,7 @@ export default function SeatingPage() {
   const [editingTable, setEditingTable] = useState<SeatingTable | null>(null);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [flatView, setFlatView] = useState(false);
-  // R44 §3 — 2D (default) ⇄ 3D ROOM. 3D lazy-loads three.js only on opt-in.
-  const [view, setView] = useState<"2d" | "3d">("2d");
+  // R71 (R60-5) — 3D ROOM removed; 2D top-down view is now the only one.
   // Newest-table id (cleared 600ms later) — the entrance keyframe runs on
   // ONLY that table, instead of replaying for every table on every render.
   // This cuts ~700ms of GPU work × N tables every time the list re-renders.
@@ -398,72 +396,34 @@ export default function SeatingPage() {
           {state.guests.length > 0 && state.tables.length > 0 && (
             <div className="mt-10 grid lg:grid-cols-[1fr_320px] gap-6">
               <div>
-                {/* R44 §3 — 2D ⇄ 3D ROOM toggle. 3D lazy-loads three.js
-                    only when picked; unsupported WebGL falls back. */}
+                {/* R71 (R60-5) — 2D top-down floor plan is the only view.
+                    The 3D toggle (R44 §3) was removed: webgl freezes on
+                    mobile, the cinematic intro added ~120KB of three.js
+                    to /seating's bundle for a feature few users needed. */}
                 <div
-                  className="inline-flex rounded-full p-1 mb-4"
-                  style={{
-                    background: "var(--input-bg)",
-                    border: "1px solid var(--border)",
-                  }}
+                  className="floor-3d"
+                  data-many-tables={state.tables.length > 10 ? "true" : "false"}
                 >
-                  {(["2d", "3d"] as const).map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setView(v)}
-                      className="px-4 py-1.5 rounded-full text-sm font-semibold transition"
-                      style={
-                        view === v
-                          ? {
-                              background:
-                                "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
-                              color: "var(--gold-button-text)",
-                            }
-                          : { color: "var(--foreground-soft)" }
-                      }
-                    >
-                      {v === "2d" ? "מפה" : "תלת-מימד"}
-                    </button>
-                  ))}
-                </div>
-
-                {view === "3d" ? (
-                  <Room3D
-                    tables={state.tables}
-                    guests={eligibleGuests}
-                    seatAssignments={state.seatAssignments}
-                    onTableTap={(id) => {
-                      const t = state.tables.find((tb) => tb.id === id);
-                      if (t) setEditingTable(t);
-                    }}
-                  />
-                ) : (
-                  <div
-                    className="floor-3d"
-                    data-many-tables={state.tables.length > 10 ? "true" : "false"}
-                  >
-                    <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-8 md:p-12`}>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-16 md:gap-y-24">
-                        {tablesWithGuests.map(({ table, heads }, i) => (
-                          <Table3D
-                            key={table.id}
-                            table={table}
-                            heads={heads}
-                            displayNumber={table.number ?? i + 1}
-                            active={activeTableId === table.id}
-                            receiving={flashingTables.has(table.id)}
-                            scanning={showingScan}
-                            isNewlyAdded={newlyAddedTableId === table.id}
-                            floatEnabled={state.tables.length <= 10}
-                            onActivate={handleActivateTable}
-                            onDropGuest={handleDropOnTable}
-                          />
-                        ))}
-                      </div>
+                  <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-8 md:p-12`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-16 md:gap-y-24">
+                      {tablesWithGuests.map(({ table, heads }, i) => (
+                        <Table3D
+                          key={table.id}
+                          table={table}
+                          heads={heads}
+                          displayNumber={table.number ?? i + 1}
+                          active={activeTableId === table.id}
+                          receiving={flashingTables.has(table.id)}
+                          scanning={showingScan}
+                          isNewlyAdded={newlyAddedTableId === table.id}
+                          floatEnabled={state.tables.length <= 10}
+                          onActivate={handleActivateTable}
+                          onDropGuest={handleDropOnTable}
+                        />
+                      ))}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Side panel: unassigned + active table editor */}
