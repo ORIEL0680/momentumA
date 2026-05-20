@@ -27,7 +27,6 @@ import {
   Clock,
   MapPin,
   Navigation,
-  X,
   AlertTriangle,
   Award,
 } from "lucide-react";

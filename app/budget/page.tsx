@@ -26,7 +26,6 @@ import {
   Trash2,
   ArrowRight,
   AlertCircle,
-  Scale,
 } from "lucide-react";
 
 const CATEGORIES = Object.keys(BUDGET_CATEGORY_LABELS) as BudgetCategory[];

@@ -3,11 +3,8 @@ import { Logo } from "@/components/Logo";
 import {
   ArrowRight,
   AlertTriangle,
-  FileText,
-  Scale,
   Wallet,
   ShieldOff,
-  Megaphone,
   Gavel,
   BookOpen,
   CheckCircle2,
