@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2 } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -9,7 +9,6 @@ import { AISuggestionBanner } from "@/components/calendar/AISuggestionBanner";
 import { CalendarMonth } from "@/components/calendar/CalendarMonth";
 import { AppointmentSheet } from "@/components/calendar/AppointmentSheet";
 import { SuggestionPopover } from "@/components/calendar/SuggestionPopover";
-import { BrainOnboarding } from "@/components/calendar/BrainOnboarding";
 import {
   listAppointments,
   type Appointment,
@@ -57,14 +56,8 @@ export function CalendarClient() {
   const [popoverSuggestion, setPopoverSuggestion] =
     useState<Appointment | null>(null);
 
-  // Imperative refetch handed to child callbacks (e.g. BrainOnboarding
-  // onSeeded). setState in a .then() callback is async, so it doesn't
-  // trip react-hooks/set-state-in-effect.
-  const refetch = useCallback(() => {
-    listAppointments().then(setAppointments);
-  }, []);
-
-  // Initial load. Same async-callback pattern; the `active` ref
+  // Initial load. Setting state inside a `.then()` callback is async,
+  // so it doesn't trip react-hooks/set-state-in-effect. `active` ref
   // prevents an updating-an-unmounted-component warning if the user
   // navigates away mid-fetch.
   useEffect(() => {
@@ -182,10 +175,6 @@ export function CalendarClient() {
             />
           )}
         </div>
-
-        {/* First-visit Wedding Brain onboarding — only when the user has
-            an event date (so we know how to anchor the timeline). */}
-        {eventDate && <BrainOnboarding eventDate={eventDate} onSeeded={refetch} />}
 
         {sheetOpen && (
           <AppointmentSheet
