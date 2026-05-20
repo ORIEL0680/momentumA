@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { EmptyEventState } from "@/components/EmptyEventState";
+import { EmptyState } from "@/components/EmptyState";
 import { PrintButton } from "@/components/PrintButton";
 import { BalanceSkeleton } from "@/components/skeletons/PageSkeletons";
 import { VoiceCapture, type VoiceApplyRow } from "@/components/balance/VoiceCapture";
@@ -141,9 +142,13 @@ export default function BalancePage() {
           />
 
           {attended.length === 0 ? (
-            <div className="card p-10 mt-8 text-center" style={{ color: "var(--foreground-muted)" }}>
-              עוד לא אישרו הגעה. אחרי האירוע, מי שאישר/הגיע יופיע כאן כדי שתוכל לרשום מה הוא הביא.
-            </div>
+            <EmptyState
+              icon={<Scale size={28} aria-hidden />}
+              title="המאזן יבנה כשהאירוע יתחיל"
+              description="אחרי שיש אישורי הגעה, נחשב כאן רווח/הפסד ונזכיר לכם מי נתן מה — כולל קלט קולי לפתיחת מעטפות בזריזות."
+              cta={{ label: "חזרה לדשבורד", href: "/dashboard" }}
+              emphasis
+            />
           ) : (
             <>
               {/* Toolbar */}

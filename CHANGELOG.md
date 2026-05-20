@@ -4,6 +4,26 @@
 
 ---
 
+## [R60] — 2026-05-20 — חוויית המשתמש החדש (השעה הראשונה)
+
+ממש את ה-spec "R51". 4 חלקים — מיילי auth מותגים, welcome email
+אחרי שעה (אינפרה), welcome tour ראשון, ושיפור empty-state ב-/balance.
+tsc/lint(0)/build/test(75/75) ירוקים. 1 migration ידני, אין dep חדש.
+
+- `emails/` (7 קבצים) — 6 תבניות auth ב-RTL/inline-styles + welcome.html + README שמסביר בדיוק לאן להדביק כל אחת ב-Supabase Dashboard. paste-ready, לא חלק מה-build.
+- `supabase/migrations/2026-05-20-scheduled-emails.sql` — `scheduled_emails` + RLS deny-all + trigger על `auth.users` (לא `user_profiles` — לא קיים).
+- `app/api/send-scheduled/route.ts` + `vercel.json` crons (`*/15 * * * *`) — שליחה דרך Resend (אותו pattern של `vendorNotifications`). Graceful degrade בלי `RESEND_API_KEY` (מסמן שורות sent עם reason, לא loop). אימות `CRON_SECRET`.
+- `lib/useFirstLogin.ts` — `useSyncExternalStore` על localStorage `momentum.tour.completed.v1`. server snapshot מחזיר completed=true → אין render ב-SSR, אין hydration mismatch.
+- `components/onboarding/WelcomeTour.tsx` — 5-step modal (Welcome → ניצוץ → אורחים → תקציב → ספקים). Esc=דלג, Enter/→=הבא, ←=חזרה. אין backdrop-click. סיום: `fireConfetti` + toast. דלג נחשב הושלם.
+- `app/dashboard/page.tsx` — `<WelcomeTour />` משולב (משתמע עם WelcomeBanner הקיים).
+- `app/balance/page.tsx` — div plain-text של "עוד לא אישרו..." → `<EmptyState>` נכון עם icon/CTA.
+
+**סטיות מתועדות (פערים מהארכיטקטורה הנחתה):** `user_profiles.onboarding_completed` לא קיים → localStorage per-device. trigger על `auth.users` לא `user_profiles`. Coachmarks pixel-anchored → 5-step modal (יציב בכל רוחב). `*/15` cron דורש Vercel Pro (Hobby = daily). Resend "from" כרגע `onboarding@resend.dev` עד שהדומיין יאומת.
+
+**ידני (owner):** הריצו את ה-migration; הדביקו את 6 התבניות ב-Supabase Auth → Email Templates (subjects ב-README); הוסיפו `RESEND_API_KEY` + `CRON_SECRET` ב-Vercel env; אם על Hobby — החליפו cron ל-`0 9 * * *`.
+
+---
+
 ## [R59] — 2026-05-19 — Admin Dashboard למייסד (מותאם לארכיטקטורה הקיימת)
 
 ממש את ה-spec "R49" (R49 תפוס → R59). **המשתמש אישר: "התאם

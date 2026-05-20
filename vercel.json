@@ -20,8 +20,18 @@
     },
     "app/api/vendors/admin/decide/route.ts": {
       "maxDuration": 15
+    },
+    "app/api/send-scheduled/route.ts": {
+      "maxDuration": 60
     }
   },
+
+  "crons": [
+    {
+      "path": "/api/send-scheduled",
+      "schedule": "*/15 * * * *"
+    }
+  ],
 
   "redirects": [
     {
