@@ -16,6 +16,15 @@ type Step = "choose" | "phone" | "email" | "email-confirmation" | "name";
 type EmailMode = "signup" | "login";
 
 /**
+ * R71 (R60) — top-level "mode" switch. Was implicit-only-on-the-email-
+ * step in R47; promoted to a page-level toggle so existing users don't
+ * land on a wall of "register" CTAs and bounce. URL `?mode=signin` opts
+ * straight into the login view; `?mode=signup` (default) is the new
+ * signup view.
+ */
+type AuthMode = "signup" | "signin";
+
+/**
  * Next 16 requires components that read useSearchParams() to live inside a
  * Suspense boundary — otherwise the page bails out of static rendering and
  * the build complains. The actual UI lives in <SignupPageInner />.
@@ -79,9 +88,20 @@ function SignupPageInner() {
     return false;
   };
 
+  // R71 (R60) — page-level authMode. Synced with `?mode=` so we don't
+  // duplicate it in state on every render. The email sub-mode below
+  // mirrors this on entry but stays independently switchable inside the
+  // email step (so a user who started "signup" can flip to "login" once
+  // they remember they have an account, without going back to /signup).
+  const initialAuthMode: AuthMode =
+    searchParams.get("mode") === "signin" ? "signin" : "signup";
+  const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
+
   // Email/password state — kept local to the SignupPage so the user can
   // switch back and forth between modes without losing what they typed.
-  const [emailMode, setEmailMode] = useState<EmailMode>("signup");
+  const [emailMode, setEmailMode] = useState<EmailMode>(
+    initialAuthMode === "signin" ? "login" : "signup",
+  );
   const [emailValue, setEmailValue] = useState("");
   const [password, setPassword] = useState("");
   const [emailName, setEmailName] = useState("");
@@ -286,52 +306,88 @@ function SignupPageInner() {
 
           {step === "choose" && (
             <>
-              {/* Consent box renders ABOVE the provider buttons so the user
-                  sees it before the buttons. Previously it sat below the card,
-                  so the disabled buttons looked broken to anyone who hadn't
-                  scrolled down to discover the checkbox. */}
-              <label
-                className={`mb-5 flex items-start gap-3 text-xs cursor-pointer fade-up rounded-2xl p-3 ${consentPulse ? "consent-pulse" : ""}`}
-                style={{
-                  background: consented ? "rgba(212,176,104,0.08)" : "var(--input-bg)",
-                  border: `1px solid ${consented ? "var(--border-gold)" : "var(--border)"}`,
-                  transition: "background 150ms, border-color 150ms",
-                } as CSSProperties}
-              >
-                <input
-                  type="checkbox"
-                  checked={consented}
-                  onChange={(e) => setConsented(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded shrink-0"
-                  style={{ accentColor: "var(--accent)" }}
-                  aria-required
-                />
-                <span style={{ color: "var(--foreground-soft)" }}>
-                  אני מאשר/ת שקראתי, הבנתי והסכמתי ל
-                  <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-[--accent] hover:underline">תנאי השימוש</Link>
-                  <span className="ltr-num text-[--foreground-muted]"> (גרסה {TERMS_VERSION})</span>
-                  {" "}ול
-                  <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[--accent] hover:underline">מדיניות הפרטיות</Link>
-                  , וכי אני בן/בת 18 ומעלה.
-                </span>
-              </label>
+              {/* R71 (R60) — page-level signup/signin tab switcher. Sits
+                  above everything so the user picks intent before reading
+                  the rest of the card. Active tab pills get the gold
+                  gradient; inactive stays muted. */}
+              <AuthModeTabs
+                mode={authMode}
+                onChange={(m) => {
+                  setAuthMode(m);
+                  setEmailMode(m === "signin" ? "login" : "signup");
+                  setError(null);
+                }}
+              />
+
+              {/* Consent box — only required for fresh signups. Returning
+                  users already agreed; rendering it on /signup?mode=signin
+                  was needlessly hostile. */}
+              {authMode === "signup" && (
+                <label
+                  className={`mb-5 flex items-start gap-3 text-xs cursor-pointer fade-up rounded-2xl p-3 ${consentPulse ? "consent-pulse" : ""}`}
+                  style={{
+                    background: consented ? "rgba(212,176,104,0.08)" : "var(--input-bg)",
+                    border: `1px solid ${consented ? "var(--border-gold)" : "var(--border)"}`,
+                    transition: "background 150ms, border-color 150ms",
+                  } as CSSProperties}
+                >
+                  <input
+                    type="checkbox"
+                    checked={consented}
+                    onChange={(e) => setConsented(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded shrink-0"
+                    style={{ accentColor: "var(--accent)" }}
+                    aria-required
+                  />
+                  <span style={{ color: "var(--foreground-soft)" }}>
+                    אני מאשר/ת שקראתי, הבנתי והסכמתי ל
+                    <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-[--accent] hover:underline">תנאי השימוש</Link>
+                    <span className="ltr-num text-[--foreground-muted]"> (גרסה {TERMS_VERSION})</span>
+                    {" "}ול
+                    <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[--accent] hover:underline">מדיניות הפרטיות</Link>
+                    , וכי אני בן/בת 18 ומעלה.
+                  </span>
+                </label>
+              )}
               <ChooseStep
+                authMode={authMode}
                 cloudEnabled={cloudEnabled}
                 providers={providers}
-                consented={consented}
+                consented={authMode === "signin" ? true : consented}
                 onProvider={handleProvider}
                 onPhone={() => {
-                  if (!requireConsent()) return;
+                  if (authMode === "signup" && !requireConsent()) return;
                   setError(null);
                   setStep("phone");
                 }}
                 onEmail={() => {
-                  if (!requireConsent()) return;
+                  if (authMode === "signup" && !requireConsent()) return;
                   setError(null);
-                  setEmailMode("signup");
+                  setEmailMode(authMode === "signin" ? "login" : "signup");
                   setStep("email");
                 }}
               />
+
+              {/* R71 (R60) — bottom helper text that flips between modes. */}
+              <p
+                className="text-center text-sm mt-6"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                {authMode === "signup" ? "כבר יש לכם חשבון? " : "חדשים ב-Momentum? "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next: AuthMode = authMode === "signup" ? "signin" : "signup";
+                    setAuthMode(next);
+                    setEmailMode(next === "signin" ? "login" : "signup");
+                    setError(null);
+                  }}
+                  className="font-semibold underline hover:no-underline"
+                  style={{ color: "var(--accent)" }}
+                >
+                  {authMode === "signup" ? "כניסה כאן" : "הרשמה כאן"}
+                </button>
+              </p>
             </>
           )}
 
@@ -410,7 +466,56 @@ function SignupPageInner() {
   );
 }
 
+/**
+ * R71 (R60) — page-level mode tabs (signup vs. signin). A segmented
+ * control just under the logo. Active tab pulls the gold gradient; the
+ * other tab is muted with a thin border so the affordance is obvious.
+ */
+function AuthModeTabs({
+  mode,
+  onChange,
+}: {
+  mode: AuthMode;
+  onChange: (m: AuthMode) => void;
+}) {
+  return (
+    <div
+      className="mb-5 grid grid-cols-2 gap-1 p-1 rounded-2xl fade-up"
+      role="tablist"
+      aria-label="הרשמה או כניסה"
+      style={{
+        background: "var(--input-bg)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      {(["signup", "signin"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(m)}
+            className="rounded-xl py-2.5 text-sm font-bold transition"
+            style={{
+              background: active
+                ? "linear-gradient(135deg, var(--gold-300), var(--gold-500))"
+                : "transparent",
+              color: active ? "#0A0A0F" : "var(--foreground-soft)",
+              boxShadow: active ? "0 4px 12px -4px var(--accent-glow)" : "none",
+            }}
+          >
+            {m === "signup" ? "הירשם בחינם" : "כניסה לחשבון"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ChooseStep({
+  authMode,
   cloudEnabled,
   providers,
   consented,
@@ -418,6 +523,7 @@ function ChooseStep({
   onPhone,
   onEmail,
 }: {
+  authMode: AuthMode;
   cloudEnabled: boolean;
   providers: { google: boolean; apple: boolean; phone: boolean; loaded: boolean };
   consented: boolean;
@@ -425,6 +531,7 @@ function ChooseStep({
   onPhone: () => void;
   onEmail: () => void;
 }) {
+  const isSignin = authMode === "signin";
   // R18 §1B — visual "gated" state. We keep the buttons clickable (a
   // truly `disabled` button swallows the click and the consent pulse
   // would never fire), but dim them + show aria-disabled so it's clear
@@ -453,13 +560,15 @@ function ChooseStep({
       <div className="text-center">
         <span className="pill pill-gold">
           <Sparkles size={11} />
-          ברוכים הבאים
+          {isSignin ? "ברוכים השבים" : "ברוכים הבאים"}
         </span>
         <h1 className="mt-5 text-3xl md:text-4xl font-extrabold tracking-tight gradient-text">
-          הצטרף ל-Momentum
+          {isSignin ? "כניסה ל-Momentum" : "הצטרף ל-Momentum"}
         </h1>
         <p className="mt-3 text-white/60 leading-relaxed">
-          התחל לתכנן את האירוע שלך — חינם, בדקה אחת.
+          {isSignin
+            ? "המשיכו מאיפה שעצרתם — את כל הפרטים שמרנו לכם."
+            : "התחל לתכנן את האירוע שלך — חינם, בדקה אחת."}
         </p>
       </div>
 
@@ -475,7 +584,7 @@ function ChooseStep({
               className={`w-full btn-gold inline-flex items-center justify-center gap-2 ${gatedCls}`}
             >
               <Mail size={18} />
-              המשך עם מייל וסיסמה
+              {isSignin ? "כניסה עם מייל וסיסמה" : "המשך עם מייל וסיסמה"}
             </button>
 
             <div className="flex items-center gap-3 my-2 text-xs text-white/35">
@@ -493,7 +602,9 @@ function ChooseStep({
           className={`w-full rounded-2xl border border-white/15 hover:border-white/25 hover:bg-white/[0.04] py-3.5 px-5 inline-flex items-center justify-center gap-3 transition group disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-white/15 disabled:hover:bg-transparent ${gatedCls}`}
         >
           <GoogleIcon />
-          <span className="font-semibold">המשך עם Google</span>
+          <span className="font-semibold">
+            {isSignin ? "כניסה עם Google" : "המשך עם Google"}
+          </span>
           {!googleOn && (
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md" style={{ background: "var(--input-bg)", color: "var(--foreground-muted)", border: "1px solid var(--border)" }}>
               בקרוב
@@ -507,7 +618,9 @@ function ChooseStep({
           className={`w-full rounded-2xl border border-white/15 hover:border-white/25 hover:bg-white/[0.04] py-3.5 px-5 inline-flex items-center justify-center gap-3 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-white/15 disabled:hover:bg-transparent ${gatedCls}`}
         >
           <AppleIcon />
-          <span className="font-semibold">המשך עם Apple</span>
+          <span className="font-semibold">
+            {isSignin ? "כניסה עם Apple" : "המשך עם Apple"}
+          </span>
           {!appleOn && (
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md" style={{ background: "var(--input-bg)", color: "var(--foreground-muted)", border: "1px solid var(--border)" }}>
               בקרוב
@@ -522,7 +635,9 @@ function ChooseStep({
           className={`w-full rounded-2xl border border-white/15 hover:border-white/25 hover:bg-white/[0.04] py-3.5 px-5 inline-flex items-center justify-center gap-3 transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-white/15 disabled:hover:bg-transparent ${gatedCls}`}
         >
           <Phone size={18} />
-          <span className="font-semibold">המשך עם מספר טלפון</span>
+          <span className="font-semibold">
+            {isSignin ? "כניסה במספר טלפון" : "המשך עם מספר טלפון"}
+          </span>
           {!phoneOn && (
             <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md" style={{ background: "var(--input-bg)", color: "var(--foreground-muted)", border: "1px solid var(--border)" }}>
               בקרוב

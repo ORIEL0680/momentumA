@@ -230,12 +230,24 @@ export function Header() {
             // already has a dominant gold "התחל בחינם", so a second one in
             // the header would just compete. On other public pages we keep
             // it as gold to drive conversion.
-            <Link
-              href="/signup"
-              className={`text-sm py-2 px-5 ${pathname === "/" ? "btn-secondary" : "btn-gold"}`}
-            >
-              התחל
-            </Link>
+            // R71 (R60) — pair the signup CTA with a tiny "כניסה" link so
+            // existing users have an obvious entry point that doesn't compete
+            // visually with the conversion button.
+            <div className="flex items-center gap-1">
+              <Link
+                href="/signup?mode=signin"
+                className="text-sm py-2 px-3 rounded-full hover:bg-[var(--secondary-button-bg)] transition"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                כניסה
+              </Link>
+              <Link
+                href="/signup"
+                className={`text-sm py-2 px-5 ${pathname === "/" ? "btn-secondary" : "btn-gold"}`}
+              >
+                התחל
+              </Link>
+            </div>
           )}
         </div>
 
