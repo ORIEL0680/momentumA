@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type ComponentType,
   type SVGProps,
@@ -16,24 +17,33 @@ import {
   ArrowLeft,
   X,
 } from "lucide-react";
-import { useFirstLogin } from "@/lib/useFirstLogin";
+import {
+  useFirstLogin,
+  forceMarkTourCompletedSync,
+} from "@/lib/useFirstLogin";
 import { fireConfetti } from "@/lib/confetti";
 import { showToast } from "@/components/Toast";
 
 /**
- * R60 (R51) — first-run welcome tour.
+ * R60 + R61 — first-run welcome tour.
  *
  * 5-step centered modal sequence. Self-gates on the `useFirstLogin`
  * hook (per-device localStorage). Mark-completed runs on either
- * "סיים" (finish, step 5) or "דלג" (skip), so a skipped tour also
- * never re-shows.
+ * "סיימתי" (finish, step 5) or "סיום ההדרכה" (skip), so a skipped tour
+ * also never re-shows.
+ *
+ * R61 hardening:
+ *  • 200ms fade-out before unmount (closing state).
+ *  • Skip path now shows a toast: "אפשר תמיד לחזור לסיור מההגדרות".
+ *  • Close-on-unmount safety net: if the tab is closed / nav'd away
+ *    mid-tour, the cleanup writes the completion flag synchronously
+ *    via forceMarkTourCompletedSync. Idempotent.
+ *  • Settings has a "הפעל מחדש" button that calls resetTour().
  *
  * Note on the deviation from spec: the spec described pixel-anchored
- * coachmarks pointing at specific elements in /dashboard. Anchored
- * coachmarks are responsive-fragile (every layout shift breaks the
- * arrow position) and were a launch risk. The modal-sequence below
- * keeps the same goal — introduce the 4 sections in 60 seconds —
- * while remaining RTL-correct, keyboard-accessible, and layout-proof.
+ * coachmarks. The modal-sequence below keeps the same goal — introduce
+ * the 4 sections in 60 seconds — while remaining RTL-correct,
+ * keyboard-accessible, and layout-proof.
  */
 
 type IconCmp = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>;
@@ -72,22 +82,51 @@ const STEPS: Step[] = [
   },
 ];
 
+const FADE_MS = 200;
+
 export function WelcomeTour() {
   // SSR-safety: useFirstLogin's `getServerSnapshot` returns `completed=true`,
   // so isFirstLogin === false during SSR / first paint. No extra mount
   // gate needed (and no setState-in-effect).
   const { isFirstLogin, markCompleted } = useFirstLogin();
   const [step, setStep] = useState(0);
+  const [closing, setClosing] = useState(false);
+
+  // Refs survive re-renders and are safe to read during cleanup.
+  // startedRef: did this instance ever render the open modal at all?
+  // completedRef: did one of finish/skip already write the flag?
+  const startedRef = useRef(false);
+  const completedRef = useRef(false);
+
+  const open = isFirstLogin;
+
+  // Mark "this instance saw the tour" once `open` is true. Lets the
+  // unmount cleanup decide whether to force-complete (see below).
+  useEffect(() => {
+    if (open) startedRef.current = true;
+  }, [open]);
+
+  /** Common close pipeline. Fade for `FADE_MS`, then write the flag. */
+  const closeAfterFade = useCallback(() => {
+    if (closing) return;
+    completedRef.current = true; // before the timeout, in case unmount races
+    setClosing(true);
+    window.setTimeout(() => {
+      markCompleted();
+    }, FADE_MS);
+  }, [closing, markCompleted]);
 
   const finish = useCallback(() => {
-    markCompleted();
     fireConfetti(1800);
     showToast("כל הכבוד! האירוע שלך מחכה.", "success");
-  }, [markCompleted]);
+    closeAfterFade();
+  }, [closeAfterFade]);
 
   const skip = useCallback(() => {
-    markCompleted();
-  }, [markCompleted]);
+    // No confetti on skip — it's a deliberate exit, not a celebration.
+    showToast("אפשר תמיד לחזור לסיור מההגדרות", "info");
+    closeAfterFade();
+  }, [closeAfterFade]);
 
   const next = useCallback(() => {
     setStep((s) => {
@@ -103,8 +142,6 @@ export function WelcomeTour() {
   const back = useCallback(() => {
     setStep((s) => Math.max(0, s - 1));
   }, []);
-
-  const open = isFirstLogin;
 
   // Keyboard: Esc skips, Enter/→ advance, ← back.
   useEffect(() => {
@@ -122,6 +159,18 @@ export function WelcomeTour() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, skip, next, back]);
 
+  // R61 — close-on-unmount safety net. If the user closed the tab,
+  // navigated away mid-tour, or refreshed before the normal completion
+  // path, write the flag synchronously so the tour never re-shows.
+  // Idempotent (a no-op when completedRef is already true).
+  useEffect(() => {
+    return () => {
+      if (startedRef.current && !completedRef.current) {
+        forceMarkTourCompletedSync();
+      }
+    };
+  }, []);
+
   if (!open) return null;
 
   const current = STEPS[step];
@@ -132,11 +181,15 @@ export function WelcomeTour() {
   return (
     <div
       // Plain overlay — no backdrop-click handler, so users must use the
-      // explicit "דלג" / "סיים" controls (avoids accidental dismissal).
+      // explicit "סיום ההדרכה" / "סיימתי" controls (avoids accidental
+      // dismissal). Opacity binding drives the 200ms fade-out.
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
         background: "rgba(8,6,10,0.72)",
         backdropFilter: "blur(4px)",
+        opacity: closing ? 0 : 1,
+        transition: `opacity ${FADE_MS}ms ease`,
+        pointerEvents: closing ? "none" : "auto",
       }}
       role="dialog"
       aria-modal="true"
@@ -158,7 +211,7 @@ export function WelcomeTour() {
           <button
             type="button"
             onClick={skip}
-            aria-label="דלג על הסיור"
+            aria-label="סיום ההדרכה"
             className="w-9 h-9 -m-1 flex items-center justify-center rounded-full transition hover:bg-[var(--secondary-button-bg)]"
             style={{ color: "var(--foreground-muted)" }}
           >
@@ -209,7 +262,7 @@ export function WelcomeTour() {
             className="text-sm underline shrink-0"
             style={{ color: "var(--foreground-muted)", padding: "0 8px" }}
           >
-            דלג
+            סיום ההדרכה
           </button>
           <button
             type="button"
@@ -217,7 +270,7 @@ export function WelcomeTour() {
             className="btn-gold ms-auto inline-flex items-center justify-center gap-2"
             style={{ minHeight: 44, padding: "0 24px" }}
           >
-            {isLast ? "סיים" : "הבא"}
+            {isLast ? "סיימתי" : "הבא"}
             <ArrowLeft size={16} aria-hidden />
           </button>
         </div>

@@ -4,6 +4,23 @@
 
 ---
 
+## [R61] — 2026-05-20 — R51-תוספת: WelcomeTour hardening
+
+תוספת ל-R60. 3 דרישות: "סיום ההדרכה" בכל שלב, עיגון "לעולם לא שוב",
+ואפשרות להפעיל מחדש מההגדרות. tsc/lint(0)/build/test(75/75) ירוקים.
+
+- `lib/useFirstLogin.ts` — נחשף `TOUR_COMPLETED_KEY` + `forceMarkTourCompletedSync()` (sync, idempotent, בטוח ל-unmount cleanup) + `resetTour()` (מנקה flag + מודיע listeners).
+- `components/onboarding/WelcomeTour.tsx`:
+  - שמות חדשים: `"דלג"` → `"סיום ההדרכה"`; `"סיים"` → `"סיימתי"` (צעד 5).
+  - skip path: toast `"אפשר תמיד לחזור לסיור מההגדרות"` (info, **בלי confetti**); finish path: confetti + toast הצלחה.
+  - `FADE_MS = 200` עם binding על opacity/pointerEvents → fade-out חלק.
+  - **close-on-unmount safety net**: `useEffect` cleanup קורא `forceMarkTourCompletedSync()` אם המשתמש סגר את הטאב באמצע הסיור — מבטיח שהsiror לא יחזור.
+- `app/settings/page.tsx` — `<Section icon={HelpCircle} title="עזרה והדרכה">` חדש. כפתור `"הפעל מחדש"` קורא `resetTour()` + מנווט ל-/dashboard → ה-tour קופץ אוטומטית (useSyncExternalStore מעורר re-render).
+- **סטייה (כמו R60):** ה-spec דיבר על `UPDATE user_profiles SET onboarding_completed=false`. אין טבלה כזו → `resetTour()` מסיר רק את localStorage.
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות) · build ok · 75/75 · strict 0 any · אין dep חדש.
+
+---
+
 ## [R60] — 2026-05-20 — חוויית המשתמש החדש (השעה הראשונה)
 
 ממש את ה-spec "R51". 4 חלקים — מיילי auth מותגים, welcome email

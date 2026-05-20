@@ -22,17 +22,52 @@ import { useSyncExternalStore } from "react";
  * `storage` event only fires cross-tab.
  */
 
-const KEY = "momentum.tour.completed.v1";
+/**
+ * Exported so /settings can reset it, the tour's unmount cleanup can
+ * write it synchronously, and tests can clear it.
+ */
+export const TOUR_COMPLETED_KEY = "momentum.tour.completed.v1";
 
 const listeners = new Set<() => void>();
 function notifySameTab(): void {
   for (const l of listeners) l();
 }
 
+/**
+ * Synchronous write to mark the tour as completed WITHOUT going through
+ * React state. Safe to call from useEffect cleanup (tab close, unmount
+ * mid-tour) — idempotent, never throws.
+ */
+export function forceMarkTourCompletedSync(): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(TOUR_COMPLETED_KEY, "1");
+      notifySameTab();
+    }
+  } catch {
+    /* localStorage disabled (private mode / quota); nothing actionable */
+  }
+}
+
+/**
+ * Clear the completion flag so the tour shows again. Used by the
+ * "הפעל מחדש" button in /settings.
+ */
+export function resetTour(): void {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(TOUR_COMPLETED_KEY);
+      notifySameTab();
+    }
+  } catch {
+    /* same as above — best-effort */
+  }
+}
+
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
   const onStorage = (e: StorageEvent) => {
-    if (e.key === KEY) cb();
+    if (e.key === TOUR_COMPLETED_KEY) cb();
   };
   if (typeof window !== "undefined") {
     window.addEventListener("storage", onStorage);
@@ -48,7 +83,7 @@ function subscribe(cb: () => void): () => void {
 function getSnapshot(): boolean {
   try {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(KEY) === "1";
+    return window.localStorage.getItem(TOUR_COMPLETED_KEY) === "1";
   } catch {
     return false;
   }
@@ -73,7 +108,7 @@ export function useFirstLogin(): {
   const markCompleted = (): void => {
     try {
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(KEY, "1");
+        window.localStorage.setItem(TOUR_COMPLETED_KEY, "1");
         notifySameTab();
       }
     } catch {
