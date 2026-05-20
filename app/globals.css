@@ -283,6 +283,11 @@ body {
   padding: 0.875rem 1rem;
   color: var(--foreground);
   width: 100%;
+  /* R62 §Cat11 — explicit 16px floor on form fields prevents iOS Safari
+     from auto-zooming when a wrapping element has `text-sm` (14px).
+     Tailwind utilities can still override per-instance for very dense
+     forms, but the default is safe. */
+  font-size: 16px;
   transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
 }
 .input:focus { outline: none; border-color: var(--accent); background: var(--input-bg-focus); box-shadow: 0 0 0 3px var(--accent-glow); }
