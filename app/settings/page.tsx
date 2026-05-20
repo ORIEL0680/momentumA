@@ -19,7 +19,6 @@ import { generateSigningKey } from "@/lib/crypto";
 import { deleteCloudData } from "@/lib/sync";
 import { formatEventDate } from "@/lib/format";
 import { showToast } from "@/components/Toast";
-import { resetTour } from "@/lib/useFirstLogin";
 import { CalendarSyncSection } from "@/components/calendar/CalendarSyncSection";
 import {
   ArrowRight,
@@ -389,34 +388,9 @@ export default function SettingsPage() {
               <CalendarSyncSection />
             </Section>
 
-            {/* R61 — Help & tutorial: re-run the first-time welcome tour. */}
-            <Section icon={<HelpCircle size={20} />} title="עזרה והדרכה">
-              <div className="flex items-start gap-3 justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold">
-                    סיור היכרות עם האפליקציה
-                  </div>
-                  <div
-                    className="text-xs mt-0.5"
-                    style={{ color: "var(--foreground-muted)" }}
-                  >
-                    ראו שוב את 5 השלבים הראשונים של Momentum.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetTour();
-                    showToast("הסיור יקפוץ עוד רגע…", "info");
-                    router.push("/dashboard");
-                  }}
-                  className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2 shrink-0"
-                >
-                  <RefreshCw size={14} aria-hidden />
-                  הפעל מחדש
-                </button>
-              </div>
-            </Section>
+            {/* R71 (R60-2) — "סיור היכרות" section removed alongside the
+                WelcomeTour component. Empty states + dashboard copy carry
+                first-time users now. */}
 
             {/* Privacy & Data — single section per phase 4 spec */}
             <Section icon={<Shield size={20} />} title="פרטיות ונתונים">

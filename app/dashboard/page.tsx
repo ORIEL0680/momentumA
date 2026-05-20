@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { DashboardSkeleton } from "@/components/skeletons/PageSkeletons";
-import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
 import { InstallPWA } from "@/components/InstallPWA";
 import { useAppState } from "@/lib/store";
 import { useUser } from "@/lib/user";
@@ -117,7 +116,6 @@ function DashboardInner() {
   return (
     <>
       <Header />
-      <WelcomeTour />
       <InstallPWA />
       <main className="flex-1 pb-28 relative">
         {/* R41 — a single calm gold orb. The old big orb + event-type

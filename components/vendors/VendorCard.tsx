@@ -33,7 +33,7 @@ import { FacebookGlyph, InstagramGlyph } from "./typeIcons";
 // R70 (R59) — `has_saved_vendor` localStorage gate. Read via
 // useSyncExternalStore so React handles SSR/CSR snapshots and lint
 // doesn't trip on setState-in-effect. Listeners pattern matches
-// lib/useFirstLogin.ts.
+// the useSyncExternalStore pattern.
 const HAS_SAVED_KEY = "momentum.has_saved_vendor.v1";
 const savedListeners = new Set<() => void>();
 function notifySavedSameTab(): void {
@@ -110,7 +110,7 @@ function VendorCardImpl({
   // R18 §H — first-run "add to my list" affordance. R70 (R59): read
   // through useSyncExternalStore so SSR snapshot (true = hide pill) and
   // CSR snapshot (read localStorage) are coordinated by React itself
-  // and no hydration mismatch ever fires. See lib/useFirstLogin.ts for
+  // and no hydration mismatch ever fires. See the useSyncExternalStore pattern for
   // the original pattern this mirrors.
   const hasSavedEver = useSyncExternalStore(
     subscribeHasSaved,
