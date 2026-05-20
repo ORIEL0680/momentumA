@@ -145,6 +145,7 @@ function AdminHomeInner() {
                 />
                 <UpcomingEvents events={stats.upcoming_events} />
                 <UsageChart series={stats.series.events_7d} />
+                <MonitoringCard />
               </div>
               <ActivityFeed initial={stats.recent_activity} limit={20} />
             </div>
@@ -321,6 +322,65 @@ function UsageChart({ series }: { series: number[] }) {
         </span>
       </div>
       <MiniChart data={series} height={64} />
+    </div>
+  );
+}
+
+/**
+ * R63 (R53) — quick links to the three external monitoring tools +
+ * the in-app error log (R59). External links open in new tabs.
+ */
+function MonitoringCard() {
+  const items: Array<{
+    label: string;
+    emoji: string;
+    href: string;
+    external: boolean;
+  }> = [
+    {
+      label: "Analytics",
+      emoji: "📊",
+      href: "https://plausible.io/moomentum.events",
+      external: true,
+    },
+    {
+      label: "Errors",
+      emoji: "🐛",
+      href: "/admin/errors",
+      external: false,
+    },
+    {
+      label: "Uptime",
+      emoji: "🟢",
+      href: "https://uptimerobot.com/dashboard",
+      external: true,
+    },
+  ];
+  return (
+    <div className="card p-5 md:p-6">
+      <h2 className="font-bold mb-3">ניטור</h2>
+      <div className="grid grid-cols-3 gap-3">
+        {items.map((it) => (
+          <a
+            key={it.label}
+            href={it.href}
+            target={it.external ? "_blank" : undefined}
+            rel={it.external ? "noopener noreferrer" : undefined}
+            className="rounded-xl p-3 text-center transition hover:-translate-y-0.5"
+            style={{
+              background:
+                "color-mix(in srgb, var(--gold-100) 8%, transparent)",
+              border: "1px solid var(--border-gold)",
+              color: "var(--accent)",
+            }}
+          >
+            <div className="text-2xl" aria-hidden>
+              {it.emoji}
+            </div>
+            <div className="text-xs font-semibold mt-1">{it.label}</div>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

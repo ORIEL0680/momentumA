@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle, RefreshCw, Home } from "lucide-react";
+import { logError } from "@/lib/error-tracker";
 
 /**
  * Route-level error boundary.
@@ -31,6 +32,14 @@ export default function GlobalError({
     // tell a user "open the Console and send a screenshot of the line
     // starting with [momentum/error-boundary]" and reliably get the stack.
     console.error("[momentum/error-boundary]", error);
+    // R63 (R53) — best-effort write to the server error_logs table
+    // (R59 infrastructure). logError swallows any failure on its own.
+    void logError({
+      type: "unknown",
+      message: `error-boundary: ${error.message}`,
+      stack: error.stack,
+      url: typeof window !== "undefined" ? window.location.href : undefined,
+    });
   }, [error]);
 
   return (

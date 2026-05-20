@@ -41,7 +41,8 @@ export function middleware(request: NextRequest) {
 
   // R12 §1I — connect-src pinned to the specific Supabase project, not the
   // wildcard `*.supabase.co`. WSS uses the same host for Realtime.
-  const connectSrc = ["'self'"];
+  // R63 (R53) — Plausible posts pageviews to https://plausible.io/api/event.
+  const connectSrc = ["'self'", "https://plausible.io"];
   if (supabaseHost) {
     connectSrc.push(`https://${supabaseHost}`);
     connectSrc.push(`wss://${supabaseHost}`);

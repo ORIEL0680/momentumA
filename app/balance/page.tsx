@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { trackFirstOnce } from "@/lib/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
@@ -87,6 +88,17 @@ export default function BalancePage() {
   }, [attended, state.budget, state.event]);
 
   const verdict = totals.net > 0 ? "profit" : totals.net < 0 ? "loss" : "balanced";
+
+  // R63 (R53) — first_envelope_filled funnel event. Detect the 0→1
+  // transition specifically so a returning user with a synced cloud
+  // balance doesn't fire a false signal.
+  const prevFilledRef = useRef<number>(totals.filledCount);
+  useEffect(() => {
+    if (prevFilledRef.current === 0 && totals.filledCount >= 1) {
+      trackFirstOnce("envelope", "first_envelope_filled");
+    }
+    prevFilledRef.current = totals.filledCount;
+  }, [totals.filledCount]);
 
   if (!hydrated) {
     return (

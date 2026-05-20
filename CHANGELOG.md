@@ -4,6 +4,27 @@
 
 ---
 
+## [R63] — 2026-05-20 — Analytics + Error Tracking + Uptime (R53)
+
+ממש את ה-spec "R53" עם adapt-to-architecture (כמו R59/R62). 3 כלי
+ניטור: Plausible (full install), error tracking (extending R59 — לא
+Sentry, see TASKLIST.R63 לסיבה), UptimeRobot (endpoint + manual signup).
+tsc/lint(0)/build/test(75/75) ירוקים. **אין dep חדש**, אין migration.
+
+- `lib/analytics.ts` — נוסף `track()` ו-`trackFirstOnce()` ליד `trackEvent` הקיים (4 callers שמרים יציבים).
+- `app/layout.tsx` — Plausible loader (nonce'd inline IIFE, תחת strict-dynamic CSP) + `<ErrorListener/>` + `<VitalsReporter/>`. `middleware.ts` הוסיף `plausible.io` ל-connect-src.
+- `app/error.tsx` + `app/global-error.tsx` — קוראים ל-`logError` (R59 endpoint) על כל קריסה. global-error inlining ה-fetch כדי לא לייבא מ-`lib/`.
+- `components/error-tracking/ErrorListener.tsx` (חדש) — `window.error` + `unhandledrejection` → logError, rate-limited 10/session.
+- `app/api/health/route.ts` (חדש) — health check ל-UptimeRobot (HEAD על app_states עם anon).
+- `app/vitals.tsx` (חדש) — `useReportWebVitals` → Plausible, "poor" → error_logs.
+- Funnel tracking ב-7 מקומות: signup_started (3 paths) · signup_completed · first_event_created · first_guest_added · first_envelope_filled · first_budget_item · vendor_application_submitted. 0→1 transitions מתועדות עם prev-length refs כדי לא להפעיל false-fire למשתמש חוזר.
+- `app/admin/page.tsx` — `<MonitoringCard/>` עם 3 קישורים (Plausible / R59 errors / UptimeRobot).
+- **סטיות מ-spec:** (1) **לא הותקן Sentry** — ~70KB bundle weight + wizard אינטראקטיבי לא רץ אצלי + R59 מספק כיסוי דומה. ה-boundaries המוכנים = wire-up אחיד אם תרצה Sentry post-launch. (2) `/api/health` לא משתמש ב-`@/lib/supabase/server` ולא query ל-`user_profiles` (שניהם לא קיימים — מתועד מ-R47/R59/R62). (3) Sentry link במונטור-card הוחלף ב-internal link ל-`/admin/errors`.
+- **ידני (owner):** רישום Plausible + UptimeRobot, הוספת 3-4 מוניטורים, הגדרת goals ב-Plausible. פרטים ב-TASKLIST.R63.md.
+- אימות: tsc נקי · lint 0 err (6 warnings קודמות) · build ok · 75/75 · strict 0 any · אפס dep · אפס שינוי DB.
+
+---
+
 ## [R62] — 2026-05-20 — ניתוב: משתמש מחובר → ישר לדשבורד (R52)
 
 ממש את ה-spec "R52" עם adapt-to-architecture (אישור מהמשתמש). הסשן

@@ -20,6 +20,27 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[momentum/global-error]", error);
+    // R63 (R53) — best-effort write to error_logs (R59 endpoint). Inlined
+    // here on purpose: this boundary must NOT import from lib/, anything
+    // that's already broken at the layout level could re-throw on import.
+    try {
+      void fetch("/api/admin/log-error", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "unknown",
+          message: `global-error: ${error.message}`,
+          stack: error.stack ?? null,
+          url:
+            typeof window !== "undefined" ? window.location.href : null,
+          user_agent:
+            typeof navigator !== "undefined" ? navigator.userAgent : null,
+        }),
+        keepalive: true,
+      });
+    } catch {
+      /* swallow — never re-throw from inside the boundary */
+    }
   }, [error]);
 
   return (

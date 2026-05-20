@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { trackFirstOnce } from "@/lib/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
@@ -83,6 +84,15 @@ export default function BudgetPage() {
     }
     return Array.from(map.entries());
   }, [state.budget]);
+
+  // R63 (R53) — first_budget_item funnel event. 0→1 transition.
+  const prevBudgetLenRef = useRef<number>(state.budget.length);
+  useEffect(() => {
+    if (prevBudgetLenRef.current === 0 && state.budget.length >= 1) {
+      trackFirstOnce("budget", "first_budget_item");
+    }
+    prevBudgetLenRef.current = state.budget.length;
+  }, [state.budget.length]);
 
   if (!hydrated) {
     return (

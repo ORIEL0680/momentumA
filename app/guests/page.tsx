@@ -16,7 +16,7 @@ import { normalizeIsraeliPhone } from "@/lib/phone";
 import { ExpressSendModal } from "@/components/guests/ExpressSendModal";
 import { buildWhatsAppMessage } from "@/lib/rsvpLinks";
 import { useGuestWhatsappLink, prewarmGuestWhatsappLinks } from "@/hooks/useGuestWhatsappLink";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackFirstOnce } from "@/lib/analytics";
 import { subscribeRsvpUpdates, type RsvpUpdate } from "@/lib/rsvpSync";
 import { showToast } from "@/components/Toast";
 import { fireConfettiOnce } from "@/lib/confetti";
@@ -246,6 +246,17 @@ function GuestsPageInner() {
     const batch = all.length < 30 ? all : all.slice(0, 20);
     prewarmGuestWhatsappLinks(origin, state.event, batch);
   }, [state.event, state.guests]);
+
+  // R63 (R53) — first_guest_added funnel event. Detect the 0→1
+  // transition specifically (not just length≥1), so a returning user
+  // syncing existing guests from the cloud doesn't fire a false signal.
+  const prevGuestCountRef = useRef<number>(state.guests.length);
+  useEffect(() => {
+    if (prevGuestCountRef.current === 0 && state.guests.length >= 1) {
+      trackFirstOnce("guest", "first_guest_added");
+    }
+    prevGuestCountRef.current = state.guests.length;
+  }, [state.guests.length]);
 
   const stats = useMemo(() => {
     const confirmed = state.guests.filter((g) => g.status === "confirmed");

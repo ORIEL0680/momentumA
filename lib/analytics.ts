@@ -114,3 +114,64 @@ export function clearAnalytics() {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch {}
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// R63 (R53) — Plausible bridge.
+//
+// `trackEvent` above is the local-only ring buffer (host's own device);
+// the helpers below send to Plausible (privacy-friendly cloud analytics).
+// They co-exist — local events are still useful for in-app aggregates
+// (e.g. "how many people viewed your invitation?"), while Plausible
+// gives the founder a cross-device view of funnel events.
+//
+// Loaded via a nonce'd inline script in app/layout.tsx so it works under
+// the strict-dynamic CSP. Rules: NO PII in props (no email/phone/name).
+// Every call is wrapped in try/catch — analytics must never break the app.
+// ─────────────────────────────────────────────────────────────────────────
+
+declare global {
+  interface Window {
+    plausible?: (
+      event: string,
+      opts?: { props?: Record<string, string | number> },
+    ) => void;
+  }
+}
+
+/** Send a Plausible custom event. Safe to call from server (no-op). */
+export function track(
+  event: string,
+  props?: Record<string, string | number>,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.plausible?.(event, props ? { props } : undefined);
+  } catch (e) {
+    // analytics must never throw into a render path
+    console.warn("[analytics] track failed:", e);
+  }
+}
+
+const FIRST_PREFIX = "momentum.track.first.";
+
+/**
+ * Track a one-time milestone (e.g. "first_guest_added"). Uses a
+ * localStorage flag so the event fires only once per device. Falls
+ * back to a plain `track` if localStorage is disabled (private mode),
+ * accepting a possible duplicate on that device.
+ */
+export function trackFirstOnce(
+  key: string,
+  event: string,
+  props?: Record<string, string | number>,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    const k = FIRST_PREFIX + key;
+    if (window.localStorage.getItem(k) === "1") return;
+    window.localStorage.setItem(k, "1");
+    track(event, props);
+  } catch {
+    track(event, props);
+  }
+}

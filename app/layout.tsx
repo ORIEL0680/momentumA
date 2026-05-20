@@ -7,6 +7,8 @@ import { ToastHost } from "@/components/Toast";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { validateEnv } from "@/lib/env-validate";
+import { ErrorListener } from "@/components/error-tracking/ErrorListener";
+import { VitalsReporter } from "./vitals";
 
 // R47 — one-shot startup check (server module scope). Logs loudly if
 // NEXT_PUBLIC_SITE_URL is missing / stale / non-https after the
@@ -82,6 +84,29 @@ const themeBootScript = `
 })();
 `;
 
+// R63 (R53) — Plausible loader. Inline nonce'd script that (a) sets up
+// the `window.plausible` queue so calls before the SDK loads aren't
+// lost, and (b) injects the Plausible <script> tag dynamically. The
+// dynamic injection is the only way to load an external host under our
+// strict-dynamic CSP (host-source expressions are ignored when
+// 'strict-dynamic' is present, but scripts inserted by a nonce'd script
+// inherit the trust). Plausible itself no-ops on non-registered domains
+// (local dev, tunnel URLs) so we don't pollute production stats.
+const plausibleDomain =
+  process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "moomentum.events";
+const plausibleBootScript = `
+(function(){
+  try {
+    window.plausible = window.plausible || function(){ (window.plausible.q = window.plausible.q || []).push(arguments); };
+    var s = document.createElement('script');
+    s.defer = true;
+    s.setAttribute('data-domain', ${JSON.stringify(plausibleDomain)});
+    s.src = 'https://plausible.io/js/script.tagged-events.js';
+    document.head.appendChild(s);
+  } catch (e) {}
+})();
+`;
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -99,8 +124,11 @@ export default async function RootLayout({
     >
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: plausibleBootScript }} />
       </head>
       <body className="min-h-full flex flex-col">
+        <ErrorListener />
+        <VitalsReporter />
         <ScrollProgress />
         {children}
         <AssistantWidget />

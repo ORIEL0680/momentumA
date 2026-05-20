@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { actions, useAppState } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import { fireConfettiOnce } from "@/lib/confetti";
+import { track } from "@/lib/analytics";
 import { generateSigningKey } from "@/lib/crypto";
 import { useNow, daysUntil } from "@/lib/useNow";
 import {
@@ -244,6 +245,7 @@ function OnboardingInner() {
     // key. Subsequent visits won't re-fire (localStorage gate).
     if (!existing) {
       fireConfettiOnce("event-created-first", 1500);
+      track("first_event_created", { event_type: type });
     }
     // R14: ?welcome=1 triggers the celebratory banner + "add 5 guests" CTA
     // on the dashboard. The banner only appears on this exact load — once

@@ -7,6 +7,7 @@ import { Logo } from "@/components/Logo";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { getSupabase, SUPABASE_ENABLED } from "@/lib/supabase";
 import { logError } from "@/lib/error-tracker";
+import { track } from "@/lib/analytics";
 import { syncOnLogin } from "@/lib/sync";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -152,6 +153,14 @@ function CallbackInner() {
       // 4. Pull cloud state into localStorage so the rest of the app feels instant.
       await syncOnLogin();
       if (cancelled) return;
+
+      // R63 (R53) — funnel: signup/login completion. Method comes from
+      // app_metadata.provider (set by Supabase: "google"/"apple"/"phone"/
+      // "email"); fall back to "unknown" so the event still fires.
+      const provider =
+        (session.user.app_metadata?.provider as string | undefined) ??
+        "unknown";
+      track("signup_completed", { method: provider });
 
       setStatus("ok");
       // R14 §J — three-way routing. Check vendor status first; a vendor

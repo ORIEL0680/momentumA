@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { userActions, type SignupMethod } from "@/lib/user";
+import { track } from "@/lib/analytics";
 import { useAuthProviders } from "@/lib/auth-providers";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Phone, Mail, ArrowLeft, ArrowRight, Sparkles, ShieldCheck, CheckCircle2, Loader2 } from "lucide-react";
@@ -112,6 +113,7 @@ function SignupPageInner() {
     setError(null);
     if (!requireConsent()) return;
     persistConsent();
+    track("signup_started", { method: m });
     if (cloudEnabled) {
       try {
         setBusy(true);
@@ -147,6 +149,7 @@ function SignupPageInner() {
     if (!requireConsent()) return;
     if (!identifier.trim() || identifier.replace(/\D/g, "").length < 9) return;
     persistConsent();
+    track("signup_started", { method: "phone" });
     if (cloudEnabled) {
       try {
         setBusy(true);
@@ -205,6 +208,7 @@ function SignupPageInner() {
       return;
     }
     persistConsent();
+    track("signup_started", { method: "email", mode: emailMode });
     setBusy(true);
     try {
       if (emailMode === "signup") {

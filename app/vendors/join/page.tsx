@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Building2, Send, Loader2 } from "lucide-react";
 import { VENDOR_CATEGORIES, type VendorCategory } from "@/lib/vendorApplication";
 import { showToast } from "@/components/Toast";
+import { track } from "@/lib/analytics";
 
 interface FormData {
   business_name: string;
@@ -103,6 +104,8 @@ export default function VendorJoinPage() {
         setSubmitting(false);
         return;
       }
+      // R63 (R53) — funnel: vendor application submitted.
+      track("vendor_application_submitted", { category: form.category });
       setSubmitted(true);
     } catch {
       showToast("שגיאה ברשת — נסה שוב", "error");
