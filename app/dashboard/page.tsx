@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { DashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { WelcomeTour } from "@/components/onboarding/WelcomeTour";
+import { InstallPWA } from "@/components/InstallPWA";
 import { useAppState } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import { getJourneyForState, getProgress } from "@/lib/journey";
@@ -87,6 +88,14 @@ function DashboardInner() {
     return () => clearTimeout(t);
   }, [initialWelcome, router]);
 
+  // R64 (R54) — warm the routes a host taps almost immediately after
+  // landing on the dashboard. router.prefetch returns void; safe to
+  // fire-and-forget. Idempotent in Next's cache.
+  useEffect(() => {
+    router.prefetch("/guests");
+    router.prefetch("/budget");
+  }, [router]);
+
   // R41 — the big animated stat cards were replaced by the slim
   // StatsStrip (plain numbers), so the per-stat useCountUp hooks are
   // gone. No hook-order concern remains (just fewer hooks).
@@ -109,6 +118,7 @@ function DashboardInner() {
     <>
       <Header />
       <WelcomeTour />
+      <InstallPWA />
       <main className="flex-1 pb-28 relative">
         {/* R41 — a single calm gold orb. The old big orb + event-type
             tinted second orb were trimmed to reduce visual overload. */}

@@ -4,6 +4,31 @@
 
 ---
 
+## [R64] — 2026-05-20 — Performance + PWA Polish (R54)
+
+ממש את ה-spec "R54" עם איפוק לפני השקה: עשיתי מה שניתן לאמת ולשמר
+ביציבות, ודחיתי כלים שמצריכים dev-dep חדש או שינוי build pipeline.
+tsc/lint(0)/build/test(75/75) ירוקים. **אפס dep חדש, אפס שינוי DB.**
+
+**ממצאים — מה לא נדרש לתקן:**
+- *Full-library imports:* רק `import * as THREE` ב-Room3DScene, וזה כבר ב-lazy chunk (R44+). שאר הbundle נקי.
+- *Tesseract / PDF / Excel:* לא מותקנים. Confetti = Canvas2D custom (16KB פחות מהספרייה).
+- *9 raw `<img>` tags:* כולם user-uploaded / data URLs. R20 documented policy אוסר המרה ל-next/image (דורש wildcard remotePatterns → open image proxy). שמרנו.
+
+**מה נוסף:**
+- `components/InstallPWA.tsx` — RTL Hebrew install card. 3 מסלולים: Android (beforeinstallprompt), iOS (manual "הוסף למסך הבית"), כבר-מותקן (null). 7-day dismiss localStorage. `track("pwa_installed")` בקבלה.
+- `app/dashboard/page.tsx` — `<InstallPWA/>` נטען רק שם (signed-in only). `router.prefetch("/guests")` + `prefetch("/budget")` ב-useEffect.
+- `app/balance/page.tsx` — `VoiceCapture` הומר ל-`next/dynamic({ssr:false})`. /balance's eager bundle נחסך מקוד ה-speech recognition.
+
+**מה לא בוצע + סיבה (תועד ב-TASKLIST.R64):**
+- **Sentry, @next/bundle-analyzer, @serwist/next** — dep installs חדשים, 5 ימים לפני השקה. ה-spec הציע, אני לא מצדיק עכשיו. PNG icons + Lighthouse scores + service worker = owner-side post-launch אם תרצה.
+- **API revalidate hints** — כל ה-endpoints מבוססי-Bearer → Next יעלה אותם force-dynamic; הoption יזרק warning ויתעלם. `/api/health` כבר `force-dynamic` (R63).
+- **next.config.js** — הspec כתב `.js`, הקובץ הוא `.ts`. ידעתי מ-R56.
+
+**אימות:** tsc נקי · lint 0 err (6 warnings קודמות) · build ok · 75/75 · strict 0 any · אפס dep / migration / שינוי DB. ⏳ Lighthouse + PWA install flows owner-side במכשיר אמיתי.
+
+---
+
 ## [R63] — 2026-05-20 — Analytics + Error Tracking + Uptime (R53)
 
 ממש את ה-spec "R53" עם adapt-to-architecture (כמו R59/R62). 3 כלי

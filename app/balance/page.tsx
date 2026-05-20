@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { trackFirstOnce } from "@/lib/analytics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,7 +10,17 @@ import { EmptyEventState } from "@/components/EmptyEventState";
 import { EmptyState } from "@/components/EmptyState";
 import { PrintButton } from "@/components/PrintButton";
 import { BalanceSkeleton } from "@/components/skeletons/PageSkeletons";
-import { VoiceCapture, type VoiceApplyRow } from "@/components/balance/VoiceCapture";
+// R64 (R54) — lazy-load the voice modal. /balance's first paint shouldn't
+// pay for the speech-recognition + matcher code unless the user taps
+// "קלט קולי". The type is imported separately (type-only, zero bundle).
+import type { VoiceApplyRow } from "@/components/balance/VoiceCapture";
+const VoiceCapture = dynamic(
+  () =>
+    import("@/components/balance/VoiceCapture").then((m) => ({
+      default: m.VoiceCapture,
+    })),
+  { ssr: false },
+);
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import type { Guest } from "@/lib/types";
