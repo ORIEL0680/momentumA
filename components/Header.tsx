@@ -2,60 +2,128 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  Briefcase,
+  CreditCard,
+  HelpCircle,
+  LayoutGrid,
+  LogOut,
+  Mail,
+  Menu,
+  MessageCircle,
+  MoreHorizontal,
+  Moon,
+  Settings,
+  Shield,
+  Sun,
+  X,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
-import { Menu, X, Sun, Moon, LogOut, Cloud, CloudOff, RefreshCw, AlertTriangle, Settings, CreditCard, Shield, HelpCircle, Crown, Building2, MoreHorizontal } from "lucide-react";
+import { ChatBell } from "./chat/ChatBell";
+import { EventSwitcher } from "./EventSwitcher";
+import { UpgradePlanModal } from "./UpgradePlanModal";
 import { useTheme } from "@/lib/theme";
 import { useUser, userActions } from "@/lib/user";
-import { useSyncStatus, setupCloudSync, getLastSyncError, type SyncStatus } from "@/lib/sync";
 import { useIsAdmin } from "@/lib/useIsAdmin";
 import { useVendorContext } from "@/lib/useVendorContext";
-import { UpgradePlanModal } from "./UpgradePlanModal";
-import { EventSwitcher } from "./EventSwitcher";
-import { ChatBell } from "./chat/ChatBell";
-import { eventSlots } from "@/lib/eventSlots";
+import { useChatUnread } from "@/lib/useChatUnread";
+import { eventSlots, useEventSlots } from "@/lib/eventSlots";
+import { setupCloudSync } from "@/lib/sync";
 import { HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
 import { useAppState } from "@/lib/store";
 import { useNow, daysUntil } from "@/lib/useNow";
+import { formatHebrewDate } from "@/lib/calendar/hebrew-calendar";
+
+/**
+ * R72 (R61) — Two-tier premium Header.
+ *
+ *   Tier 1 (h-14): logo · event date + countdown · ChatBell + Avatar
+ *   Tier 2 (h-12): 6 navigation pills · "..." overflow dropdown
+ *
+ * Anonymous landing variant: Tier 1 only, with anchor links and
+ * signup/signin CTAs (no nav pill row).
+ *
+ * The sync-status badge and the inline admin/vendor/theme buttons all
+ * collapse into the Avatar dropdown — Tier 1 stays uncluttered.
+ *
+ * Mobile (<768px): the pill row scrolls horizontally; EventSwitcher
+ * moves into the Avatar dropdown.
+ *
+ * Accessibility: focus order is Tier 1 RTL (logo → event/switcher →
+ * chat → avatar), then Tier 2 RTL (pills → "..."); each dropdown is a
+ * proper menu with role="menu" / role="menuitem"; Escape + outside-click
+ * close on both dropdowns; prefers-reduced-motion respected by every
+ * transition through Tailwind's default behavior.
+ */
+
+// Icon name → component lookup for MORE_MENU_NAV (the nav module
+// exports string icon names to keep its bundle lean).
+const MORE_ICONS: Record<string, LucideIcon> = {
+  Activity,
+  Briefcase,
+  Shield,
+  Mail,
+  LayoutGrid,
+  Settings,
+};
+
+interface MoreItemContext {
+  isAdmin: boolean;
+  isVendor: boolean;
+  hasInboxUnread: boolean;
+  daysToEvent: number | null;
+}
+
+/**
+ * Decide which MORE_MENU_NAV items to render based on the user's
+ * context. Conditional rules:
+ *   - /event-day  → only when event is <= 21 days away
+ *   - /vendors/dashboard → only when isVendor
+ *   - /admin/dashboard   → only when isAdmin
+ *   - /inbox      → only when there are unread chats
+ *   - /seating, /settings → always
+ */
+function visibleMoreItems(ctx: MoreItemContext) {
+  return MORE_MENU_NAV.filter((m) => {
+    if (m.href === "/event-day") {
+      return ctx.daysToEvent != null && ctx.daysToEvent <= 21;
+    }
+    if (m.href === "/vendors/dashboard") return ctx.isVendor;
+    if (m.href === "/admin/dashboard") return ctx.isAdmin;
+    if (m.href === "/inbox") return ctx.hasInboxUnread;
+    return true;
+  });
+}
 
 export function Header() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  // R67 — desktop overflow dropdown ("...") for MORE_MENU_NAV.
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
-  const [scrolled, setScrolled] = useState(false);
   const { theme, toggle, mounted } = useTheme();
   const { user, hydrated } = useUser();
-  const syncStatus = useSyncStatus();
-  // Admin badge — visible only when the signed-in email is in
-  // `admin_emails`. The hook caches the answer for the session so we
-  // don't re-query on every page navigation.
   const isAdmin = useIsAdmin();
-  // R14 — vendor pill in the header, visible only when the signed-in
-  // user owns a vendor_landing. Same UI pattern as AdminBadge.
   const { isVendor } = useVendorContext();
-
-  // R25 — surface "מצב חי" in the top nav once the event is close
-  // (≤21 days), so couples find Momentum Live right when it matters.
   const { state } = useAppState();
   const nowMs = useNow();
-  const headerNav = useMemo(() => {
-    const eventDate = state.event?.date;
-    const d = eventDate ? daysUntil(eventDate, nowMs) : null;
-    if (d != null && d <= 21) {
-      return [...HEADER_NAV, { href: "/event-day", label: "מצב חי" }];
-    }
-    return HEADER_NAV;
-  }, [state.event?.date, nowMs]);
+  const unread = useChatUnread();
+  const { slots } = useEventSlots();
 
-  // Wire the cloud sync writer once when the app mounts.
+  const [scrolled, setScrolled] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  // Landing-mode variant: when on "/" with no signed-in user.
+  const isLanding = pathname === "/" && hydrated && !user;
+
+  // Boot the cloud sync writer + event-slot snapshot listener exactly
+  // once, just like the previous Header did. These run as side effects
+  // even though the UI no longer surfaces sync status.
   useEffect(() => {
     setupCloudSync();
   }, []);
-
-  // Persist event-slot snapshots whenever local state changes (debounced via the same event).
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const onUpdate = () => {
@@ -69,14 +137,15 @@ export function Header() {
     };
   }, []);
 
+  // Scroll → "scrolled" state for the more-opaque variant.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => setScrolled(window.scrollY > 40);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // R67 — close "..." overflow on outside click + Escape.
+  // "..." dropdown — outside click + Escape close.
   useEffect(() => {
     if (!moreOpen) return;
     const onPointer = (e: MouseEvent) => {
@@ -93,228 +162,326 @@ export function Header() {
     };
   }, [moreOpen]);
 
-  // (We close the mobile menu directly inside the Link onClick handlers below,
-  // rather than via a pathname-watching effect — keeps the close action where
-  // the user can see why it happens.)
+  const eventDateRaw = state.event?.date;
+  const eventDate =
+    hydrated && eventDateRaw ? new Date(eventDateRaw) : null;
+  const validEventDate =
+    eventDate && !Number.isNaN(eventDate.getTime()) ? eventDate : null;
+  const days = validEventDate ? daysUntil(validEventDate, nowMs) : null;
+
+  const moreCtx: MoreItemContext = {
+    isAdmin,
+    isVendor,
+    hasInboxUnread: unread > 0,
+    daysToEvent: days,
+  };
+  const moreItems = visibleMoreItems(moreCtx);
 
   const handleSignOut = async () => {
-    // R12+ — was a fire-and-forget call that navigated before the
-    // Supabase signOut completed, leaving the user signed in for the
-    // next page render. Await fully + hard-reload so every in-memory
-    // cache (useIsAdmin, supabase client, useUser snapshot) starts
-    // fresh on the destination page.
-    // R19 — destination changed from "/" to "/signup". Landing on "/"
-    // after sign-out felt like the user was still inside their account
-    // (the marketing homepage looks similar to a signed-out dashboard).
-    // Sending them straight to /signup makes the state change obvious
-    // and gives them a single, clear next action.
     try {
       await userActions.signOut();
     } finally {
-      // window.location.href forces a real navigation, not Next's
-      // client-side route swap. This wipes the React tree + module
-      // scope, guaranteeing no stale state survives the sign-out.
       window.location.href = "/signup";
     }
   };
 
+  const headerHome = hydrated && user ? "/dashboard" : "/";
+
   return (
     <header
-      className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass-strong" : "bg-transparent"
+      className={`sticky top-0 z-50 w-full transition-all duration-300 ${
+        scrolled ? "header-scrolled" : ""
       }`}
-      style={{ borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent" }}
+      style={{
+        background: scrolled ? "rgba(10,10,15,0.92)" : "rgba(10,10,15,0.7)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        borderBottom: "1px solid var(--border-gold)",
+        boxShadow: scrolled ? "0 2px 20px rgba(0,0,0,0.3)" : "none",
+      }}
     >
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center hover:opacity-90 transition">
-          <Logo size={32} />
-        </Link>
-
-        <nav className="hidden md:flex items-center gap-1 text-sm rounded-full glass px-1.5 py-1.5">
-          {headerNav.map((n) => {
-            // R17: exact-match + child-prefix only. The naive `startsWith`
-            // would mark "/vendors" active when the user is on "/vendorshop"
-            // or any path that simply shares a prefix; the `/` boundary
-            // restricts it to actual descendants (e.g. /vendors/my).
-            const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`px-3.5 py-1.5 rounded-full transition-all ${
-                  active
-                    ? "bg-[var(--secondary-button-bg-hover)] shadow-inner"
-                    : "hover:bg-[var(--secondary-button-bg)] opacity-65 hover:opacity-100"
-                }`}
-                style={active ? { color: "var(--foreground)" } : { color: "var(--foreground-soft)" }}
-              >
-                {n.label}
-              </Link>
-            );
-          })}
-
-          {/* R67 — "..." overflow with the secondary nav. The
-              MORE_MENU_NAV items used to sit inline; moved into a
-              dropdown so the top bar breathes (admin/vendor badges +
-              chat bell + event switcher + theme + avatar all on the
-              right side, things were getting cramped). */}
-          <div className="relative" ref={moreRef}>
-            <button
-              type="button"
-              aria-label="עוד"
-              aria-expanded={moreOpen}
-              aria-haspopup="menu"
-              onClick={() => setMoreOpen((v) => !v)}
-              className={`px-3 py-1.5 rounded-full transition-all inline-flex items-center justify-center ${
-                moreOpen
-                  ? "bg-[var(--secondary-button-bg-hover)]"
-                  : "hover:bg-[var(--secondary-button-bg)] opacity-65 hover:opacity-100"
-              }`}
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              <MoreHorizontal size={16} aria-hidden />
-            </button>
-            {moreOpen && (
-              <div
-                role="menu"
-                className="absolute end-0 mt-2 min-w-44 rounded-2xl glass-strong overflow-hidden shadow-xl py-1 z-50"
-                style={{ border: "1px solid var(--border)" }}
-              >
-                {MORE_MENU_NAV.map((m) => {
-                  const active =
-                    pathname === m.href || pathname.startsWith(`${m.href}/`);
-                  return (
-                    <Link
-                      key={m.href}
-                      href={m.href}
-                      role="menuitem"
-                      onClick={() => setMoreOpen(false)}
-                      className="block px-4 py-2 text-sm transition"
-                      style={{
-                        color: active
-                          ? "var(--foreground)"
-                          : "var(--foreground-soft)",
-                        background: active
-                          ? "var(--secondary-button-bg-hover)"
-                          : "transparent",
-                      }}
-                    >
-                      {m.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </nav>
-
-        <div className="hidden md:flex items-center gap-2">
-          {isAdmin && <AdminBadge />}
-          {isVendor && <VendorBadge />}
-          <ChatBell />
-          <EventSwitcher />
-          <SyncBadge status={syncStatus} />
-
-          <button
-            onClick={toggle}
-            aria-label="החלף ערכת נושא"
-            className="w-10 h-10 rounded-full border border-[var(--border-strong)] hover:bg-[var(--secondary-button-bg)] flex items-center justify-center transition"
+      {/* ─── Tier 1 — Brand bar (h-14) ─── */}
+      <div className="w-full px-4 sm:px-6 lg:px-10 h-14 flex items-center justify-between gap-3">
+        {/* Right cluster (RTL): logo + (event chip OR landing anchors) */}
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href={headerHome}
+            className="flex items-center shrink-0 hover:opacity-90 transition"
+            aria-label="Momentum — חזרה לעמוד הראשי"
           >
-            {mounted && (theme === "dark" ? <Sun size={16} /> : <Moon size={16} />)}
-          </button>
+            <Logo size={30} />
+            <span className="ms-2 hidden sm:inline text-xl font-extrabold gradient-gold-shimmer">
+              Momentum
+            </span>
+          </Link>
 
+          {/* Landing anchors live here (anon /). Hidden on small screens. */}
+          {isLanding && (
+            <nav
+              aria-label="קישורי דף נחיתה"
+              className="hidden md:flex items-center gap-1 ms-2"
+            >
+              <LandingAnchor href="#showcase" label="תכונות" />
+              <LandingAnchor href="#pricing" label="מחיר" />
+            </nav>
+          )}
+        </div>
+
+        {/* Center — event date + countdown OR EventSwitcher (multi-event).
+            Hidden on landing / anonymous to avoid the empty state. */}
+        {!isLanding && hydrated && user && (
+          <div className="hidden md:flex items-center min-w-0 max-w-[40%]">
+            {slots.length > 1 ? (
+              <EventSwitcher />
+            ) : validEventDate ? (
+              <EventChip date={validEventDate} days={days} />
+            ) : null}
+          </div>
+        )}
+
+        {/* Left cluster — controls. Different sets for anon vs signed-in. */}
+        <div className="flex items-center gap-2 shrink-0">
           {hydrated && user ? (
-            <UserMenu name={user.name} onSignOut={handleSignOut} />
+            <>
+              <ChatBell />
+              {/* Mobile event countdown — compact form, only when no
+                  multi-event switcher is needed. */}
+              {validEventDate && days != null && (
+                <span
+                  className="md:hidden text-xs font-bold ltr-num px-2 py-1 rounded-full"
+                  style={{
+                    color: "var(--accent)",
+                    background:
+                      "color-mix(in srgb, var(--accent) 12%, transparent)",
+                  }}
+                  aria-label={`${days} ימים לאירוע`}
+                >
+                  {days}י׳
+                </span>
+              )}
+              <AvatarMenu
+                name={user.name}
+                isAdmin={isAdmin}
+                isVendor={isVendor}
+                unread={unread}
+                theme={theme}
+                themeMounted={mounted}
+                onToggleTheme={toggle}
+                onSignOut={handleSignOut}
+              />
+            </>
           ) : (
-            // Anonymous users on the home page get a softer CTA — the hero
-            // already has a dominant gold "התחל בחינם", so a second one in
-            // the header would just compete. On other public pages we keep
-            // it as gold to drive conversion.
-            // R71 (R60) — pair the signup CTA with a tiny "כניסה" link so
-            // existing users have an obvious entry point that doesn't compete
-            // visually with the conversion button.
-            <div className="flex items-center gap-1">
+            // Landing / anon CTA pair — kept consistent across screen sizes.
+            <div className="flex items-center gap-2">
               <Link
                 href="/signup?mode=signin"
-                className="text-sm py-2 px-3 rounded-full hover:bg-[var(--secondary-button-bg)] transition"
-                style={{ color: "var(--foreground-soft)" }}
+                className="btn-secondary text-sm py-1.5 px-3 sm:px-4"
               >
                 כניסה
               </Link>
               <Link
                 href="/signup"
-                className={`text-sm py-2 px-5 ${pathname === "/" ? "btn-secondary" : "btn-gold"}`}
+                className="btn-gold text-sm py-1.5 px-3 sm:px-5"
               >
-                התחל
+                התחל בחינם
               </Link>
             </div>
           )}
-        </div>
 
-        <div className="md:hidden flex items-center gap-2">
-          {isAdmin && <AdminBadge compact />}
-          {isVendor && <VendorBadge compact />}
-          <button
-            onClick={toggle}
-            aria-label="החלף ערכת נושא"
-            // R12 §4W — WCAG 2.1 SC 2.5.5 calls for ≥44×44 CSS px on touch
-            // targets. The old 36 / 40px buttons triggered "missed tap"
-            // toasts on iOS Safari for users with larger fingers.
-            className="w-11 h-11 rounded-full border border-[var(--border-strong)] flex items-center justify-center"
-          >
-            {mounted && (theme === "dark" ? <Sun size={14} /> : <Moon size={14} />)}
-          </button>
-          <button
-            aria-label="פתח תפריט"
-            className="w-11 h-11 -ms-1 flex items-center justify-center rounded-full hover:bg-[var(--secondary-button-bg)] transition"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {/* Mobile hamburger — opens a drawer with the pill row + secondary items. */}
+          {hydrated && user && (
+            <button
+              type="button"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label={mobileOpen ? "סגור תפריט" : "פתח תפריט"}
+              aria-expanded={mobileOpen}
+              className="md:hidden w-10 h-10 rounded-full inline-flex items-center justify-center hover:bg-[var(--secondary-button-bg)] transition"
+              style={{ border: "1px solid var(--border)" }}
+            >
+              {mobileOpen ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}
+            </button>
+          )}
         </div>
       </div>
 
-      {open && (
-        <div className="md:hidden glass-strong border-t border-[var(--border)] scale-in">
-          <div className="max-w-6xl mx-auto px-5 py-4 flex flex-col gap-1">
-            {/* R67 — mobile drawer = full union (HEADER_NAV + MORE_MENU_NAV +
-                any contextual injection like "מצב חי"). The drawer has the
-                vertical room; flattening here means every page is one tap
-                away from the hamburger. */}
-            {[...headerNav, ...MORE_MENU_NAV].map((n) => {
-              // R17: exact-match + child-prefix only. The naive `startsWith`
-            // would mark "/vendors" active when the user is on "/vendorshop"
-            // or any path that simply shares a prefix; the `/` boundary
-            // restricts it to actual descendants (e.g. /vendors/my).
-            const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
+      {/* ─── Tier 2 — Nav pill row (h-12) — signed-in only, hidden on landing ─── */}
+      {hydrated && user && !isLanding && (
+        <nav
+          aria-label="ניווט ראשי"
+          className="hidden md:flex w-full px-4 sm:px-6 lg:px-10 h-12 items-center gap-1.5"
+          style={{ borderTop: "1px solid color-mix(in srgb, var(--border-gold) 50%, transparent)" }}
+        >
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
+            {HEADER_NAV.map((n) => {
+              const active =
+                pathname === n.href || pathname.startsWith(`${n.href}/`);
+              return <NavPill key={n.href} href={n.href} label={n.label} active={active} />;
+            })}
+          </div>
+
+          {/* "..." overflow */}
+          <div className="relative shrink-0" ref={moreRef}>
+            <button
+              type="button"
+              aria-label="עוד אפשרויות"
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
+              className="w-9 h-9 rounded-full inline-flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+              style={{
+                border: "1px solid var(--border)",
+                background: moreOpen ? "var(--secondary-button-bg)" : "transparent",
+              }}
+            >
+              <MoreHorizontal size={16} aria-hidden />
+            </button>
+
+            {moreOpen && (
+              <div
+                role="menu"
+                className="absolute end-0 top-full mt-2 min-w-[220px] rounded-2xl z-[60] py-1.5 overflow-hidden"
+                style={{
+                  background:
+                    "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+                  border: "1px solid var(--border-gold)",
+                  boxShadow: "0 20px 60px -20px rgba(0,0,0,0.55)",
+                }}
+              >
+                {moreItems.length === 0 ? (
+                  <div
+                    className="px-4 py-3 text-xs text-center"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    אין פריטים נוספים כרגע
+                  </div>
+                ) : (
+                  moreItems.map((m) => {
+                    const Icon = MORE_ICONS[m.icon] ?? Settings;
+                    const active =
+                      pathname === m.href ||
+                      pathname.startsWith(`${m.href}/`);
+                    return (
+                      <Link
+                        key={m.href}
+                        href={m.href}
+                        role="menuitem"
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-2.5 mx-1.5 px-3 py-2.5 text-sm rounded-lg transition"
+                        style={{
+                          color: active
+                            ? "var(--accent)"
+                            : "var(--foreground-soft)",
+                          background: active
+                            ? "color-mix(in srgb, var(--accent) 10%, transparent)"
+                            : "transparent",
+                          fontWeight: active ? 600 : 500,
+                        }}
+                      >
+                        <Icon size={15} aria-hidden />
+                        <span className="flex-1">{m.label}</span>
+                        {m.href === "/inbox" && unread > 0 && (
+                          <span
+                            className="text-[10px] font-bold ltr-num min-w-[18px] h-[18px] px-1 rounded-full inline-flex items-center justify-center"
+                            style={{
+                              background: "var(--accent)",
+                              color: "var(--background)",
+                            }}
+                          >
+                            {unread}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {/* Mobile pill drawer — scrolls horizontally below Tier 1 on small screens. */}
+      {hydrated && user && (
+        <div
+          className="md:hidden w-full px-3"
+          style={{ borderTop: "1px solid color-mix(in srgb, var(--border-gold) 35%, transparent)" }}
+        >
+          <div
+            className="flex items-center gap-1.5 h-12 overflow-x-auto scroll-smooth"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            aria-label="ניווט ראשי"
+          >
+            {HEADER_NAV.map((n) => {
+              const active =
+                pathname === n.href || pathname.startsWith(`${n.href}/`);
               return (
-                <Link
+                <NavPill
                   key={n.href}
                   href={n.href}
-                  onClick={() => setOpen(false)}
-                  className={`py-2.5 px-3 rounded-xl text-base transition`}
-                  style={{
-                    background: active ? "var(--secondary-button-bg-hover)" : "transparent",
-                    color: active ? "var(--foreground)" : "var(--foreground-soft)",
-                  }}
+                  label={n.label}
+                  active={active}
+                  compact
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile drawer — fallback overlay menu when the hamburger opens.
+          Carries the full "..." menu items + theme/logout in one sheet
+          so nothing on mobile is unreachable. */}
+      {mobileOpen && hydrated && user && (
+        <div
+          className="md:hidden w-full"
+          style={{
+            background: "rgba(10,10,15,0.97)",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <div className="px-4 py-3 flex flex-col gap-1">
+            {moreItems.map((m) => {
+              const Icon = MORE_ICONS[m.icon] ?? Settings;
+              return (
+                <Link
+                  key={m.href}
+                  href={m.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition"
+                  style={{ color: "var(--foreground-soft)" }}
                 >
-                  {n.label}
+                  <Icon size={16} aria-hidden />
+                  <span className="flex-1">{m.label}</span>
                 </Link>
               );
             })}
-            {hydrated && user ? (
-              <button
-                onClick={handleSignOut}
-                className="mt-3 py-2.5 px-3 rounded-xl text-base text-start inline-flex items-center gap-2"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                <LogOut size={16} /> התנתק ({user.name})
-              </button>
-            ) : (
-              <Link href="/signup" className="btn-gold mt-3 text-center">
-                התחל
-              </Link>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                toggle();
+                setMobileOpen(false);
+              }}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-start transition"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              {mounted &&
+                (theme === "dark" ? <Sun size={16} /> : <Moon size={16} />)}
+              <span className="flex-1">
+                {theme === "dark" ? "מצב בהיר" : "מצב כהה"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileOpen(false);
+                void handleSignOut();
+              }}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-start transition mt-1"
+              style={{ color: "rgb(252,165,165)" }}
+            >
+              <LogOut size={16} aria-hidden />
+              <span>התנתק ({user.name})</span>
+            </button>
           </div>
         </div>
       )}
@@ -322,177 +489,317 @@ export function Header() {
   );
 }
 
-function SyncBadge({ status }: { status: SyncStatus }) {
-  if (status === "disabled") return null; // No badge if cloud sync isn't configured.
-  const ui = (() => {
-    switch (status) {
-      case "synced":
-        return { icon: <Cloud size={12} />, label: "מסונכרן", color: "rgb(110,231,183)", bg: "rgba(52,211,153,0.1)", border: "rgba(52,211,153,0.3)", title: "כל השינויים שמורים בענן" };
-      case "syncing":
-        return { icon: <RefreshCw size={12} className="animate-spin" />, label: "מסנכרן", color: "var(--accent)", bg: "rgba(212,176,104,0.1)", border: "var(--border-gold)", title: "שומר בענן..." };
-      case "offline":
-        return { icon: <CloudOff size={12} />, label: "לא מקוון", color: "rgb(252,211,77)", bg: "rgba(251,191,36,0.1)", border: "rgba(251,191,36,0.3)", title: "אין חיבור לאינטרנט. השינויים יסתנכרנו כשהחיבור יחזור." };
-      case "signed-out":
-        return { icon: <CloudOff size={12} />, label: "לא מחובר", color: "var(--foreground-muted)", bg: "var(--input-bg)", border: "var(--border)", title: "התחבר כדי לסנכרן את הנתונים שלך לענן" };
-      case "error": {
-        const err = getLastSyncError();
-        return {
-          icon: <AlertTriangle size={12} />,
-          label: "שגיאת סנכרון",
-          color: "rgb(248,113,113)",
-          bg: "rgba(248,113,113,0.1)",
-          border: "rgba(248,113,113,0.3)",
-          title: err ? `שגיאת סנכרון: ${err}` : "שגיאת סנכרון. נסה לרענן את הדף.",
-        };
-      }
-    }
-  })();
-  if (!ui) return null;
+/* ─────────────────────── child components ─────────────────────── */
+
+function NavPill({
+  href,
+  label,
+  active,
+  compact = false,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  compact?: boolean;
+}) {
   return (
-    <span
-      className="hidden lg:inline-flex items-center gap-1.5 text-[11px] rounded-full px-2.5 py-1.5 border"
-      style={{ background: ui.bg, borderColor: ui.border, color: ui.color }}
-      title={ui.title}
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={`shrink-0 inline-flex items-center justify-center rounded-full transition-all duration-200 ${
+        compact ? "px-3 py-1.5" : "px-4 py-1.5"
+      }`}
+      style={{
+        fontSize: "0.875rem",
+        fontWeight: active ? 600 : 500,
+        minHeight: "36px",
+        background: active
+          ? "linear-gradient(135deg, var(--gold-100), var(--gold-500))"
+          : "transparent",
+        color: active ? "var(--background)" : "var(--foreground-soft)",
+        boxShadow: active
+          ? "0 4px 14px -4px color-mix(in srgb, var(--accent) 35%, transparent)"
+          : "none",
+      }}
     >
-      {ui.icon}
-      {ui.label}
-    </span>
+      {label}
+    </Link>
   );
 }
 
-function UserMenu({ name, onSignOut }: { name: string; onSignOut: () => void }) {
-  const [open, setOpen] = useState(false);
-  // R18 §R — open the upgrade modal in place instead of navigating away
-  // to /pricing (kept reachable from inside the modal).
-  const [showUpgrade, setShowUpgrade] = useState(false);
+function LandingAnchor({ href, label }: { href: string; label: string }) {
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-[var(--border-strong)] hover:bg-[var(--secondary-button-bg)] py-1.5 ps-1.5 pe-3 transition"
+    <a
+      href={href}
+      className="text-sm px-3 py-1.5 rounded-full transition hover:bg-[var(--secondary-button-bg)]"
+      style={{ color: "var(--foreground-soft)" }}
+    >
+      {label}
+    </a>
+  );
+}
+
+function EventChip({ date, days }: { date: Date; days: number | null }) {
+  const dateLabel = date.toLocaleDateString("he-IL", {
+    day: "numeric",
+    month: "long",
+  });
+  const hebDate = formatHebrewDate(date);
+  return (
+    <div
+      className="flex items-baseline gap-2 px-3 py-1.5 rounded-full min-w-0"
+      style={{
+        background: "color-mix(in srgb, var(--accent) 7%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
+      }}
+      aria-label={`${dateLabel} · ${days ?? 0} ימים לאירוע`}
+      title={`${dateLabel} (${hebDate})`}
+    >
+      <span
+        className="text-xs ltr-num truncate"
+        style={{ color: "var(--foreground-soft)" }}
       >
-        <Avatar name={name} size={28} />
-        <span className="text-sm font-medium max-w-[120px] truncate">{name}</span>
-      </button>
-      {open && (
-        <>
-          <button onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" aria-hidden />
-          <div className="absolute end-0 top-full mt-2 w-72 glass-strong rounded-2xl border border-[var(--border-strong)] z-50 overflow-hidden">
-            {/* Profile header */}
-            <div className="p-4 flex items-center gap-3" style={{ background: "var(--surface-2)" }}>
-              <Avatar name={name} size={44} />
-              <div className="flex-1 min-w-0">
-                <div className="font-bold truncate">{name}</div>
-                <div className="text-xs flex items-center gap-1" style={{ color: "var(--foreground-muted)" }}>
-                  <span className="pill pill-gold !text-[10px] !py-0 !px-1.5">חינם</span>
-                  שדרג למסלול פרימיום
-                </div>
-              </div>
-            </div>
-
-            {/* Menu items */}
-            <div className="p-1">
-              <MenuItem href="/settings" icon={<Settings size={14} />} label="הגדרות" />
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  setShowUpgrade(true);
-                }}
-                className="w-full rounded-xl flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--secondary-button-bg)] transition text-start"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                <span className="text-[--accent]"><CreditCard size={14} /></span>
-                <span className="flex-1">מסלול ותשלומים</span>
-                <span className="pill pill-gold !text-[10px] !py-0 !px-1.5">שדרג</span>
-              </button>
-              <MenuItem href="/privacy" icon={<Shield size={14} />} label="פרטיות ותנאים" />
-              <MenuItem href="mailto:support@momentum.app" icon={<HelpCircle size={14} />} label="עזרה ותמיכה" />
-            </div>
-
-            <div className="border-t" style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={onSignOut}
-                className="w-full text-start px-4 py-3 text-sm hover:bg-[var(--secondary-button-bg)] inline-flex items-center gap-2.5"
-                style={{ color: "rgb(252, 165, 165)" }}
-              >
-                <LogOut size={14} /> התנתק
-              </button>
-            </div>
-          </div>
-        </>
+        {dateLabel}
+      </span>
+      {days != null && days > 0 && (
+        <span
+          className="text-sm font-bold ltr-num"
+          style={{ color: "var(--accent)" }}
+        >
+          🌟 <span>{days}</span> ימים
+        </span>
       )}
-      {showUpgrade && <UpgradePlanModal onClose={() => setShowUpgrade(false)} />}
     </div>
   );
 }
 
-function MenuItem({ href, icon, label, badge }: { href: string; icon: React.ReactNode; label: string; badge?: string }) {
+function AvatarMenu({
+  name,
+  isAdmin,
+  isVendor,
+  unread,
+  theme,
+  themeMounted,
+  onToggleTheme,
+  onSignOut,
+}: {
+  name: string;
+  isAdmin: boolean;
+  isVendor: boolean;
+  unread: number;
+  theme: string;
+  themeMounted: boolean;
+  onToggleTheme: () => void;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="תפריט משתמש"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="w-9 h-9 rounded-full overflow-hidden transition hover:scale-105"
+        style={{ border: "1.5px solid var(--border-gold)" }}
+      >
+        <Avatar name={name} size={36} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute end-0 top-full mt-2 w-64 rounded-2xl z-[60] overflow-hidden"
+          style={{
+            background: "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+            border: "1px solid var(--border-gold)",
+            boxShadow: "0 20px 60px -20px rgba(0,0,0,0.55)",
+          }}
+        >
+          {/* Header — name */}
+          <div
+            className="px-4 py-3 flex items-center gap-3"
+            style={{ background: "color-mix(in srgb, var(--accent) 6%, transparent)" }}
+          >
+            <Avatar name={name} size={36} />
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm truncate">{name}</div>
+              <div
+                className="text-[11px] flex items-center gap-1.5 mt-0.5"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                  style={{
+                    background: "color-mix(in srgb, var(--accent) 15%, transparent)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  חינם
+                </span>
+                <span>שדרג למסלול פרימיום</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="py-1.5">
+            {isAdmin && (
+              <AvatarMenuLink
+                href="/admin/dashboard"
+                icon={<Shield size={15} />}
+                label="לוח בקרת מנהל"
+                onClick={() => setOpen(false)}
+              />
+            )}
+            {isVendor && (
+              <AvatarMenuLink
+                href="/vendors/dashboard"
+                icon={<Briefcase size={15} />}
+                label="דשבורד הספק"
+                onClick={() => setOpen(false)}
+              />
+            )}
+            <AvatarMenuLink
+              href="/settings"
+              icon={<Settings size={15} />}
+              label="הגדרות"
+              onClick={() => setOpen(false)}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setShowUpgrade(true);
+              }}
+              role="menuitem"
+              className="w-full flex items-center gap-2.5 mx-1.5 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+              style={{ color: "var(--foreground-soft)", width: "calc(100% - 12px)" }}
+            >
+              <CreditCard size={15} aria-hidden />
+              <span className="flex-1 text-start">מסלול ותשלומים</span>
+              <span
+                className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                  color: "var(--background)",
+                }}
+              >
+                שדרג
+              </span>
+            </button>
+            {unread > 0 && (
+              <AvatarMenuLink
+                href="/inbox"
+                icon={<MessageCircle size={15} />}
+                label="הודעות"
+                badge={unread}
+                onClick={() => setOpen(false)}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                onToggleTheme();
+                setOpen(false);
+              }}
+              role="menuitem"
+              className="w-full flex items-center gap-2.5 mx-1.5 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+              style={{ color: "var(--foreground-soft)", width: "calc(100% - 12px)" }}
+            >
+              {themeMounted &&
+                (theme === "dark" ? <Sun size={15} aria-hidden /> : <Moon size={15} aria-hidden />)}
+              <span className="flex-1 text-start">
+                {theme === "dark" ? "מצב בהיר" : "מצב כהה"}
+              </span>
+            </button>
+            <AvatarMenuLink
+              href="mailto:support@momentum.app"
+              icon={<HelpCircle size={15} />}
+              label="עזרה ותמיכה"
+              onClick={() => setOpen(false)}
+            />
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                void onSignOut();
+              }}
+              role="menuitem"
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm transition hover:bg-[var(--secondary-button-bg)]"
+              style={{ color: "rgb(252,165,165)" }}
+            >
+              <LogOut size={15} aria-hidden />
+              <span>התנתק</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showUpgrade && (
+        <UpgradePlanModal onClose={() => setShowUpgrade(false)} />
+      )}
+    </div>
+  );
+}
+
+function AvatarMenuLink({
+  href,
+  icon,
+  label,
+  badge,
+  onClick,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  badge?: number;
+  onClick?: () => void;
+}) {
   return (
     <Link
       href={href}
-      className="rounded-xl flex items-center gap-2.5 px-3 py-2.5 text-sm hover:bg-[var(--secondary-button-bg)] transition"
+      onClick={onClick}
+      role="menuitem"
+      className="flex items-center gap-2.5 mx-1.5 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
       style={{ color: "var(--foreground-soft)" }}
     >
-      <span className="text-[--accent]">{icon}</span>
+      <span style={{ color: "var(--accent)" }}>{icon}</span>
       <span className="flex-1">{label}</span>
-      {badge && <span className="pill pill-gold !text-[10px] !py-0 !px-1.5">{badge}</span>}
-    </Link>
-  );
-}
-
-/**
- * Gold "Admin" badge that appears in the Header only for emails in
- * `admin_emails`. Links to the admin dashboard. `compact` mode shows
- * just the crown icon (mobile); full mode shows the crown + label.
- */
-function AdminBadge({ compact = false }: { compact?: boolean }) {
-  return (
-    <Link
-      href="/admin/dashboard"
-      aria-label="לוח בקרת מנהל"
-      className={`inline-flex items-center gap-1.5 rounded-full font-bold transition hover:translate-y-[-1px] ${
-        compact ? "w-11 h-11 justify-center" : "px-3.5 py-2 text-xs"
-      }`}
-      style={{
-        background: "linear-gradient(135deg, #F4DEA9, #A8884A)",
-        color: "#1A1310",
-        boxShadow: "0 4px 14px -4px rgba(212,176,104,0.5)",
-      }}
-    >
-      <Crown size={compact ? 18 : 13} aria-hidden />
-      {!compact && <span>אדמין</span>}
-    </Link>
-  );
-}
-
-/**
- * R14 — gold "Vendor" badge in the Header. Visible only when the
- * signed-in user owns a `vendor_landings` row (via `useVendorContext`).
- * Mirrors AdminBadge styling so the two pills sit side-by-side cleanly
- * when a user happens to be both an admin and a vendor. Tapping it
- * jumps straight to `/vendors/dashboard`, the same destination as the
- * homepage and footer entry points.
- */
-function VendorBadge({ compact = false }: { compact?: boolean }) {
-  return (
-    <Link
-      href="/vendors/dashboard"
-      aria-label="דשבורד הספק"
-      className={`inline-flex items-center gap-1.5 rounded-full font-bold transition hover:translate-y-[-1px] ${
-        compact ? "w-11 h-11 justify-center" : "px-3.5 py-2 text-xs"
-      }`}
-      style={{
-        // Slightly inverted accent ramp from AdminBadge so the two pills
-        // are distinguishable when they appear together. Both still read
-        // as "gold" but the vendor pill leans warmer/lighter.
-        background: "linear-gradient(135deg, #E8C77A, #B58A3E)",
-        color: "#1A1310",
-        boxShadow: "0 4px 14px -4px rgba(212,176,104,0.5)",
-      }}
-    >
-      <Building2 size={compact ? 18 : 13} aria-hidden />
-      {!compact && <span>ספק</span>}
+      {badge != null && badge > 0 && (
+        <span
+          className="text-[10px] font-bold ltr-num min-w-[18px] h-[18px] px-1 rounded-full inline-flex items-center justify-center"
+          style={{
+            background: "var(--accent)",
+            color: "var(--background)",
+          }}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
