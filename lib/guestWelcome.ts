@@ -1,12 +1,15 @@
 import { normalizeIsraeliPhone } from "./phone";
-import { buildGuestPassUrl } from "./managerLive";
-import { tryGetPublicOrigin } from "./origin";
 
 /**
  * R20 Phase 3 — WhatsApp welcome message a manager sends to a guest the
  * moment they check in at the door. The message announces their table
- * number and links to the public /pass/[eventId]/[guestId] page that
- * carries the full event details.
+ * number.
+ *
+ * R71 (R60-4): the public /pass/[eventId]/[guestId] page was removed
+ * (Guest Pass QR feature deferred indefinitely). The welcome message
+ * now contains just the warm greeting + the table assignment — no
+ * link, no QR. Managers can still hand a printed seating chart at the
+ * door if they want.
  */
 export interface GuestWelcomeInput {
   guestName: string;
@@ -30,33 +33,19 @@ export interface GuestWelcomeResult {
 }
 
 export function buildGuestWelcomeWhatsapp(input: GuestWelcomeInput): GuestWelcomeResult {
-  const origin = tryGetPublicOrigin();
-  const passUrl = origin
-    ? buildGuestPassUrl(origin, input.eventId, input.guestId)
-    : "";
-
   const subjects = input.partnerName
     ? `${input.hostName} ו-${input.partnerName}`
     : input.hostName;
 
-  const lines = [
+  const text = [
     `${input.guestName}, ברוך/ה הבא/ה! 🥂`,
     "",
     `${subjects} שמחים שהצטרפת לאירוע!`,
     "",
     `🪑 *השולחן שלך: ${input.tableLabel}*`,
-  ];
-
-  // The pass URL is optional — without NEXT_PUBLIC_SITE_URL set (and not
-  // running in a browser yet) `tryGetPublicOrigin()` returns "". In that
-  // case we still send a useful "you're at table X" message without a
-  // broken link.
-  if (passUrl) {
-    lines.push("", "👇 כל פרטי האירוע — תפריט, מפה, סדר הזמנים:", passUrl);
-  }
-
-  lines.push("", "תהנה/י! 💛");
-  const text = lines.join("\n");
+    "",
+    "תהנה/י! 💛",
+  ].join("\n");
   const encoded = encodeURIComponent(text);
 
   const { phone, valid } = normalizeIsraeliPhone(input.guestPhone);

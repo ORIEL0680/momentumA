@@ -160,14 +160,6 @@ export function generateSmartAlerts(ctx: AlertContext): SmartAlert[] {
   return alerts;
 }
 
-// ═════════════════════ Guest Pass URL ═════════════════════
-
-/**
- * Build a public URL for the guest "welcome" page (table number, event
- * details). Sent to the guest via WhatsApp once they check in at the door.
- * The origin is trimmed of trailing slashes so concatenation is safe.
- */
-export function buildGuestPassUrl(origin: string, eventId: string, guestId: string): string {
-  const o = origin.replace(/\/+$/, "");
-  return `${o}/pass/${encodeURIComponent(eventId)}/${encodeURIComponent(guestId)}`;
-}
+// R71 (R60-4) — buildGuestPassUrl removed alongside /app/pass.
+// The WhatsApp welcome message that referenced it now sends just the
+// table number, no public guest-pass page.
