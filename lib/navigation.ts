@@ -51,6 +51,7 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/guests", label: "אורחים" },
   { href: "/budget", label: "תקציב" },
   { href: "/vendors", label: "ספקים" },
+  { href: "/seating", label: "הושבה" },
   { href: "/calendar", label: "לוח שנה" },
   { href: "/balance", label: "מאזן" },
 ] as const;
@@ -76,6 +77,5 @@ export const MORE_MENU_NAV: readonly MoreMenuItem[] = [
   { href: "/vendors/dashboard", label: "דשבורד ספק", icon: "Briefcase" },
   { href: "/admin/dashboard", label: "Admin", icon: "Shield" },
   { href: "/inbox", label: "הודעות", icon: "Mail" },
-  { href: "/seating", label: "הושבה", icon: "LayoutGrid" },
   { href: "/settings", label: "הגדרות", icon: "Settings" },
 ] as const;

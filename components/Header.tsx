@@ -8,7 +8,6 @@ import {
   Briefcase,
   CreditCard,
   HelpCircle,
-  LayoutGrid,
   LogOut,
   Mail,
   Menu,
@@ -67,7 +66,6 @@ const MORE_ICONS: Record<string, LucideIcon> = {
   Briefcase,
   Shield,
   Mail,
-  LayoutGrid,
   Settings,
 };
 

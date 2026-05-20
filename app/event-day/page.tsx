@@ -5,11 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { EmptyEventState } from "@/components/EmptyEventState";
-import { ShareEventCard } from "@/components/ShareEventCard";
 import { EventDaySkeleton } from "@/components/skeletons/PageSkeletons";
 import { useAppState } from "@/lib/store";
 import { useUser } from "@/lib/user";
-import { tryGetPublicOrigin } from "@/lib/origin";
 import { VENDORS } from "@/lib/vendors";
 import { EVENT_TYPE_LABELS } from "@/lib/types";
 import {
@@ -26,17 +24,11 @@ import {
   Heart,
   Sparkles,
   Crown,
-  QrCode,
-  Download,
-  Share2,
-  Copy,
-  X,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { buildNavigationLinks } from "@/lib/navigationLinks";
 import { buildManagerInviteWhatsapp } from "@/lib/managerInvitation";
 import { LiveModeView } from "@/components/eventDay/LiveModeView";
-import QRCode from "qrcode";
 
 interface RunOfShowItem {
   time: string; // HH:MM
@@ -75,8 +67,6 @@ export default function EventDayPage() {
     const id = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(id);
   }, []);
-
-  const [showLiveModal, setShowLiveModal] = useState(false);
 
   // R20 — Momentum Live opt-in banner state. Probe Supabase once on mount
   // to find out if THIS event already has a manager (any status — invited
@@ -383,39 +373,11 @@ export default function EventDayPage() {
             </div>
           )}
 
-          {/* Live event mode launcher — generates a QR pointing at the public /live/[id] page. */}
-          <section className="mt-6">
-            <button
-              onClick={() => setShowLiveModal(true)}
-              className="w-full card-gold p-5 md:p-6 text-start group hover:translate-y-[-2px] transition"
-              aria-label="הפעל מצב אירוע חי"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F4DEA9] to-[#A8884A] text-black flex items-center justify-center shrink-0">
-                  <QrCode size={22} />
-                </div>
-                <div className="flex-1">
-                  <div className="text-lg font-extrabold tracking-tight gradient-gold">🎬 הפעל מצב אירוע חי</div>
-                  <div className="mt-0.5 text-sm" style={{ color: "var(--foreground-soft)" }}>
-                    QR לאורחים — מציג שולחן, תוכנית, ברכות ותמונות מהערב
-                  </div>
-                </div>
-                <ArrowRight size={20} className="rotate-180 group-hover:-translate-x-1 transition" style={{ color: "var(--foreground-soft)" }} />
-              </div>
-            </button>
-          </section>
-
-          {/* Auto-styled share card — Canvas-rendered 1080x1920 image for stories / WhatsApp.
-              When NEXT_PUBLIC_SITE_URL isn't set we pass `null` so the card
-              renders a "configure tunnel" notice instead of embedding a
-              relative path that phones can't dial. */}
-          <ShareEventCard
-            event={event}
-            qrTarget={(() => {
-              const o = tryGetPublicOrigin();
-              return o ? `${o}/live/${event.id}` : null;
-            })()}
-          />
+          {/* R73 (R61 followup) — Live event QR launcher + ShareEventCard
+              removed. Per user request: drop "שתף את האירוע" and the
+              guest-facing QR from the advanced event-day tools. The
+              run-of-show, vendor panic dialer, and the rest of the
+              tools below remain. */}
 
           {/* Panic / Emergency contacts */}
           <section className="mt-8">
@@ -522,187 +484,7 @@ export default function EventDayPage() {
           </div>
         </div>
 
-        {showLiveModal && (
-          <LiveEventModal eventId={event.id} hostNames={subjects} onClose={() => setShowLiveModal(false)} />
-        )}
       </main>
     </>
-  );
-}
-
-// ─────────────────────────── Live event QR modal ───────────────────────────
-
-function LiveEventModal({
-  eventId,
-  hostNames,
-  onClose,
-}: {
-  eventId: string;
-  hostNames: string;
-  onClose: () => void;
-}) {
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const liveUrl = useMemo(() => {
-    const o = tryGetPublicOrigin();
-    return o ? `${o}/live/${eventId}` : "";
-  }, [eventId]);
-
-  // Esc-to-close — accessibility convenience that matches the rest of the
-  // app's modals.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Generate the QR once on mount. We use a generous size so the printout
-  // scans cleanly even from across a hall, and a high error-correction level
-  // so the gold logo overlay doesn't break decoding (we don't add the overlay
-  // yet, but the headroom is free and useful).
-  useEffect(() => {
-    let cancelled = false;
-    if (!liveUrl) return;
-    QRCode.toDataURL(liveUrl, {
-      width: 720,
-      margin: 2,
-      errorCorrectionLevel: "H",
-      color: { dark: "#1a1310", light: "#f4dea9" },
-    })
-      .then((url) => {
-        if (!cancelled) setQrDataUrl(url);
-      })
-      .catch(() => {
-        // Non-fatal — show the link without the QR.
-        if (!cancelled) setQrDataUrl(null);
-      });
-    return () => { cancelled = true; };
-  }, [liveUrl]);
-
-  const downloadQr = () => {
-    if (!qrDataUrl) return;
-    const a = document.createElement("a");
-    a.href = qrDataUrl;
-    a.download = `momentum-live-qr-${eventId.slice(0, 8)}.png`;
-    a.click();
-  };
-
-  const shareToWhatsapp = () => {
-    const text = encodeURIComponent(
-      `שלום! ${hostNames} שמחים להזמין אותך למצב האירוע החי שלנו 🎉\n\nכאן תוכלו למצוא את השולחן שלכם, את תוכנית הערב, להעלות תמונות ולכתוב ברכה:\n${liveUrl}`,
-    );
-    window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
-  };
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(liveUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard blocked — let the user select the link manually instead.
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal
-      aria-labelledby="live-modal-title"
-    >
-      <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl scale-in"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--border-gold)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="p-5 flex items-start justify-between gap-3 border-b" style={{ borderColor: "var(--border)" }}>
-          <div>
-            <span className="pill pill-gold">
-              <QrCode size={11} /> מצב אירוע חי
-            </span>
-            <h2 id="live-modal-title" className="mt-2 text-xl font-extrabold tracking-tight gradient-gold">
-              שתף QR עם האורחים
-            </h2>
-            <p className="mt-1 text-xs" style={{ color: "var(--foreground-soft)" }}>
-              הדפס/הצג בכניסה — סריקה תפתח את עמוד האורח עם השולחן והתוכנית.
-            </p>
-          </div>
-          <button onClick={onClose} aria-label="סגור" className="rounded-full w-9 h-9 flex items-center justify-center hover:bg-[var(--secondary-button-bg)]">
-            <X size={16} />
-          </button>
-        </header>
-
-        <div className="p-5">
-          {!liveUrl ? (
-            // No public origin → no usable QR (a phone scanning the code
-            // wouldn't be able to reach a relative path). Show a clear
-            // configuration hint instead of a broken QR.
-            <div
-              className="rounded-2xl p-5 text-sm leading-relaxed"
-              style={{
-                background: "rgba(245, 158, 11, 0.08)",
-                border: "1px solid rgba(245, 158, 11, 0.4)",
-                color: "rgb(252, 211, 77)",
-              }}
-            >
-              להפעלת QR, הגדר את <code className="ltr-num">NEXT_PUBLIC_SITE_URL</code> ב-<code>.env.local</code>{" "}
-              (או הרץ <code>npm run dev:public</code> כדי שייווצר tunnel ציבורי אוטומטית), ופתח שוב את הדף.
-            </div>
-          ) : (
-            <>
-              <div className="rounded-2xl p-4 flex items-center justify-center" style={{ background: "var(--input-bg)", border: "1px solid var(--border-gold)" }}>
-                {qrDataUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={qrDataUrl} alt="QR לעמוד החי" className="w-full max-w-[280px] aspect-square" />
-                ) : (
-                  <div className="aspect-square w-full max-w-[280px] flex items-center justify-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-                    מייצר QR...
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 rounded-xl px-3 py-2 text-center text-xs ltr-num break-all" style={{ background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--foreground-soft)" }} dir="ltr">
-                {liveUrl}
-              </div>
-
-              <div className="mt-5 grid grid-cols-1 gap-2.5">
-                <button
-                  onClick={downloadQr}
-                  disabled={!qrDataUrl}
-                  className="btn-gold py-3 inline-flex items-center justify-center gap-2 disabled:opacity-40"
-                >
-                  <Download size={16} />
-                  הורד QR להדפסה
-                </button>
-                <button
-                  onClick={shareToWhatsapp}
-                  className="btn-secondary py-3 inline-flex items-center justify-center gap-2"
-                  style={{ background: "rgba(37,211,102,0.12)", borderColor: "rgba(37,211,102,0.45)", color: "rgb(74,222,128)" }}
-                >
-                  <Share2 size={16} />
-                  שתף קישור ב-WhatsApp
-                </button>
-                <button
-                  onClick={copyLink}
-                  className="rounded-2xl py-3 text-sm inline-flex items-center justify-center gap-2"
-                  style={{ border: "1px dashed var(--border-strong)", color: "var(--foreground-soft)" }}
-                >
-                  <Copy size={14} />
-                  {copied ? "הועתק ✓" : "העתק קישור"}
-                </button>
-              </div>
-
-              <p className="mt-5 text-xs text-center" style={{ color: "var(--foreground-muted)" }}>
-                לאחר 24 שעות מתחילת האירוע — העמוד יהפוך אוטומטית לאלבום זיכרון.
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
