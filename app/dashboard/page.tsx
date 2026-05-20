@@ -24,7 +24,6 @@ import {
   PartyPopper,
   ClipboardList,
   PieChart,
-  Clock,
   Briefcase,
   X,
 } from "lucide-react";
@@ -358,13 +357,11 @@ interface DashboardTool {
 }
 
 function ToolsSection() {
-  // R71 (R60-6) — pared down: /checklist (covered by /calendar +
-  // appointments), /timeline (covered by /calendar), /compare (unused),
-  // /alcohol (single calculator, folded back into /budget later) all
-  // removed. Calendar gets a slot of its own — it carries the work the
-  // four removed tools used to do.
+  // R71 (R60-6) — pared down: /checklist, /timeline, /compare, /alcohol
+  // all removed. R74 (R61 follow-up) — /calendar also removed; the
+  // remaining six tools cover guests, seating, vendors, budget, balance,
+  // and the manager dashboard for live mode.
   const tools: DashboardTool[] = [
-    { href: "/calendar", label: "לוח שנה", icon: <Clock size={20} /> },
     { href: "/guests", label: "אורחים", icon: <Users size={20} /> },
     { href: "/seating", label: "סידור הושבה", icon: <Armchair size={20} /> },
     { href: "/vendors", label: "ספקים", icon: <Briefcase size={20} /> },

@@ -35,7 +35,6 @@ import { setupCloudSync } from "@/lib/sync";
 import { HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
 import { useAppState } from "@/lib/store";
 import { useNow, daysUntil } from "@/lib/useNow";
-import { formatHebrewDate } from "@/lib/calendar/hebrew-calendar";
 
 /**
  * R72 (R61) — Two-tier premium Header.
@@ -541,8 +540,8 @@ function EventChip({ date, days }: { date: Date; days: number | null }) {
   const dateLabel = date.toLocaleDateString("he-IL", {
     day: "numeric",
     month: "long",
+    year: "numeric",
   });
-  const hebDate = formatHebrewDate(date);
   return (
     <div
       className="flex items-baseline gap-2 px-3 py-1.5 rounded-full min-w-0"
@@ -551,7 +550,7 @@ function EventChip({ date, days }: { date: Date; days: number | null }) {
         border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
       }}
       aria-label={`${dateLabel} · ${days ?? 0} ימים לאירוע`}
-      title={`${dateLabel} (${hebDate})`}
+      title={dateLabel}
     >
       <span
         className="text-xs ltr-num truncate"

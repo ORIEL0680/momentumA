@@ -3,7 +3,7 @@ import {
   Home,
   Users,
   Briefcase,
-  Calendar,
+  LayoutGrid,
   Sparkles,
 } from "lucide-react";
 
@@ -31,7 +31,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "המסע", icon: Home },
   { href: "/guests", label: "אורחים", icon: Users },
   { href: "/vendors", label: "ספקים", icon: Briefcase },
-  { href: "/calendar", label: "לוח שנה", icon: Calendar },
+  // R74 — /calendar removed; the seating tool fills the planner slot
+  // in the mobile bottom bar.
+  { href: "/seating", label: "הושבה", icon: LayoutGrid },
   { href: "/event-day", label: "מצב חי", icon: Sparkles },
 ] as const;
 
@@ -52,7 +54,6 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/budget", label: "תקציב" },
   { href: "/vendors", label: "ספקים" },
   { href: "/seating", label: "הושבה" },
-  { href: "/calendar", label: "לוח שנה" },
   { href: "/balance", label: "מאזן" },
 ] as const;
 

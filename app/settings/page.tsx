@@ -19,7 +19,6 @@ import { generateSigningKey } from "@/lib/crypto";
 import { deleteCloudData } from "@/lib/sync";
 import { formatEventDate } from "@/lib/format";
 import { showToast } from "@/components/Toast";
-import { CalendarSyncSection } from "@/components/calendar/CalendarSyncSection";
 import {
   ArrowRight,
   User,
@@ -38,7 +37,6 @@ import {
   X,
   RefreshCw,
   AlertCircle,
-  Calendar,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -383,10 +381,8 @@ export default function SettingsPage() {
               </button>
             </Section>
 
-            {/* R68 — Google / Apple Calendar sync (iCal feed). */}
-            <Section icon={<Calendar size={20} />} title="סנכרון לוח שנה">
-              <CalendarSyncSection />
-            </Section>
+            {/* R74 — Calendar sync section removed alongside the full
+                calendar feature. */}
 
             {/* R71 (R60-2) — "סיור היכרות" section removed alongside the
                 WelcomeTour component. Empty states + dashboard copy carry

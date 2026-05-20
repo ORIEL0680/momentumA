@@ -45,17 +45,9 @@ export interface EventTypeConfig {
 }
 
 const COMMON_END_STEPS: JourneyStepDef[] = [
-  // R71 (R60-6) — was a separate "/checklist" step; folded into the
-  // /calendar journey now that calendar carries appointments +
-  // per-appointment checklists.
-  {
-    id: "calendar",
-    title: "לוח שנה ופגישות",
-    description: "תכנון פגישות, ימי פיק במחיר, וצ׳קליסט לכל פגישה.",
-    href: "/calendar",
-    unlockBy: "afterEvent",
-    completeBy: "hasChecklistProgress",
-  },
+  // R74 — the "calendar" journey step was removed alongside the full
+  // calendar feature. The journey now leads with guests → budget →
+  // vendors → seating.
   {
     id: "guests",
     title: "רשימת מוזמנים",

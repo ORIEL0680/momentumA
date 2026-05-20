@@ -46,12 +46,14 @@
       "destination": "https://moomentum.events/:path*",
       "permanent": true
     },
-    { "source": "/alcohol",   "destination": "/budget",         "permanent": true },
-    { "source": "/timeline",  "destination": "/calendar",       "permanent": true },
-    { "source": "/checklist", "destination": "/calendar",       "permanent": true },
-    { "source": "/compare",   "destination": "/vendors",        "permanent": true },
-    { "source": "/pricing",   "destination": "/#pricing",       "permanent": true },
-    { "source": "/pass/:rest*", "destination": "/dashboard",    "permanent": true }
+    { "source": "/alcohol",         "destination": "/budget",    "permanent": true },
+    { "source": "/timeline",        "destination": "/dashboard", "permanent": true },
+    { "source": "/checklist",       "destination": "/dashboard", "permanent": true },
+    { "source": "/compare",         "destination": "/vendors",   "permanent": true },
+    { "source": "/pricing",         "destination": "/#pricing",  "permanent": true },
+    { "source": "/pass/:rest*",     "destination": "/dashboard", "permanent": true },
+    { "source": "/calendar",        "destination": "/dashboard", "permanent": true },
+    { "source": "/calendar/:rest*", "destination": "/dashboard", "permanent": true }
   ],
 
   "cleanUrls": true,
