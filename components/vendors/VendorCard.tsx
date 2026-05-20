@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 
@@ -29,6 +29,42 @@ import { vendorImageFor } from "@/lib/images";
 import { safeHttpUrl } from "@/lib/safeUrl";
 import { REGION_LABELS, VENDOR_TYPE_LABELS, type Vendor } from "@/lib/types";
 import { FacebookGlyph, InstagramGlyph } from "./typeIcons";
+
+// R70 (R59) — `has_saved_vendor` localStorage gate. Read via
+// useSyncExternalStore so React handles SSR/CSR snapshots and lint
+// doesn't trip on setState-in-effect. Listeners pattern matches
+// lib/useFirstLogin.ts.
+const HAS_SAVED_KEY = "momentum.has_saved_vendor.v1";
+const savedListeners = new Set<() => void>();
+function notifySavedSameTab(): void {
+  for (const l of savedListeners) l();
+}
+function subscribeHasSaved(cb: () => void): () => void {
+  savedListeners.add(cb);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === HAS_SAVED_KEY) cb();
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", onStorage);
+  }
+  return () => {
+    savedListeners.delete(cb);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", onStorage);
+    }
+  };
+}
+function getHasSavedSnapshot(): boolean {
+  try {
+    if (typeof window === "undefined") return true; // SSR: hide pill
+    return window.localStorage.getItem(HAS_SAVED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function getHasSavedServerSnapshot(): boolean {
+  return true; // SSR: hide pill (matches first-paint, no mismatch)
+}
 
 interface VendorCardProps {
   vendor: Vendor;
@@ -71,34 +107,25 @@ function VendorCardImpl({
     }, 700);
   };
 
-  // R18 §H — first-run "add to my list" affordance. Once the user has
-  // saved any vendor we drop the in-body pill (the overlay +/✓ badge is
-  // enough once they know the pattern). Persisted so it survives reloads.
-  //
-  // R70 (R59): server render starts in the "hidden" state (true), then
-  // a post-mount effect reads localStorage and flips to "show pill" only
-  // for first-time users. Doing the localStorage read in the useState
-  // initializer caused a hydration mismatch: SSR returned true (window
-  // undefined), client returned false (no key yet) → React bailed out
-  // of patching the tree on /vendors.
-  const HAS_SAVED_KEY = "momentum.has_saved_vendor.v1";
-  const [hasSavedEver, setHasSavedEver] = useState<boolean>(true);
-  useEffect(() => {
-    try {
-      setHasSavedEver(window.localStorage.getItem(HAS_SAVED_KEY) === "1");
-    } catch {
-      setHasSavedEver(false);
-    }
-  }, []);
+  // R18 §H — first-run "add to my list" affordance. R70 (R59): read
+  // through useSyncExternalStore so SSR snapshot (true = hide pill) and
+  // CSR snapshot (read localStorage) are coordinated by React itself
+  // and no hydration mismatch ever fires. See lib/useFirstLogin.ts for
+  // the original pattern this mirrors.
+  const hasSavedEver = useSyncExternalStore(
+    subscribeHasSaved,
+    getHasSavedSnapshot,
+    getHasSavedServerSnapshot,
+  );
 
   const markSavedEver = () => {
     if (hasSavedEver) return;
     try {
       window.localStorage.setItem(HAS_SAVED_KEY, "1");
+      notifySavedSameTab();
     } catch {
       /* private mode — in-memory only */
     }
-    setHasSavedEver(true);
   };
 
   const handleSave = (e: React.MouseEvent) => {
