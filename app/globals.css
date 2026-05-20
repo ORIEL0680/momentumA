@@ -340,14 +340,40 @@ body {
 
 /* R67 (R56) — subtle glow pulse for the wedding-day calendar cell. Box-
    shadow-only animation keeps layout stable. Reduced-motion users see
-   the static gold square without the breathing effect. */
+   the static gold square without the breathing effect.
+   R69 (R58): paired with a slow gold sheen (`wedding-day-shimmer`) for
+   a more "premium" hero cell. The shimmer runs on an inner ::before so
+   layout never shifts. */
 @keyframes wedding-day-pulse {
   0%, 100% { box-shadow: 0 8px 24px -8px var(--accent-glow), 0 0 0 0 rgba(244,222,169,0.45); }
   50%      { box-shadow: 0 8px 24px -8px var(--accent-glow), 0 0 0 8px rgba(244,222,169,0); }
 }
 .wedding-day-pulse { animation: wedding-day-pulse 3.5s ease-in-out infinite; }
+
+@keyframes wedding-day-shimmer {
+  0%   { transform: translateX(-130%); }
+  60%  { transform: translateX(130%); }
+  100% { transform: translateX(130%); }
+}
+.wedding-day-shimmer { position: relative; overflow: hidden; }
+.wedding-day-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 70%
+  );
+  transform: translateX(-130%);
+  animation: wedding-day-shimmer 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wedding-day-pulse { animation: none; }
+  .wedding-day-shimmer::before { animation: none; opacity: 0; }
 }
 
 /* R48 — flowing gold sheen on the two biggest headlines (Hero h1,

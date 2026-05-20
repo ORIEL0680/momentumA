@@ -14,6 +14,7 @@ import {
   type PriceInfo,
 } from "@/lib/calendar/pricing-model";
 import { formatHebrewDate, getHebrewMonth } from "@/lib/calendar/hebrew-calendar";
+import { useNow, daysUntil } from "@/lib/useNow";
 import { PriceTooltip } from "./PriceTooltip";
 import { PriceHeatmapLegend } from "./PriceHeatmapLegend";
 import type { Appointment } from "@/lib/calendar/appointments";
@@ -123,6 +124,10 @@ export function CalendarMonth({
   const [selectedIso, setSelectedIso] = useState<string>(() =>
     isoDay(initialDate ?? new Date()),
   );
+  // R69 — countdown subtitle ("X ימים לחתונה"). useNow ticks once a
+  // minute; daysUntil returns null until the client hydrates.
+  const nowMs = useNow();
+  const countdown = eventDate ? daysUntil(eventDate, nowMs) : null;
 
   const cells = useMemo(() => buildGrid(monthStart), [monthStart]);
 
@@ -164,19 +169,36 @@ export function CalendarMonth({
   const eventIso = eventDate ? isoDay(eventDate) : null;
 
   return (
-    <section className="card p-5 md:p-6">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold">
+    <section className="card p-5 md:p-7">
+      {/* R69 — premium header. Eyebrow + large month name + Hebrew/
+          countdown subtitle on the right; action cluster on the left.
+          Wraps gracefully on narrow viewports. */}
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
+        <div className="min-w-0">
+          <span className="eyebrow">חודש</span>
+          <h2 className="mt-1.5 text-3xl md:text-[2.25rem] font-bold leading-tight gradient-text">
             <span>{monthLabel}</span>{" "}
             <span className="ltr-num">{yearLabel}</span>
           </h2>
           <p
-            className="text-sm mt-1"
+            className="mt-1.5 text-sm"
             style={{ color: "var(--foreground-soft)" }}
           >
-            {hebMonthLabel}
+            <span>{hebMonthLabel}</span>
+            {countdown != null && countdown > 0 && (
+              <>
+                <span
+                  className="mx-2"
+                  style={{ color: "var(--foreground-muted)" }}
+                  aria-hidden
+                >
+                  •
+                </span>
+                <span style={{ color: "var(--accent)" }}>
+                  <span className="ltr-num">{countdown}</span> ימים לחתונה
+                </span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
@@ -184,7 +206,7 @@ export function CalendarMonth({
             type="button"
             onClick={goPrev}
             aria-label="חודש קודם"
-            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)] hover:-translate-y-0.5"
             style={{ border: "1px solid var(--border)" }}
           >
             <ChevronRight size={16} aria-hidden />
@@ -192,7 +214,7 @@ export function CalendarMonth({
           <button
             type="button"
             onClick={goToday}
-            className="rounded-full px-3.5 py-2 text-sm font-semibold inline-flex items-center gap-1.5 transition hover:bg-[var(--secondary-button-bg)]"
+            className="rounded-full px-3.5 py-2 text-sm font-semibold inline-flex items-center gap-1.5 transition hover:bg-[var(--secondary-button-bg)] hover:-translate-y-0.5"
             style={{ border: "1px solid var(--border-gold)", color: "var(--accent)" }}
           >
             <CalendarIcon size={14} aria-hidden />
@@ -202,7 +224,7 @@ export function CalendarMonth({
             type="button"
             onClick={goNext}
             aria-label="חודש הבא"
-            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)] hover:-translate-y-0.5"
             style={{ border: "1px solid var(--border)" }}
           >
             <ChevronLeft size={16} aria-hidden />
@@ -210,7 +232,7 @@ export function CalendarMonth({
           <Link
             href="/calendar/print"
             aria-label="גרסה להדפסה"
-            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+            className="w-10 h-10 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)] hover:-translate-y-0.5"
             style={{
               border: "1px solid var(--border)",
               color: "var(--foreground-soft)",
@@ -222,7 +244,7 @@ export function CalendarMonth({
             type="button"
             onClick={() => onAddClick()}
             className="btn-gold inline-flex items-center gap-1.5"
-            style={{ padding: "0.5rem 0.9rem", fontSize: "0.85rem" }}
+            style={{ padding: "0.55rem 1rem", fontSize: "0.85rem" }}
             aria-label="הוסף פגישה"
           >
             <Plus size={14} aria-hidden /> הוסף
@@ -232,14 +254,14 @@ export function CalendarMonth({
 
       {/* Week-day strip */}
       <div
-        className="grid grid-cols-7 gap-1 mb-2 text-xs font-semibold text-center"
+        className="grid grid-cols-7 gap-x-2 gap-y-3 mb-3 text-xs font-semibold uppercase tracking-wider text-center"
         dir="rtl"
         aria-hidden
       >
         {WEEKDAYS.map((w, i) => (
           <div
             key={w}
-            className="py-2"
+            className="py-1.5"
             style={{
               color:
                 i === 6
@@ -252,9 +274,9 @@ export function CalendarMonth({
         ))}
       </div>
 
-      {/* Month grid */}
+      {/* Month grid — R69 tighter horizontal rhythm, more vertical air. */}
       <div
-        className="grid grid-cols-7 gap-1"
+        className="grid grid-cols-7 gap-x-2 gap-y-3"
         dir="rtl"
         aria-label="לוח חודשי"
       >
@@ -277,11 +299,18 @@ export function CalendarMonth({
 
           const cellStyle: React.CSSProperties = isWedding
             ? {
+                // R69 — softer radial gradient anchored to the top-left
+                // (RTL-aware via the linear-gradient angle) + double
+                // outline for hero presence. The .wedding-day-shimmer
+                // class adds a sweeping sheen on top.
                 background:
-                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                  "radial-gradient(circle at 30% 30%, var(--gold-100) 0%, var(--gold-300) 55%, var(--gold-500) 100%)",
                 border: "2px solid var(--accent)",
-                boxShadow: "0 8px 24px -8px var(--accent-glow)",
+                boxShadow:
+                  "0 8px 28px -8px var(--accent-glow), inset 0 0 0 1px rgba(255,255,255,0.35)",
                 color: "#0A0A0F",
+                transform: "scale(1.08)",
+                zIndex: 1,
               }
             : {
                 background: `${cell.info.color}${tintAlpha}`,
@@ -316,13 +345,15 @@ export function CalendarMonth({
               aria-pressed={isSelected}
               aria-current={isToday ? "date" : undefined}
               className={
-                "aspect-square rounded-lg p-1.5 text-start flex flex-col transition relative outline-none focus-visible:ring-2 " +
-                (isWedding ? "wedding-day-pulse" : "")
+                "aspect-square rounded-xl p-1.5 text-start flex flex-col transition-transform duration-200 ease-out relative outline-none focus-visible:ring-2 " +
+                (isWedding
+                  ? "wedding-day-pulse wedding-day-shimmer "
+                  : "hover:scale-[1.03] hover:z-10 ")
               }
               style={cellStyle}
             >
               <span
-                className="text-sm md:text-base font-bold ltr-num leading-none"
+                className="text-sm md:text-base font-bold ltr-num leading-none relative z-10"
                 style={{
                   color: isWedding
                     ? "#0A0A0F"
@@ -335,9 +366,13 @@ export function CalendarMonth({
               </span>
               {isWedding && (
                 <span
-                  className="absolute inset-0 flex items-center justify-center text-2xl md:text-3xl pointer-events-none"
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
                   aria-hidden
                   title={weddingTitle ?? "החתונה שלכם"}
+                  style={{
+                    fontSize: "1.75rem",
+                    filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.18))",
+                  }}
                 >
                   💍
                 </span>
@@ -380,9 +415,35 @@ export function CalendarMonth({
         })}
       </div>
 
-      {/* Legend */}
-      <div className="mt-5 pt-4 border-t" style={{ borderColor: "var(--border)" }}>
+      {/* Legend — R69: price heatmap (existing) + marker key. */}
+      <div
+        className="mt-6 pt-4 border-t space-y-3"
+        style={{ borderColor: "var(--border)" }}
+      >
         <PriceHeatmapLegend />
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs"
+          role="list"
+          aria-label="מקרא סימנים"
+          style={{ color: "var(--foreground-soft)" }}
+        >
+          <div role="listitem" className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: "var(--accent)" }}
+            />
+            פגישה מאושרת
+          </div>
+          <div role="listitem" className="inline-flex items-center gap-1.5">
+            <span aria-hidden style={{ color: "var(--accent)" }}>✨</span>
+            הצעת AI
+          </div>
+          <div role="listitem" className="inline-flex items-center gap-1.5">
+            <span aria-hidden>💍</span>
+            יום האירוע
+          </div>
+        </div>
       </div>
 
       {/* Selected-day detail */}

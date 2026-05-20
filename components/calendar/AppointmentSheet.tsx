@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Trash2, Plus, X } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Modal } from "@/components/Modal";
 import { showToast } from "@/components/Toast";
 import {
   APPOINTMENT_TEMPLATES,
   CATEGORY_COLORS,
-  type AppointmentTemplate,
 } from "@/lib/calendar/appointment-templates";
 import type { AppointmentCategory } from "@/lib/calendar/wedding-brain";
 import {
@@ -24,14 +23,22 @@ import {
 } from "@/lib/calendar/checklist-templates";
 
 /**
- * R67 (R56) — appointment create/edit modal.
+ * R69 (R58) — appointment create/edit modal — premium redesign.
  *
- * - "Template" picker auto-fills title/category/duration/icon.
- * - End time is derived from start + duration but stays editable.
- * - Color preview reflects the chosen swatch live.
- * - Delete button shows only in edit mode (existing appointment).
+ * Visual overhaul on top of R67/R68 logic (kept verbatim):
+ *   • Premium header — eyebrow + gradient title + Hebrew-date subtitle.
+ *   • Template chips with horizontal scroll (replaces <select>).
+ *   • Larger inputs with .input class, time row + quick-duration chips
+ *     [15min / 30min / שעה / שעתיים] that snap the end time.
+ *   • 32×32 color dots with a soft ring + scale on the selected one.
+ *   • Save-state animation: idle → saving → ✓ saved (600ms) → close.
+ *   • Delete button moved to a discrete top-end slot in edit mode.
+ *   • Stagger fade-in on the form sections (existing .stagger utility,
+ *     prefers-reduced-motion guard already lives in globals.css).
  *
- * Uses the shared `Modal` for backdrop + Esc handling. RTL-correct.
+ * All R67 behaviour (template auto-fill, validation, save/delete,
+ * day-balance hint, RTL inputs) and R68 (checklist with debounced
+ * auto-save) is preserved — only the chrome changes.
  */
 
 const COLOR_SWATCHES: Array<{ id: string; label: string; value: string }> = [
@@ -41,6 +48,13 @@ const COLOR_SWATCHES: Array<{ id: string; label: string; value: string }> = [
   { id: "purple", label: "סגול", value: "#C29BE8" },
   { id: "teal", label: "תכלת", value: "#9BC8E8" },
   { id: "warm", label: "כתום", value: "#FFB05E" },
+];
+
+const QUICK_DURATIONS: Array<{ minutes: number; label: string }> = [
+  { minutes: 15, label: "15ד׳" },
+  { minutes: 30, label: "30ד׳" },
+  { minutes: 60, label: "שעה" },
+  { minutes: 120, label: "שעתיים" },
 ];
 
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
@@ -64,6 +78,13 @@ function combine(dateStr: string, timeStr: string): Date | null {
   const [hh, mm] = timeStr.split(":").map(Number);
   const out = new Date(y, m - 1, d, hh, mm, 0, 0);
   return Number.isNaN(out.getTime()) ? null : out;
+}
+
+function durationMinutes(startStr: string, endStr: string): number | null {
+  if (!TIME_PATTERN.test(startStr) || !TIME_PATTERN.test(endStr)) return null;
+  const [sh, sm] = startStr.split(":").map(Number);
+  const [eh, em] = endStr.split(":").map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
 }
 
 export interface AppointmentSheetProps {
@@ -118,17 +139,16 @@ export function AppointmentSheet({
     editing?.color ?? CATEGORY_COLORS[editing?.category ?? "other"],
   );
   const [busy, setBusy] = useState(false);
+  // R69 — terminal "saved" pulse before closing. Decoupled from `busy`
+  // so the spinner can fall away and a check can fade in.
+  const [savedFlash, setSavedFlash] = useState(false);
 
   // R68 — local checklist state (only meaningful when editing an
   // existing row; the create path seeds the checklist on save).
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(
     editing?.checklist ?? [],
   );
-  // True after the local checklist diverges from what's in the DB.
-  // Drives the debounced auto-save effect below. Starts false → no
-  // save fires on mount; only after the user actually toggles/adds.
   const [checklistDirty, setChecklistDirty] = useState(false);
-  // Inputs for "+ הוסף שורה" per group.
   const [newQuestion, setNewQuestion] = useState("");
   const [newBring, setNewBring] = useState("");
 
@@ -138,7 +158,6 @@ export function AppointmentSheet({
     const tpl = APPOINTMENT_TEMPLATES.find((t) => t.id === tplId);
     if (!tpl) return;
     if (tpl.id === "custom") {
-      // Custom = clear the slate.
       setTitle("");
       setCategory("other");
       return;
@@ -146,7 +165,6 @@ export function AppointmentSheet({
     setTitle(tpl.title);
     setCategory(tpl.category);
     setColor(CATEGORY_COLORS[tpl.category]);
-    // Recompute end based on duration.
     const start = combine(dateStr, startStr);
     if (start) {
       const end = new Date(start);
@@ -155,13 +173,26 @@ export function AppointmentSheet({
     }
   };
 
+  // Snap the end time to a fixed duration from start. Used by the quick
+  // duration chips below the time row.
+  const applyDuration = (minutes: number) => {
+    const start = combine(dateStr, startStr);
+    if (!start) return;
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + minutes);
+    setEndStr(isoLocalTime(end));
+  };
+
   const hebDate = useMemo(() => {
     const d = combine(dateStr, "00:00");
     return d ? formatHebrewDate(d) : "";
   }, [dateStr]);
 
+  const currentDuration = durationMinutes(startStr, endStr);
+
   const canSave =
     !busy &&
+    !savedFlash &&
     title.trim().length > 0 &&
     TIME_PATTERN.test(startStr) &&
     TIME_PATTERN.test(endStr) &&
@@ -200,7 +231,14 @@ export function AppointmentSheet({
       }
       showToast(editing ? "הפגישה עודכנה" : "הפגישה נשמרה", "success");
       onSaved(saved);
-      onClose();
+      // Saved → flash the check for 600ms, then close. The setTimeout
+      // owns the state transition, so it's an async callback (no lint
+      // trip on set-state-in-effect).
+      setBusy(false);
+      setSavedFlash(true);
+      setTimeout(() => {
+        onClose();
+      }, 600);
     } catch {
       showToast("שמירה נכשלה. נסו שוב.", "error");
       setBusy(false);
@@ -224,19 +262,9 @@ export function AppointmentSheet({
     onClose();
   };
 
-  // Keep end time in sync with start when the user changes start
-  // (preserve previous duration). Lazy-init pattern via ref to avoid
-  // setState-in-effect lint.
-  useEffect(() => {
-    // Intentionally no body — we don't auto-shift end. The user can
-    // edit each independently. (Auto-shift on every keystroke felt
-    // janky in early iterations.)
-  }, [startStr]);
-
   // R68 — debounced checklist auto-save. Only fires after the user
-  // actually toggles/adds (checklistDirty). The setState inside the
-  // setTimeout callback is async, so the lint rule against synchronous
-  // setState-in-effect doesn't apply.
+  // actually toggles/adds (checklistDirty). setState inside setTimeout
+  // is async, so the set-state-in-effect lint rule doesn't apply.
   useEffect(() => {
     if (!editing || !checklistDirty) return;
     const t = setTimeout(() => {
@@ -265,23 +293,15 @@ export function AppointmentSheet({
     if (!label) return;
     setChecklistItems((prev) => [
       ...prev,
-      {
-        id: newChecklistItemId(type),
-        label,
-        checked: false,
-        type,
-      },
+      { id: newChecklistItemId(type), label, checked: false, type },
     ]);
     if (type === "question") setNewQuestion("");
     else setNewBring("");
     setChecklistDirty(true);
   };
 
-  // R68 (Part 7) — smart day-balance hint. Compute count of existing
-  // appointments on the chosen day (excluding the one being edited).
-  // Shown as an inline notice when ≥ 3; spec wanted a confirm modal
-  // but the inline hint achieves the same awareness with much less
-  // surface area and no extra component.
+  // R68 (Part 7) — smart day-balance hint. Inline notice when ≥ 3 other
+  // appointments fall on the same day.
   const otherSameDayCount = appointmentsOnDay
     ? appointmentsOnDay(dateStr)
     : 0;
@@ -290,42 +310,123 @@ export function AppointmentSheet({
   const bringItems = checklistItems.filter((i) => i.type === "bring");
   const checkedCount = checklistItems.filter((i) => i.checked).length;
 
+  // Premium header. The Modal wraps `title` in an <h3 id="modal-title">,
+  // so we feed it plain divs (avoid nested headings) and lean on the
+  // wrapper for accessibility labelling.
+  const headerDateLine = (() => {
+    const d = combine(dateStr, "00:00");
+    return d
+      ? d.toLocaleDateString("he-IL", {
+          day: "numeric",
+          month: "long",
+          weekday: "long",
+        })
+      : "";
+  })();
+  const headerNode = (
+    <span className="min-w-0 block">
+      <span
+        className="eyebrow"
+        style={{ display: "inline-flex" }}
+      >
+        {editing ? "עריכת פגישה" : "פגישה חדשה"}
+      </span>
+      <span
+        className="block mt-1.5 text-2xl md:text-[1.75rem] font-bold gradient-text leading-tight"
+      >
+        {editing ? title.trim() || "ללא שם" : "מה נוסיף ללוח?"}
+      </span>
+      {hebDate && (
+        <span
+          className="block mt-1 text-xs font-normal"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          <span className="ltr-num">{headerDateLine}</span>
+          {" · "}
+          <span>{hebDate}</span>
+        </span>
+      )}
+    </span>
+  );
+
   return (
-    <Modal
-      onClose={onClose}
-      title={editing ? "עריכת פגישה" : "פגישה חדשה"}
-      maxWidthClass="max-w-lg"
-    >
-      <div className="space-y-4">
+    <Modal onClose={onClose} title={headerNode} maxWidthClass="max-w-xl">
+      {/* Edit-mode discrete delete chip — top-end, divider below. */}
+      {editing && (
+        <div className="flex justify-end -mt-2 mb-1">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={busy || savedFlash}
+            aria-label="מחק פגישה"
+            className="inline-flex items-center gap-1.5 text-xs py-1.5 px-2.5 rounded-full transition disabled:opacity-40"
+            style={{
+              color: "rgb(239,120,120)",
+              border: "1px solid color-mix(in srgb, rgb(239,120,120) 35%, transparent)",
+              background: "color-mix(in srgb, rgb(239,120,120) 8%, transparent)",
+            }}
+          >
+            <Trash2 size={12} aria-hidden /> מחק
+          </button>
+        </div>
+      )}
+
+      <div
+        className="stagger space-y-4 pt-2"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        {/* Template chips — horizontal scroll, only in create mode. */}
         {!editing && (
-          <div>
-            <label
-              htmlFor="appt-template"
-              className="block text-sm mb-1.5"
-              style={{ color: "var(--foreground-soft)" }}
+          <div className="pt-3">
+            <span
+              className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+              style={{ color: "var(--foreground-muted)" }}
             >
-              🎯 בחירת תבנית (אופציונלי)
-            </label>
-            <select
-              id="appt-template"
-              value={templateId}
-              onChange={(e) => applyTemplate(e.target.value)}
-              className="input w-full"
+              תבנית מהירה
+            </span>
+            <div
+              className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1"
+              style={{ scrollbarWidth: "thin" }}
+              role="radiogroup"
+              aria-label="בחירת תבנית"
             >
-              <option value="">— בחרו תבנית —</option>
-              {APPOINTMENT_TEMPLATES.map((t: AppointmentTemplate) => (
-                <option key={t.id} value={t.id}>
-                  {t.icon} {t.label}
-                </option>
-              ))}
-            </select>
+              {APPOINTMENT_TEMPLATES.map((t) => {
+                const selected = templateId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => applyTemplate(t.id)}
+                    className="shrink-0 inline-flex items-center gap-1.5 text-sm py-1.5 px-3 rounded-full transition"
+                    style={{
+                      border: selected
+                        ? "1.5px solid var(--accent)"
+                        : "1px solid var(--border)",
+                      background: selected
+                        ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                        : "var(--input-bg)",
+                      color: selected
+                        ? "var(--accent)"
+                        : "var(--foreground-soft)",
+                      fontWeight: selected ? 600 : 500,
+                    }}
+                  >
+                    <span aria-hidden>{t.icon}</span>
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
+        {/* Title — single most-important field, slightly larger. */}
         <div>
           <label
             htmlFor="appt-title"
-            className="block text-sm mb-1.5"
+            className="block text-sm mb-1.5 font-medium"
             style={{ color: "var(--foreground-soft)" }}
           >
             כותרת <span style={{ color: "var(--accent)" }}>*</span>
@@ -334,6 +435,7 @@ export function AppointmentSheet({
             id="appt-title"
             type="text"
             className="input w-full"
+            style={{ fontSize: "1rem", padding: "0.7rem 0.95rem" }}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="לדוגמה: טעימה באולם"
@@ -341,11 +443,12 @@ export function AppointmentSheet({
           />
         </div>
 
+        {/* Date + time row. */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label
               htmlFor="appt-date"
-              className="block text-sm mb-1.5"
+              className="block text-sm mb-1.5 font-medium"
               style={{ color: "var(--foreground-soft)" }}
             >
               📅 תאריך
@@ -358,22 +461,14 @@ export function AppointmentSheet({
               value={dateStr}
               onChange={(e) => setDateStr(e.target.value)}
             />
-            {hebDate && (
-              <p
-                className="mt-1 text-xs"
-                style={{ color: "var(--foreground-muted)" }}
-              >
-                {hebDate}
-              </p>
-            )}
           </div>
           <div>
-            <label
-              className="block text-sm mb-1.5"
+            <span
+              className="block text-sm mb-1.5 font-medium"
               style={{ color: "var(--foreground-soft)" }}
             >
               ⏰ שעה
-            </label>
+            </span>
             <div className="flex items-center gap-2">
               <input
                 aria-label="שעת התחלה"
@@ -398,10 +493,37 @@ export function AppointmentSheet({
           </div>
         </div>
 
-        {/* R68 (Part 7) — smart day-balance inline hint. Surfaces when
-            the chosen day already has ≥3 other appointments. Inline
-            warning instead of the spec's blocking confirm modal —
-            less friction, same awareness. */}
+        {/* Quick-duration chips — snap end time to a fixed window. */}
+        <div className="flex flex-wrap gap-2">
+          {QUICK_DURATIONS.map((q) => {
+            const matches = currentDuration === q.minutes;
+            return (
+              <button
+                key={q.minutes}
+                type="button"
+                onClick={() => applyDuration(q.minutes)}
+                aria-pressed={matches}
+                className="text-xs py-1 px-2.5 rounded-full transition"
+                style={{
+                  border: matches
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                  background: matches
+                    ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+                    : "transparent",
+                  color: matches
+                    ? "var(--accent)"
+                    : "var(--foreground-muted)",
+                  fontWeight: matches ? 600 : 500,
+                }}
+              >
+                {q.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* R68 (Part 7) — smart day-balance hint. */}
         {otherSameDayCount >= 3 && (
           <div
             className="text-sm rounded-xl px-3 py-2.5"
@@ -416,10 +538,11 @@ export function AppointmentSheet({
           </div>
         )}
 
+        {/* Location. */}
         <div>
           <label
             htmlFor="appt-location"
-            className="block text-sm mb-1.5"
+            className="block text-sm mb-1.5 font-medium"
             style={{ color: "var(--foreground-soft)" }}
           >
             📍 מיקום
@@ -434,10 +557,11 @@ export function AppointmentSheet({
           />
         </div>
 
+        {/* Description. */}
         <div>
           <label
             htmlFor="appt-desc"
-            className="block text-sm mb-1.5"
+            className="block text-sm mb-1.5 font-medium"
             style={{ color: "var(--foreground-soft)" }}
           >
             📝 הערות
@@ -452,14 +576,15 @@ export function AppointmentSheet({
           />
         </div>
 
+        {/* Color swatches — 32×32 with ring + scale on selected. */}
         <div>
           <span
-            className="block text-sm mb-2"
+            className="block text-sm mb-2 font-medium"
             style={{ color: "var(--foreground-soft)" }}
           >
             🎨 צבע
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {COLOR_SWATCHES.map((s) => {
               const selected = color === s.value;
               return (
@@ -469,15 +594,13 @@ export function AppointmentSheet({
                   onClick={() => setColor(s.value)}
                   aria-label={`צבע ${s.label}`}
                   aria-pressed={selected}
-                  className="w-9 h-9 rounded-full transition"
+                  className="w-8 h-8 rounded-full transition"
                   style={{
                     background: s.value,
-                    border: selected
-                      ? "2.5px solid var(--accent)"
-                      : "1px solid var(--border)",
+                    transform: selected ? "scale(1.12)" : "scale(1)",
                     boxShadow: selected
-                      ? "0 0 0 2px var(--background)"
-                      : "none",
+                      ? "0 0 0 2px var(--background), 0 0 0 4px var(--accent)"
+                      : "0 0 0 1px var(--border)",
                   }}
                 />
               );
@@ -485,22 +608,17 @@ export function AppointmentSheet({
           </div>
         </div>
 
-        {/* R68 (Part 1) — checklist. Only shown when editing an
-            existing appointment; fresh ones get their checklist seeded
-            on save and the user reopens the sheet to see it.
-            Auto-saves 500ms after the last toggle/add. */}
+        {/* R68 (Part 1) — checklist (only when editing). */}
         {editing && checklistItems.length > 0 && (
           <div
-            className="rounded-xl p-3"
+            className="rounded-xl p-3.5"
             style={{
               background: "var(--input-bg)",
               border: "1px solid var(--border)",
             }}
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold">
-                צ׳קליסט לפגישה
-              </span>
+              <span className="text-sm font-bold">צ׳קליסט לפגישה</span>
               <span
                 className="text-xs ltr-num"
                 style={{ color: "var(--foreground-muted)" }}
@@ -534,44 +652,46 @@ export function AppointmentSheet({
             </div>
           </div>
         )}
+      </div>
 
-        <div
-          className="flex items-center gap-2 pt-3"
-          style={{ borderTop: "1px solid var(--border)" }}
+      {/* Action bar — sticky-feel divider, save button is the primary
+          attention. Outside .stagger so it stays put. */}
+      <div
+        className="flex items-center gap-2 pt-4 mt-5"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="btn-secondary text-sm py-2 px-4"
+          disabled={busy || savedFlash}
         >
-          {editing && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 text-sm py-2 px-3 rounded-full transition disabled:opacity-50"
-              style={{
-                color: "rgb(239,120,120)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <Trash2 size={14} aria-hidden /> מחק
-            </button>
+          ביטול
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!canSave}
+          className="btn-gold inline-flex items-center justify-center gap-2 ms-auto disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            padding: "0.7rem 1.4rem",
+            minWidth: "140px",
+            transition: "background 200ms ease",
+          }}
+          aria-live="polite"
+        >
+          {savedFlash ? (
+            <>
+              <Check size={16} aria-hidden /> נשמר
+            </>
+          ) : busy ? (
+            <>
+              <Loader2 size={14} className="animate-spin" aria-hidden /> שומר…
+            </>
+          ) : (
+            <>שמירה</>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-secondary text-sm py-2 px-4 ms-auto"
-            disabled={busy}
-          >
-            ביטול
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className="btn-gold inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ padding: "0.6rem 1.25rem" }}
-          >
-            {busy && <Loader2 size={14} className="animate-spin" aria-hidden />}
-            שמירה
-          </button>
-        </div>
+        </button>
       </div>
     </Modal>
   );
@@ -607,10 +727,7 @@ function ChecklistGroup({
       </div>
       <ul className="space-y-1.5">
         {items.map((it) => (
-          <li
-            key={it.id}
-            className="flex items-center gap-2 group"
-          >
+          <li key={it.id} className="flex items-center gap-2 group">
             <input
               id={`chk-${it.id}`}
               type="checkbox"

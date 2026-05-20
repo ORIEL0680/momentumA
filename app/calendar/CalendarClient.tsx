@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, CalendarCheck2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { useAppState } from "@/lib/store";
 import { AISuggestionBanner } from "@/components/calendar/AISuggestionBanner";
@@ -167,15 +167,10 @@ export function CalendarClient() {
 
           <AISuggestionBanner />
 
-          {appointments === null ? (
-            <div className="flex justify-center py-20">
-              <Loader2
-                className="animate-spin"
-                size={26}
-                style={{ color: "var(--accent)" }}
-                aria-label="טוען לוח שנה"
-              />
-            </div>
+          {hydrated && !state.event ? (
+            <CalendarEmptyState />
+          ) : appointments === null ? (
+            <CalendarSkeleton />
           ) : (
             <CalendarMonth
               appointments={visibleAppointments}
@@ -230,5 +225,126 @@ export function CalendarClient() {
         )}
       </main>
     </>
+  );
+}
+
+/**
+ * R69 — skeleton placeholder while appointments load. Mirrors the
+ * 7×6 calendar grid + header strip so the page doesn't reflow when
+ * the real data arrives. Cells fade in/out subtly; the global
+ * prefers-reduced-motion guard on `.animate-pulse` (Tailwind) covers
+ * the accessibility case.
+ */
+function CalendarSkeleton() {
+  return (
+    <section
+      className="card p-5 md:p-7"
+      role="status"
+      aria-label="טוען לוח שנה"
+      aria-live="polite"
+    >
+      {/* Header strip */}
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
+        <div className="space-y-2">
+          <div
+            className="h-3 w-16 rounded-full animate-pulse"
+            style={{ background: "var(--border)" }}
+          />
+          <div
+            className="h-8 w-48 rounded-lg animate-pulse"
+            style={{ background: "var(--border)" }}
+          />
+          <div
+            className="h-3 w-32 rounded-full animate-pulse"
+            style={{ background: "var(--border)" }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-10 w-10 rounded-full animate-pulse"
+              style={{ background: "var(--border)" }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Week-day strip */}
+      <div className="grid grid-cols-7 gap-x-2 gap-y-3 mb-3">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-4 mx-auto w-4 rounded animate-pulse"
+            style={{ background: "var(--border)" }}
+          />
+        ))}
+      </div>
+
+      {/* 35-cell grid (5 weeks visible — the 6th rarely matters at a glance). */}
+      <div className="grid grid-cols-7 gap-x-2 gap-y-3">
+        {Array.from({ length: 35 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-square rounded-xl animate-pulse"
+            style={{
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+              animationDelay: `${(i % 7) * 60}ms`,
+            }}
+          />
+        ))}
+      </div>
+
+      <span className="sr-only">טוען לוח שנה…</span>
+    </section>
+  );
+}
+
+/**
+ * R69 — empty state when the user hasn't set a wedding date yet.
+ * The whole calendar surface assumes `state.event.date`, so without
+ * one there's nothing useful to show. Routes them back to /start.
+ */
+function CalendarEmptyState() {
+  return (
+    <section
+      className="card p-8 md:p-10 text-center"
+      role="region"
+      aria-labelledby="calendar-empty-title"
+    >
+      <div className="flex justify-center mb-4">
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{
+            background: "color-mix(in srgb, var(--accent) 14%, transparent)",
+            border: "1px solid var(--border-gold)",
+          }}
+          aria-hidden
+        >
+          <CalendarCheck2 size={28} style={{ color: "var(--accent)" }} />
+        </div>
+      </div>
+      <h2
+        id="calendar-empty-title"
+        className="text-xl md:text-2xl font-bold gradient-text"
+      >
+        רגע — איפה החתונה שלכם?
+      </h2>
+      <p
+        className="mt-2 max-w-md mx-auto text-sm leading-relaxed"
+        style={{ color: "var(--foreground-soft)" }}
+      >
+        כדי להציג את לוח החתונה, הצעות AI לתאריכים, ואת ה-heatmap של המחירים —
+        קודם נגדיר שם וטיוטת תאריך.
+      </p>
+      <Link
+        href="/start"
+        className="btn-gold inline-flex items-center gap-2 mt-5"
+        style={{ padding: "0.65rem 1.35rem" }}
+      >
+        בואו נתחיל
+      </Link>
+    </section>
   );
 }
