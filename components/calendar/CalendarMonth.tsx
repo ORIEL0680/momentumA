@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Plus,
+} from "lucide-react";
 import {
   getPriceInfo,
   type PriceInfo,
@@ -9,21 +14,21 @@ import {
 import { formatHebrewDate, getHebrewMonth } from "@/lib/calendar/hebrew-calendar";
 import { PriceTooltip } from "./PriceTooltip";
 import { PriceHeatmapLegend } from "./PriceHeatmapLegend";
+import type { Appointment } from "@/lib/calendar/appointments";
 
 /**
- * R65 (R55) — month-view calendar with Israeli-pricing heatmap.
+ * R67 (R56) — month-view calendar with Israeli-pricing heatmap PLUS
+ * appointments layer + Wedding Brain suggestions + wedding-day square.
  *
- * Client component (month navigation + selection state). All pricing
- * computed lazily via useMemo keyed on `monthStart` — re-renders on
- * navigation but not on selection changes.
+ * Display:
+ *   - Each cell tinted by PriceLevel (R65).
+ *   - Appointments → small gold dots in the cell footer; "+N" when 4+.
+ *   - Pending AI suggestions → ✨ pulse marker.
+ *   - The event date (wedding day) → solid gold square + 💍 + pulse.
  *
- * RTL: grid-cols-7 inside a dir="rtl" container flows Sunday (col 1 =
- * rightmost) through Saturday (col 7 = leftmost). Week-day labels
- * stored in source order; the RTL flow renders them right-to-left.
- *
- * Accessibility: each cell is a `<button>` with descriptive aria-label
- * + aria-pressed for the selected day; the price detail panel below
- * acts as a live region that updates on selection.
+ * Orchestration (fetching, sheet/popover open state, accept/dismiss)
+ * lives in the parent CalendarClient. This component renders + fires
+ * callbacks on click.
  */
 
 const WEEKDAYS = ["א", "ב", "ג", "ד", "ה", "ו", "ש"] as const;
@@ -48,12 +53,16 @@ function startOfMonth(d: Date): Date {
   return x;
 }
 
+function isoDay(d: Date): string {
+  // Local-time YYYY-MM-DD (NOT toISOString, which uses UTC).
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return isoDay(a) === isoDay(b);
 }
 
 interface Cell {
@@ -64,8 +73,6 @@ interface Cell {
 }
 
 function buildGrid(monthStart: Date): Cell[] {
-  // Back up from the 1st of the month to the prior Sunday (RTL grid
-  // starts on Sunday in week column 0).
   const firstDow = monthStart.getDay();
   const gridStart = new Date(monthStart);
   gridStart.setDate(monthStart.getDate() - firstDow);
@@ -77,15 +84,32 @@ function buildGrid(monthStart: Date): Cell[] {
       date: d,
       inMonth: d.getMonth() === monthStart.getMonth(),
       info: getPriceInfo(d),
-      iso: d.toISOString().slice(0, 10),
+      iso: isoDay(d),
     });
   }
   return cells;
 }
 
-export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
-  // `today` is computed once on mount (avoids the "first paint shows
-  // yesterday after midnight" edge case during a long session).
+export interface CalendarMonthProps {
+  appointments: Appointment[];
+  /** Wedding day, or null if the user hasn't set one yet. */
+  eventDate: Date | null;
+  weddingTitle?: string;
+  initialDate?: Date;
+  onAddClick: (date?: Date) => void;
+  onAppointmentClick: (apt: Appointment) => void;
+  onSuggestionClick: (apt: Appointment) => void;
+}
+
+export function CalendarMonth({
+  appointments,
+  eventDate,
+  weddingTitle,
+  initialDate,
+  onAddClick,
+  onAppointmentClick,
+  onSuggestionClick,
+}: CalendarMonthProps) {
   const [today] = useState<Date>(() => {
     const t = new Date();
     t.setHours(0, 0, 0, 0);
@@ -95,11 +119,27 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
     startOfMonth(initialDate ?? new Date()),
   );
   const [selectedIso, setSelectedIso] = useState<string>(() =>
-    (initialDate ?? new Date()).toISOString().slice(0, 10),
+    isoDay(initialDate ?? new Date()),
   );
 
   const cells = useMemo(() => buildGrid(monthStart), [monthStart]);
+
+  // Bucket appointments by local-day so each cell renders in O(1).
+  const apptsByDay = useMemo(() => {
+    const map = new Map<string, Appointment[]>();
+    for (const a of appointments) {
+      const key = isoDay(new Date(a.start_at));
+      const bucket = map.get(key);
+      if (bucket) bucket.push(a);
+      else map.set(key, [a]);
+    }
+    return map;
+  }, [appointments]);
+
   const selectedCell = cells.find((c) => c.iso === selectedIso) ?? cells[0];
+  const selectedAppts = selectedCell
+    ? (apptsByDay.get(selectedCell.iso) ?? [])
+    : [];
 
   const goPrev = () => {
     const next = new Date(monthStart);
@@ -113,16 +153,17 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
   };
   const goToday = () => {
     setMonthStart(startOfMonth(today));
-    setSelectedIso(today.toISOString().slice(0, 10));
+    setSelectedIso(isoDay(today));
   };
 
   const monthLabel = HEBREW_GREG_MONTHS[monthStart.getMonth()];
   const yearLabel = String(monthStart.getFullYear());
   const hebMonthLabel = formatHebrewYearMonth(monthStart);
+  const eventIso = eventDate ? isoDay(eventDate) : null;
 
   return (
     <section className="card p-5 md:p-6">
-      {/* Header — month label + navigation */}
+      {/* Header row */}
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
         <div>
           <h2 className="text-xl md:text-2xl font-bold">
@@ -136,7 +177,7 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
             {hebMonthLabel}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             type="button"
             onClick={goPrev}
@@ -164,6 +205,15 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
           >
             <ChevronLeft size={16} aria-hidden />
           </button>
+          <button
+            type="button"
+            onClick={() => onAddClick()}
+            className="btn-gold inline-flex items-center gap-1.5"
+            style={{ padding: "0.5rem 0.9rem", fontSize: "0.85rem" }}
+            aria-label="הוסף פגישה"
+          >
+            <Plus size={14} aria-hidden /> הוסף
+          </button>
         </div>
       </div>
 
@@ -189,8 +239,7 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
         ))}
       </div>
 
-      {/* Month grid — plain visual grid; each cell is a <button> with
-          an aria-label and aria-pressed for the selection state. */}
+      {/* Month grid */}
       <div
         className="grid grid-cols-7 gap-1"
         dir="rtl"
@@ -199,20 +248,29 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
         {cells.map((cell) => {
           const isToday = isSameDay(cell.date, today);
           const isSelected = cell.iso === selectedIso;
+          const isWedding = eventIso === cell.iso;
           const dayNum = cell.date.getDate();
           const tintAlpha = cell.inMonth ? "33" : "12";
-          const ariaLabel = `${cell.date.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })} · ${cell.info.label}`;
+          const dayAppts = apptsByDay.get(cell.iso) ?? [];
+          const confirmed = dayAppts.filter(
+            (a) => a.source === "manual" || a.ai_status === "accepted",
+          );
+          const pendingSuggestions = dayAppts.filter(
+            (a) => a.source === "ai_suggestion" && a.ai_status === "pending",
+          );
+          const ariaLabel = isWedding
+            ? `${cell.date.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })} · יום האירוע`
+            : `${cell.date.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })} · ${cell.info.label}${confirmed.length ? ` · ${confirmed.length} פגישות` : ""}${pendingSuggestions.length ? ` · ${pendingSuggestions.length} הצעות AI` : ""}`;
 
-          return (
-            <button
-              key={cell.iso}
-              type="button"
-              onClick={() => setSelectedIso(cell.iso)}
-              aria-label={ariaLabel}
-              aria-pressed={isSelected}
-              aria-current={isToday ? "date" : undefined}
-              className="aspect-square rounded-lg p-1.5 text-start flex flex-col transition relative outline-none focus-visible:ring-2"
-              style={{
+          const cellStyle: React.CSSProperties = isWedding
+            ? {
+                background:
+                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                border: "2px solid var(--accent)",
+                boxShadow: "0 8px 24px -8px var(--accent-glow)",
+                color: "#0A0A0F",
+              }
+            : {
                 background: `${cell.info.color}${tintAlpha}`,
                 border: isToday
                   ? "1.5px solid var(--accent)"
@@ -222,19 +280,88 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
                 opacity: cell.inMonth ? 1 : 0.45,
                 // @ts-expect-error — CSS var for focus ring color
                 "--tw-ring-color": "var(--accent)",
+              };
+
+          return (
+            <button
+              key={cell.iso}
+              type="button"
+              onClick={() => {
+                setSelectedIso(cell.iso);
+                // Selecting an empty in-month day opens the
+                // AppointmentSheet pre-filled with that date. Wedding
+                // day is read-only (managed elsewhere).
+                if (
+                  !isWedding &&
+                  cell.inMonth &&
+                  dayAppts.length === 0
+                ) {
+                  onAddClick(cell.date);
+                }
               }}
+              aria-label={ariaLabel}
+              aria-pressed={isSelected}
+              aria-current={isToday ? "date" : undefined}
+              className={
+                "aspect-square rounded-lg p-1.5 text-start flex flex-col transition relative outline-none focus-visible:ring-2 " +
+                (isWedding ? "wedding-day-pulse" : "")
+              }
+              style={cellStyle}
             >
               <span
                 className="text-sm md:text-base font-bold ltr-num leading-none"
                 style={{
-                  color:
-                    cell.info.level === "blocked"
+                  color: isWedding
+                    ? "#0A0A0F"
+                    : cell.info.level === "blocked"
                       ? "var(--foreground-muted)"
                       : "var(--foreground)",
                 }}
               >
                 {dayNum}
               </span>
+              {isWedding && (
+                <span
+                  className="absolute inset-0 flex items-center justify-center text-2xl md:text-3xl pointer-events-none"
+                  aria-hidden
+                  title={weddingTitle ?? "החתונה שלכם"}
+                >
+                  💍
+                </span>
+              )}
+              {!isWedding &&
+                (pendingSuggestions.length > 0 || confirmed.length > 0) && (
+                  <div className="mt-auto flex items-center gap-1 justify-start">
+                    {pendingSuggestions.length > 0 && (
+                      <span
+                        className="text-xs animate-pulse"
+                        style={{
+                          color: "var(--accent)",
+                          opacity: 0.85,
+                        }}
+                        aria-hidden
+                      >
+                        ✨
+                      </span>
+                    )}
+                    {confirmed.slice(0, 3).map((a) => (
+                      <span
+                        key={a.id}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: a.color || "var(--accent)" }}
+                        aria-hidden
+                      />
+                    ))}
+                    {confirmed.length > 3 && (
+                      <span
+                        className="text-[10px] ltr-num"
+                        style={{ color: "var(--foreground-muted)" }}
+                      >
+                        +{confirmed.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
             </button>
           );
         })}
@@ -245,23 +372,89 @@ export function CalendarMonth({ initialDate }: { initialDate?: Date }) {
         <PriceHeatmapLegend />
       </div>
 
-      {/* Selected-date detail */}
+      {/* Selected-day detail */}
       {selectedCell && (
-        <PriceTooltip date={selectedCell.date} info={selectedCell.info} />
+        <>
+          <PriceTooltip date={selectedCell.date} info={selectedCell.info} />
+          {selectedAppts.length > 0 && (
+            <SelectedDayAppointments
+              appointments={selectedAppts}
+              onAppointmentClick={onAppointmentClick}
+              onSuggestionClick={onSuggestionClick}
+            />
+          )}
+        </>
       )}
     </section>
   );
 }
 
+function SelectedDayAppointments({
+  appointments,
+  onAppointmentClick,
+  onSuggestionClick,
+}: {
+  appointments: Appointment[];
+  onAppointmentClick: (a: Appointment) => void;
+  onSuggestionClick: (a: Appointment) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-2">
+      {appointments.map((a) => {
+        const isSuggestion =
+          a.source === "ai_suggestion" && a.ai_status === "pending";
+        const time = new Date(a.start_at).toLocaleTimeString("he-IL", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        return (
+          <button
+            key={a.id}
+            type="button"
+            onClick={() =>
+              isSuggestion ? onSuggestionClick(a) : onAppointmentClick(a)
+            }
+            className="w-full rounded-xl p-3 flex items-center gap-3 text-start transition hover:-translate-y-0.5"
+            style={{
+              background: "var(--input-bg)",
+              border: `1px solid ${isSuggestion ? "var(--border-gold)" : "var(--border)"}`,
+            }}
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0"
+              style={{ background: a.color || "var(--accent)" }}
+              aria-hidden
+            />
+            <span className="flex-1 min-w-0">
+              <span className="font-semibold text-sm truncate block">
+                {isSuggestion ? `✨ ${a.title}` : a.title}
+              </span>
+              {a.description && (
+                <span
+                  className="text-xs truncate block mt-0.5"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  {a.description}
+                </span>
+              )}
+            </span>
+            <span
+              className="text-xs ltr-num shrink-0"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              {time}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function formatHebrewYearMonth(date: Date): string {
-  // Take the 15th-of-month sample — Hebrew month boundaries don't align
-  // with Gregorian, but mid-month is always inside the Hebrew month
-  // that "owns" most of the Gregorian month.
   const sample = new Date(date.getFullYear(), date.getMonth(), 15);
   const hMonth = getHebrewMonth(sample);
   const fullHeb = formatHebrewDate(sample);
-  // formatHebrewDate returns e.g. "ט״ו אייר תשפ״ו" — strip the day for
-  // a "month year" rendering.
   const yearPart = fullHeb.split(" ").slice(-1).join(" ");
   return `${hMonth} ${yearPart}`;
 }

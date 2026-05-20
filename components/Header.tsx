@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
-import { Menu, X, Sun, Moon, LogOut, Cloud, CloudOff, RefreshCw, AlertTriangle, Settings, CreditCard, Shield, HelpCircle, Crown, Building2 } from "lucide-react";
+import { Menu, X, Sun, Moon, LogOut, Cloud, CloudOff, RefreshCw, AlertTriangle, Settings, CreditCard, Shield, HelpCircle, Crown, Building2, MoreHorizontal } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { useUser, userActions } from "@/lib/user";
 import { useSyncStatus, setupCloudSync, getLastSyncError, type SyncStatus } from "@/lib/sync";
@@ -15,13 +15,16 @@ import { UpgradePlanModal } from "./UpgradePlanModal";
 import { EventSwitcher } from "./EventSwitcher";
 import { ChatBell } from "./chat/ChatBell";
 import { eventSlots } from "@/lib/eventSlots";
-import { HEADER_NAV } from "@/lib/navigation";
+import { HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
 import { useAppState } from "@/lib/store";
 import { useNow, daysUntil } from "@/lib/useNow";
 
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // R67 — desktop overflow dropdown ("...") for MORE_MENU_NAV.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const { theme, toggle, mounted } = useTheme();
   const { user, hydrated } = useUser();
@@ -72,6 +75,23 @@ export function Header() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // R67 — close "..." overflow on outside click + Escape.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointer = (e: MouseEvent) => {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    window.addEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   // (We close the mobile menu directly inside the Link onClick handlers below,
   // rather than via a pathname-watching effect — keeps the close action where
@@ -132,6 +152,60 @@ export function Header() {
               </Link>
             );
           })}
+
+          {/* R67 — "..." overflow with the secondary nav. The
+              MORE_MENU_NAV items used to sit inline; moved into a
+              dropdown so the top bar breathes (admin/vendor badges +
+              chat bell + event switcher + theme + avatar all on the
+              right side, things were getting cramped). */}
+          <div className="relative" ref={moreRef}>
+            <button
+              type="button"
+              aria-label="עוד"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              onClick={() => setMoreOpen((v) => !v)}
+              className={`px-3 py-1.5 rounded-full transition-all inline-flex items-center justify-center ${
+                moreOpen
+                  ? "bg-[var(--secondary-button-bg-hover)]"
+                  : "hover:bg-[var(--secondary-button-bg)] opacity-65 hover:opacity-100"
+              }`}
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              <MoreHorizontal size={16} aria-hidden />
+            </button>
+            {moreOpen && (
+              <div
+                role="menu"
+                className="absolute end-0 mt-2 min-w-44 rounded-2xl glass-strong overflow-hidden shadow-xl py-1 z-50"
+                style={{ border: "1px solid var(--border)" }}
+              >
+                {MORE_MENU_NAV.map((m) => {
+                  const active =
+                    pathname === m.href || pathname.startsWith(`${m.href}/`);
+                  return (
+                    <Link
+                      key={m.href}
+                      href={m.href}
+                      role="menuitem"
+                      onClick={() => setMoreOpen(false)}
+                      className="block px-4 py-2 text-sm transition"
+                      style={{
+                        color: active
+                          ? "var(--foreground)"
+                          : "var(--foreground-soft)",
+                        background: active
+                          ? "var(--secondary-button-bg-hover)"
+                          : "transparent",
+                      }}
+                    >
+                      {m.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
@@ -191,7 +265,11 @@ export function Header() {
       {open && (
         <div className="md:hidden glass-strong border-t border-[var(--border)] scale-in">
           <div className="max-w-6xl mx-auto px-5 py-4 flex flex-col gap-1">
-            {headerNav.map((n) => {
+            {/* R67 — mobile drawer = full union (HEADER_NAV + MORE_MENU_NAV +
+                any contextual injection like "מצב חי"). The drawer has the
+                vertical room; flattening here means every page is one tap
+                away from the hamburger. */}
+            {[...headerNav, ...MORE_MENU_NAV].map((n) => {
               // R17: exact-match + child-prefix only. The naive `startsWith`
             // would mark "/vendors" active when the user is on "/vendorshop"
             // or any path that simply shares a prefix; the `/` boundary

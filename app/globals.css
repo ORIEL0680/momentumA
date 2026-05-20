@@ -338,6 +338,18 @@ body {
 @keyframes pulse-gold { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,176,104,0.4); } 50% { box-shadow: 0 0 0 12px rgba(212,176,104,0); } }
 .pulse-gold { animation: pulse-gold 2s ease-out infinite; }
 
+/* R67 (R56) — subtle glow pulse for the wedding-day calendar cell. Box-
+   shadow-only animation keeps layout stable. Reduced-motion users see
+   the static gold square without the breathing effect. */
+@keyframes wedding-day-pulse {
+  0%, 100% { box-shadow: 0 8px 24px -8px var(--accent-glow), 0 0 0 0 rgba(244,222,169,0.45); }
+  50%      { box-shadow: 0 8px 24px -8px var(--accent-glow), 0 0 0 8px rgba(244,222,169,0); }
+}
+.wedding-day-pulse { animation: wedding-day-pulse 3.5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .wedding-day-pulse { animation: none; }
+}
+
 /* R48 — flowing gold sheen on the two biggest headlines (Hero h1,
    FinalCTA h2). Theme-aware: uses the --gold-* tokens, not hex, so it
    adapts to light/dark. Falls back to a static gold gradient under

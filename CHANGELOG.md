@@ -4,6 +4,32 @@
 
 ---
 
+## [R67] — 2026-05-20 — Calendar appointments + Wedding Brain + Header cleanup (R56)
+
+ממש את ה-spec "R56". בR55 בחרת MVP; ב-R56 חזרת לסט מלא. השמטתי בכוונה
+push notifications (לא הוזכרו ב-R56, דורש SW/VAPID/Vercel-Pro cron).
+tsc/lint(0)/build/test(75/75) ירוקים. 1 migration ידני, אין dep חדש.
+
+- `supabase/migrations/2026-05-20-calendar-appointments.sql` — טבלת appointments + RLS + טריגר updated_at. **סטיות:** `event_id text` (לא FK ל-events — לא קיים), `vendor_id` FK ל-`vendor_applications` (לא `vendor_profiles` — לא קיים).
+- `lib/calendar/wedding-brain.ts` — `WEDDING_TIMELINE` (24 פריטים) + generator.
+- `lib/calendar/appointment-templates.ts` — 8 תבניות + `CATEGORY_COLORS`.
+- `lib/calendar/appointments.ts` — CRUD client-side דרך RLS.
+- `app/api/calendar/seed-brain/route.ts` — POST עם JWT, idempotent (בודק existing rows במקום `user_profiles.calendar_seeded` שלא קיים).
+- `components/calendar/CalendarMonth.tsx` (rewrite) — dots לפגישות, ✨ pulse לAI pending, **ריבוע זהב + 💍** ליום החתונה עם `wedding-day-pulse` keyframes (reduced-motion safe). Click handlers: יום ריק → Sheet, יום עם פגישות → פאנל פירוט.
+- `components/calendar/AppointmentSheet.tsx` (חדש) — modal CRUD עם תבניות, תאריך עברי+לועזי, validation.
+- `components/calendar/SuggestionPopover.tsx` (חדש) — Modal accept/edit/dismiss. בכוונה לא floating popover (touch-friendly + viewport-edge-safe).
+- `components/calendar/BrainOnboarding.tsx` (חדש) — splash one-shot, localStorage gate, useSyncExternalStore (אין flash).
+- `app/calendar/CalendarClient.tsx` — orchestrator. fetch, sheet/popover state, refetch on save.
+- `app/globals.css` — `@keyframes wedding-day-pulse` + class + reduced-motion override.
+
+**Header cleanup (CONSERVATIVE):** `lib/navigation.ts` חולק לHEADER_NAV (3 פריטים: המסע/מוזמנים/לוח שנה) + `MORE_MENU_NAV` (6 פריטים). `Header.tsx` קיבל כפתור `...` (MoreHorizontal) שפותח dropdown עם MORE_MENU. Mobile hamburger = union. **לא נגעתי** בChatBell/EventSwitcher/theme/UserMenu — מעורבים בintegrations רבים, סיכון 4 ימים לפני השקה לא מצדיק תועלת.
+
+**Deferred:** Push notifications + SW + VAPID + Vercel-Pro cron (לא ב-R56), animation polish מעבר לבסיס, הסרה אגרסיבית של בorders ימני בHeader.
+
+**אימות:** tsc נקי · lint 0 err (6 warnings קודמות) · build ok · 75/75 · strict 0 any · אפס dep. הפעם **`npx vercel --prod`** מופעל בסוף כדי שלא יקרה כמו R60-R65 שישבו ברפו 4 ימים בלי deploy.
+
+---
+
 ## [R65] — 2026-05-20 — Calendar MVP: heatmap + AI date-shift (R55)
 
 ממש את ה-spec "R55" ב-scope MVP (אחרי האישור המפורש). המשתמש בחר

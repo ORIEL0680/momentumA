@@ -37,17 +37,30 @@ export interface HeaderNavItem {
   label: string;
 }
 
-/** Desktop top-bar navigation. 8 items, label-only. Order matches the
- *  pre-R14 header for muscle-memory continuity; R65 inserted "לוח שנה"
- *  between צ׳קליסט and ספקים — date planning sits naturally next to
- *  task planning. */
+/**
+ * R67 (R56) — desktop top-bar restructure.
+ *
+ * Old: 8 items inline. Felt cramped next to admin/vendor badges + chat
+ * bell + event switcher + theme toggle + user menu on the right. New:
+ * 3 primary items inline, the rest in an overflow "..." dropdown so
+ * the top bar breathes.
+ *
+ * Mobile hamburger still shows the union (HEADER_NAV + MORE_MENU_NAV)
+ * because the drawer has the vertical room.
+ */
 export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/dashboard", label: "המסע" },
-  { href: "/checklist", label: "צ׳קליסט" },
-  { href: "/calendar", label: "לוח שנה" },
-  { href: "/vendors", label: "ספקים" },
   { href: "/guests", label: "מוזמנים" },
+  { href: "/calendar", label: "לוח שנה" },
+] as const;
+
+/** Secondary nav — surfaced in the desktop "..." dropdown and inline
+ *  in the mobile hamburger. */
+export const MORE_MENU_NAV: readonly HeaderNavItem[] = [
+  { href: "/checklist", label: "צ׳קליסט" },
+  { href: "/vendors", label: "ספקים" },
   { href: "/seating", label: "הושבה" },
   { href: "/budget", label: "תקציב" },
   { href: "/balance", label: "מאזן" },
+  { href: "/settings", label: "הגדרות" },
 ] as const;
