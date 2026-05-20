@@ -284,7 +284,7 @@ export default function SettingsPage() {
                   <div className="font-semibold">המסלול הנוכחי: התחלה</div>
                   <div className="text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>אירוע אחד · עד 50 מוזמנים</div>
                 </div>
-                <Link href="/pricing" className="btn-gold text-sm py-2 px-4">שדרג</Link>
+                <Link href="/#pricing" className="btn-gold text-sm py-2 px-4">שדרג</Link>
               </div>
               <div className="text-xs leading-relaxed mt-3 px-1" style={{ color: "var(--foreground-muted)" }}>
                 💳 כשתשדרג, נתמוך בכרטיסי אשראי, Apple Pay, Google Pay ו-Bit. ביטול בכל רגע.

@@ -33,7 +33,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { VendorCard } from "@/components/vendors/VendorCard";
 import { VendorFilters } from "@/components/vendors/VendorFilters";
 import { CategoryRail } from "@/components/vendors/CategoryRail";
-import { CompareBar, SelectedBar } from "@/components/vendors/CompareBar";
+import { SelectedBar } from "@/components/vendors/CompareBar";
 import { ActiveFilterPills } from "@/components/vendors/ActiveFilterPills";
 import { VendorQuickLook } from "@/components/vendors/VendorQuickLook";
 // VendorSkeletonGrid is defined for future paginated/virtualized loads; kept
@@ -522,9 +522,10 @@ function VendorsInner() {
         {/* Sticky bottom bars — slide-up via framer-motion. */}
         <div className="fixed bottom-0 inset-x-0 z-40 px-4 pb-5 pt-3 pointer-events-none">
           <div className="max-w-3xl mx-auto pointer-events-auto flex flex-col gap-2">
-            <AnimatePresence>
-              {state.compareVendors.length > 0 && <CompareBar count={state.compareVendors.length} />}
-            </AnimatePresence>
+            {/* R71 (R60-6) — `/compare` page removed; CompareBar that
+                linked to it is no longer rendered. The store still has
+                `compareVendors` for the heart-toggle on cards (cheap),
+                but the floating bar is gone. */}
             <AnimatePresence>
               {state.selectedVendors.length > 0 && <SelectedBar count={state.selectedVendors.length} />}
             </AnimatePresence>

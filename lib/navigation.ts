@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, Users, Briefcase, ListChecks, Sparkles } from "lucide-react";
+import { Home, Users, Briefcase, Calendar, Sparkles } from "lucide-react";
 
 /**
  * Navigation sources for the two nav surfaces. They diverge intentionally:
@@ -26,7 +26,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/dashboard", label: "המסע", icon: Home },
   { href: "/guests", label: "אורחים", icon: Users },
   { href: "/vendors", label: "ספקים", icon: Briefcase },
-  { href: "/checklist", label: "משימות", icon: ListChecks },
+  // R71 (R60-6) — /checklist removed; calendar replaces it as the
+  // bottom-bar planner anchor.
+  { href: "/calendar", label: "לוח שנה", icon: Calendar },
   // R25 — surface Momentum Live in the bottom nav so couples discover it
   // without digging. Settings stays reachable via the header user-menu.
   { href: "/event-day", label: "מצב חי", icon: Sparkles },
@@ -55,9 +57,9 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
 ] as const;
 
 /** Secondary nav — surfaced in the desktop "..." dropdown and inline
- *  in the mobile hamburger. */
+ *  in the mobile hamburger. R71 (R60-6): dropped /checklist (folded
+ *  into /calendar). */
 export const MORE_MENU_NAV: readonly HeaderNavItem[] = [
-  { href: "/checklist", label: "צ׳קליסט" },
   { href: "/vendors", label: "ספקים" },
   { href: "/seating", label: "הושבה" },
   { href: "/budget", label: "תקציב" },

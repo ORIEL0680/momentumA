@@ -45,11 +45,14 @@ export interface EventTypeConfig {
 }
 
 const COMMON_END_STEPS: JourneyStepDef[] = [
+  // R71 (R60-6) — was a separate "/checklist" step; folded into the
+  // /calendar journey now that calendar carries appointments +
+  // per-appointment checklists.
   {
-    id: "checklist",
-    title: "צ׳קליסט המשימות",
-    description: "כל מה שצריך לעשות, מסודר לפי שלב.",
-    href: "/checklist",
+    id: "calendar",
+    title: "לוח שנה ופגישות",
+    description: "תכנון פגישות, ימי פיק במחיר, וצ׳קליסט לכל פגישה.",
+    href: "/calendar",
     unlockBy: "afterEvent",
     completeBy: "hasChecklistProgress",
   },

@@ -101,7 +101,7 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-6 grid gap-2">
           <Link
-            href="/pricing"
+            href="/#pricing"
             onClick={onClose}
             className="btn-gold w-full text-center"
           >

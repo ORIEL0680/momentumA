@@ -22,9 +22,6 @@ import {
   Sparkles,
   Armchair,
   PartyPopper,
-  Scale,
-  Wine,
-  ListChecks,
   ClipboardList,
   PieChart,
   Clock,
@@ -361,17 +358,19 @@ interface DashboardTool {
 }
 
 function ToolsSection() {
+  // R71 (R60-6) — pared down: /checklist (covered by /calendar +
+  // appointments), /timeline (covered by /calendar), /compare (unused),
+  // /alcohol (single calculator, folded back into /budget later) all
+  // removed. Calendar gets a slot of its own — it carries the work the
+  // four removed tools used to do.
   const tools: DashboardTool[] = [
-    { href: "/checklist", label: "צ'קליסט", icon: <ListChecks size={20} /> },
+    { href: "/calendar", label: "לוח שנה", icon: <Clock size={20} /> },
     { href: "/guests", label: "אורחים", icon: <Users size={20} /> },
     { href: "/seating", label: "סידור הושבה", icon: <Armchair size={20} /> },
     { href: "/vendors", label: "ספקים", icon: <Briefcase size={20} /> },
     { href: "/vendors/my", label: "הספקים שלי", icon: <ClipboardList size={20} /> },
     { href: "/budget", label: "תקציב", icon: <Wallet size={20} /> },
     { href: "/balance", label: "מאזן", icon: <PieChart size={20} /> },
-    { href: "/timeline", label: "ציר זמן", icon: <Clock size={20} /> },
-    { href: "/compare", label: "השוואת ספקים", icon: <Scale size={20} /> },
-    { href: "/alcohol", label: "מחשבון אלכוהול", icon: <Wine size={20} /> },
     { href: "/event-day", label: "מצב יום האירוע", icon: <Sparkles size={20} /> },
   ];
 

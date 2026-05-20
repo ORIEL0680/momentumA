@@ -588,7 +588,7 @@ export default function VendorDashboardPage() {
             sub="צפה בדף הציבורי"
           />
           <QuickAction
-            href="/pricing"
+            href="/#pricing"
             icon={<CreditCard size={22} aria-hidden />}
             label={hasPaidTier ? "מסלול פרימיום" : "שדרג מסלול"}
             sub={hasPaidTier ? "פעיל" : "פתוח פיצ׳רים מתקדמים"}
