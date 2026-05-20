@@ -4,6 +4,27 @@
 
 ---
 
+## [R65] — 2026-05-20 — Calendar MVP: heatmap + AI date-shift (R55)
+
+ממש את ה-spec "R55" ב-scope MVP (אחרי האישור המפורש). המשתמש בחר
+"heatmap + AI date-shift" כשנציע 4 אפשרויות שכוללות גם פתרון מלא +
+דחייה. tsc/lint(0)/build/test(75/75) ירוקים. 1 dep חדש: `@hebcal/core`.
+
+- `lib/calendar/hebrew-calendar.ts` — wrapper על `@hebcal/core` v6: `isShabbat`, `isJewishHoliday` (major chag בלבד, `il:true`), `getHebrewMonth` (Hebrew via `Locale.lookupTranslation`), `formatHebrewDate` (`renderGematriya(true)` — ללא ניקוד). **תיקון מה-spec:** `getMonthName("h")` ו-`toString("h")` של ה-spec לא קיימים בv6; השתמשתי ב-API הנכון.
+- `lib/calendar/pricing-model.ts` — pure functions: שבת/חג→blocked, מאי-ספטמבר→+20%, דצמבר-פברואר→-15%, חמישי→+15%, ב׳/ג׳→-10%, אלול/ניסן→+5%. `calculateSavings`, `findCheapestNearby`.
+- `components/calendar/CalendarMonth.tsx` — month grid RTL, 7×6, navigation ◀/▶/[היום], לחיצה→panel למטה.
+- `components/calendar/PriceTooltip.tsx` — selected-date detail card (לא floating — touch-friendly + edge-case-proof).
+- `components/calendar/AISuggestionBanner.tsx` — קורא `state.event` מ-app_states. מראה רק אם יש event עתידי בdate היקר עם cheaper alternative ±30 ימים. dismissible 7 ימים localStorage.
+- `components/calendar/HebrewDateLabel.tsx` + `PriceHeatmapLegend.tsx` — small helpers.
+- `app/calendar/{page,CalendarClient}.tsx` — server metadata + client shell.
+- `lib/navigation.ts` — `{ href: "/calendar", label: "לוח שנה" }` בHEADER_NAV (בין צ׳קליסט לספקים). MOBILE NAV ללא שינוי (5 פריטים capacity).
+
+**Deferred למחזור פוסט-השקה (R66+):** appointments-CRUD ב-DB (FKs ל-events/vendor_profiles לא קיימים), push notifications (web-push dep, VAPID, SW, Vercel-Pro cron), vendor integration, day-view. מפורט ב-TASKLIST.R65.md.
+
+**אימות:** tsc נקי · lint 0 err (6 warnings קודמות) · build ok (`/calendar` בנוי) · 75/75 · strict 0 any · אפס שינוי DB.
+
+---
+
 ## [R64] — 2026-05-20 — Performance + PWA Polish (R54)
 
 ממש את ה-spec "R54" עם איפוק לפני השקה: עשיתי מה שניתן לאמת ולשמר

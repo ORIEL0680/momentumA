@@ -37,11 +37,14 @@ export interface HeaderNavItem {
   label: string;
 }
 
-/** Desktop top-bar navigation. 7 items, label-only. Order matches the
- *  pre-R14 header for muscle-memory continuity. */
+/** Desktop top-bar navigation. 8 items, label-only. Order matches the
+ *  pre-R14 header for muscle-memory continuity; R65 inserted "לוח שנה"
+ *  between צ׳קליסט and ספקים — date planning sits naturally next to
+ *  task planning. */
 export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/dashboard", label: "המסע" },
   { href: "/checklist", label: "צ׳קליסט" },
+  { href: "/calendar", label: "לוח שנה" },
   { href: "/vendors", label: "ספקים" },
   { href: "/guests", label: "מוזמנים" },
   { href: "/seating", label: "הושבה" },

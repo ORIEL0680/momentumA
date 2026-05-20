@@ -16,6 +16,7 @@
     "preinstall-check": "npm audit --omit=dev --audit-level=high || true"
   },
   "dependencies": {
+    "@hebcal/core": "^6.5.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@react-three/postprocessing": "^3.0.4",
