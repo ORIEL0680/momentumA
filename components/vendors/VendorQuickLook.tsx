@@ -345,12 +345,9 @@ export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuick
                 {VENDOR_TYPE_LABELS[vendor.type]} · {REGION_LABELS[vendor.region]}
               </p>
             </div>
-            <div className="text-end">
-              <div className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>החל מ-</div>
-              <div className="text-2xl font-extrabold gradient-gold ltr-num">
-                ₪{vendor.priceFrom.toLocaleString("he-IL")}
-              </div>
-            </div>
+            {/* R67 (R84) — price block removed per "no prices anywhere"
+                policy. priceFrom still exists in the type but isn't
+                surfaced in the catalog UI. */}
           </div>
 
           <div className="mt-3 flex items-center gap-4 flex-wrap text-sm" style={{ color: "var(--foreground-soft)" }}>
@@ -639,8 +636,7 @@ export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuick
                     <div className="font-semibold text-sm truncate">{s.name}</div>
                     <div className="text-[11px] mt-0.5 inline-flex items-center gap-1" style={{ color: "var(--foreground-muted)" }}>
                       <Star size={10} className="text-[--accent]" fill="currentColor" aria-hidden />
-                      <span className="ltr-num">{s.rating}</span> ·{" "}
-                      <span className="ltr-num">₪{s.priceFrom.toLocaleString("he-IL")}</span>
+                      <span className="ltr-num">{s.rating}</span>
                     </div>
                   </Link>
                 ))}

@@ -283,13 +283,11 @@ function VendorCardImpl({
 
         <SocialRow vendor={vendor} />
 
-        <div className="mt-auto pt-5 flex items-center justify-between" data-no-quicklook>
-          <div>
-            <div className="text-[11px] text-white/45">החל מ-</div>
-            <div className="font-bold gradient-gold text-lg ltr-num">
-              ₪{vendor.priceFrom.toLocaleString("he-IL")}
-            </div>
-          </div>
+        {/* R67 (R84) — price block removed per "no prices anywhere"
+            policy. The Vendor type still carries priceFrom for future
+            re-introduction (filter chips, sort order); the catalog UI
+            simply no longer surfaces a shekel value. */}
+        <div className="mt-auto pt-5 flex items-center justify-end" data-no-quicklook>
           <div className="flex items-center gap-2">
             <button
               type="button"

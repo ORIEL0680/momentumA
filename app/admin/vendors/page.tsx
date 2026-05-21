@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 import { isFounderEmail } from "@/lib/constants";
 import { showToast } from "@/components/Toast";
+import { Modal } from "@/components/Modal";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -12,6 +13,10 @@ import {
   ExternalLink,
   Loader2,
   Shield,
+  MoreVertical,
+  Trash2,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import {
   VENDOR_CATEGORIES,
@@ -24,6 +29,13 @@ export default function AdminVendorsPage() {
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  // R67 (R84) — soft-delete UI state. `pendingDelete` holds the vendor
+  // record currently in the confirm modal; null hides the modal. The
+  // typed `reason` is the optional context the admin can attach.
+  const [pendingDelete, setPendingDelete] =
+    useState<VendorApplicationRecord | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [busyVendorId, setBusyVendorId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +139,113 @@ export default function AdminVendorsPage() {
     setDecidingId(null);
   };
 
+  // R67 (R84) — delete / restore handlers. Both go through the
+  // service-role-backed admin APIs (requireAdmin gate + audit log).
+  // We optimistically update the local state and roll back on error
+  // so the UI never feels stuck.
+  const deleteVendor = async (vendorId: string, reason: string) => {
+    setBusyVendorId(vendorId);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        showToast("Supabase לא מוגדר", "error");
+        return;
+      }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        showToast("צריך להתחבר", "error");
+        return;
+      }
+      const res = await fetch("/api/admin/vendors/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ vendorId, reason }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        showToast(data.message ?? "מחיקה נכשלה", "error");
+        return;
+      }
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === vendorId
+            ? {
+                ...a,
+                deleted_at: new Date().toISOString(),
+                deletion_reason: reason || null,
+              }
+            : a,
+        ),
+      );
+      setPendingDelete(null);
+      setDeleteReason("");
+      showToast("✓ הספק הוסר מהקטלוג", "success");
+    } catch {
+      showToast("שגיאה ברשת", "error");
+    } finally {
+      setBusyVendorId(null);
+    }
+  };
+
+  const restoreVendor = async (vendorId: string) => {
+    setBusyVendorId(vendorId);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        showToast("Supabase לא מוגדר", "error");
+        return;
+      }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        showToast("צריך להתחבר", "error");
+        return;
+      }
+      const res = await fetch("/api/admin/vendors/restore", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ vendorId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        showToast(data.message ?? "שחזור נכשל", "error");
+        return;
+      }
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === vendorId
+            ? {
+                ...a,
+                deleted_at: null,
+                deleted_by_email: null,
+                deletion_reason: null,
+              }
+            : a,
+        ),
+      );
+      showToast("✓ הספק שוחזר לקטלוג", "success");
+    } catch {
+      showToast("שגיאה ברשת", "error");
+    } finally {
+      setBusyVendorId(null);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -147,15 +266,17 @@ export default function AdminVendorsPage() {
   }
 
   const pending = apps.filter((a) => a.status === "pending");
-  const reviewed = apps.filter((a) => a.status !== "pending");
-  // R6 #7 — Approved applications that aren't yet linked to a real catalog
-  // row. Today this is *all* approved rows because the catalog (lib/vendors.ts)
-  // is a static TS array and the decide route can't insert into it. Once a
-  // `vendors` Supabase table exists, the route will stamp `approved_vendor_id`
-  // on insert and the list below will drain naturally.
-  const approvedNotSynced = apps.filter(
-    (a) => a.status === "approved" && !a.approved_vendor_id,
+  // R67 (R84) — three sub-buckets now:
+  //   • approvedLive — visible in the public catalog
+  //   • approvedDeleted — soft-deleted, hidden from catalog, can be restored
+  //   • rejected — history only
+  const approvedLive = apps.filter(
+    (a) => a.status === "approved" && !a.deleted_at,
   );
+  const approvedDeleted = apps.filter(
+    (a) => a.status === "approved" && !!a.deleted_at,
+  );
+  const rejected = apps.filter((a) => a.status === "rejected");
 
   return (
     <main className="min-h-screen pb-20 px-5">
@@ -170,7 +291,8 @@ export default function AdminVendorsPage() {
 
         <h1 className="mt-6 text-3xl font-extrabold gradient-gold">בקשות ספקים</h1>
         <p className="mt-1 text-sm" style={{ color: "var(--foreground-soft)" }}>
-          {pending.length} ממתינות · {reviewed.length} נסקרו
+          {pending.length} ממתינות · {approvedLive.length} פעילים בקטלוג ·{" "}
+          {approvedDeleted.length} מושעים · {rejected.length} נדחו
         </p>
 
         <section className="mt-6">
@@ -197,52 +319,55 @@ export default function AdminVendorsPage() {
           )}
         </section>
 
-        {approvedNotSynced.length > 0 && (
+        {/* R67 (R84) — Live approved vendors with delete affordance. */}
+        {approvedLive.length > 0 && (
           <section className="mt-10">
-            <h2 className="text-lg font-semibold mb-2 text-amber-400">
-              ⚠️ ספקים מאושרים שעדיין לא בקטלוג ({approvedNotSynced.length})
-            </h2>
-            <p className="text-sm mb-3" style={{ color: "var(--foreground-soft)" }}>
-              אישרת אותם, אבל הם לא מופיעים עדיין למשתמשים. כרגע הקטלוג סטטי
-              (<code style={{ color: "var(--accent)" }}>lib/vendors.ts</code>)
-              — הוסף ידנית, או המתן ל-self-service catalog בסבב הבא.
-            </p>
+            <h2 className="text-lg font-semibold mb-3">פעילים בקטלוג</h2>
             <div className="grid gap-2">
-              {approvedNotSynced.map((app) => (
-                <div
+              {approvedLive.map((app) => (
+                <ApprovedVendorRow
                   key={app.id}
-                  className="card p-3 flex items-center justify-between text-sm"
-                  style={{ borderColor: "rgba(251,191,36,0.4)" }}
-                >
-                  <div className="min-w-0">
-                    <div className="font-semibold truncate">{app.business_name}</div>
-                    <div
-                      className="text-xs truncate"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      {VENDOR_CATEGORIES.find((c) => c.id === app.category)?.label}
-                      {" · "}
-                      {app.contact_name}
-                      {" · "}
-                      {app.phone}
-                    </div>
-                  </div>
-                  <span
-                    className="text-xs px-2 py-1 rounded-full bg-amber-400/10 text-amber-400 shrink-0"
-                  >
-                    מחכה לסנכרון
-                  </span>
-                </div>
+                  app={app}
+                  busy={busyVendorId === app.id}
+                  onDeleteClick={() => {
+                    setPendingDelete(app);
+                    setDeleteReason("");
+                  }}
+                />
               ))}
             </div>
           </section>
         )}
 
-        {reviewed.length > 0 && (
+        {approvedDeleted.length > 0 && (
           <section className="mt-10">
-            <h2 className="text-lg font-semibold mb-3">היסטוריה</h2>
+            <h2 className="text-lg font-semibold mb-3 text-amber-400">
+              מושעים מהקטלוג ({approvedDeleted.length})
+            </h2>
+            <p
+              className="text-sm mb-3"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              לא מופיעים ב-/vendors. אפשר לשחזר כל אחד בכפתור למטה.
+            </p>
             <div className="grid gap-2">
-              {reviewed.map((app) => (
+              {approvedDeleted.map((app) => (
+                <SuspendedVendorRow
+                  key={app.id}
+                  app={app}
+                  busy={busyVendorId === app.id}
+                  onRestore={() => restoreVendor(app.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {rejected.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-lg font-semibold mb-3">נדחו</h2>
+            <div className="grid gap-2">
+              {rejected.map((app) => (
                 <div
                   key={app.id}
                   className="card p-3 flex items-center justify-between text-sm"
@@ -256,14 +381,8 @@ export default function AdminVendorsPage() {
                       {VENDOR_CATEGORIES.find((c) => c.id === app.category)?.label}
                     </div>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      app.status === "approved"
-                        ? "bg-emerald-400/10 text-emerald-400"
-                        : "bg-red-400/10 text-red-400"
-                    }`}
-                  >
-                    {app.status === "approved" ? "✓ אושר" : "✗ נדחה"}
+                  <span className="text-xs px-2 py-1 rounded-full bg-red-400/10 text-red-400">
+                    ✗ נדחה
                   </span>
                 </div>
               ))}
@@ -271,7 +390,255 @@ export default function AdminVendorsPage() {
           </section>
         )}
       </div>
+
+      {/* R67 (R84) — delete confirmation modal. Soft-delete + audit log. */}
+      {pendingDelete && (
+        <Modal
+          onClose={() => {
+            if (busyVendorId !== pendingDelete.id) {
+              setPendingDelete(null);
+              setDeleteReason("");
+            }
+          }}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <AlertTriangle
+                size={18}
+                style={{ color: "rgb(248,113,113)" }}
+                aria-hidden
+              />
+              מחיקת ספק
+            </span>
+          }
+          maxWidthClass="max-w-md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed">
+              זה ירחיק את{" "}
+              <strong className="gradient-gold">
+                {pendingDelete.business_name}
+              </strong>{" "}
+              מהקטלוג ב-/vendors. הספק עצמו עדיין יוכל להתחבר ולערוך — רק
+              ההצגה הציבורית מושעית.
+            </p>
+            <ul
+              className="text-xs space-y-1 list-disc list-inside"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              <li>אתה תוכל לשחזר את הספק בכל עת מהאזור &ldquo;מושעים&rdquo;.</li>
+              <li>הפעולה מתועדת ב-admin_audit_log.</li>
+            </ul>
+            <div>
+              <label
+                htmlFor="delete-reason"
+                className="block text-xs mb-1.5"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                סיבה (אופציונלי, לתיעוד פנימי)
+              </label>
+              <textarea
+                id="delete-reason"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                className="input"
+                rows={2}
+                placeholder="לדוגמה: ספק לא זמין יותר / תלונות מלקוחות"
+              />
+            </div>
+            <div
+              className="flex items-center gap-2 pt-3"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingDelete(null);
+                  setDeleteReason("");
+                }}
+                disabled={busyVendorId === pendingDelete.id}
+                className="btn-secondary text-sm py-2 px-4 ms-auto"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  deleteVendor(pendingDelete.id, deleteReason.trim())
+                }
+                disabled={busyVendorId === pendingDelete.id}
+                className="inline-flex items-center gap-2 text-sm py-2 px-4 rounded-full transition disabled:opacity-50"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(248,113,113,0.85), rgba(220,38,38,0.85))",
+                  color: "white",
+                  fontWeight: 700,
+                }}
+              >
+                {busyVendorId === pendingDelete.id ? (
+                  <Loader2 size={14} className="animate-spin" aria-hidden />
+                ) : (
+                  <Trash2 size={14} aria-hidden />
+                )}
+                הסר מהקטלוג
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </main>
+  );
+}
+
+/** Approved + live row with a "..." action menu (currently: delete). */
+function ApprovedVendorRow({
+  app,
+  busy,
+  onDeleteClick,
+}: {
+  app: VendorApplicationRecord;
+  busy: boolean;
+  onDeleteClick: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const cat = VENDOR_CATEGORIES.find((c) => c.id === app.category);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointer = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  return (
+    <div className="card p-3 flex items-center justify-between text-sm gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span aria-hidden>{cat?.emoji}</span>
+          <span className="font-semibold truncate">{app.business_name}</span>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 shrink-0"
+          >
+            פעיל
+          </span>
+        </div>
+        <div
+          className="text-xs truncate mt-0.5"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          {cat?.label} · {app.contact_name} · {app.phone}
+        </div>
+      </div>
+      <div className="relative shrink-0" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          disabled={busy}
+          aria-label="פעולות נוספות"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          className="w-9 h-9 rounded-full inline-flex items-center justify-center hover:bg-[var(--secondary-button-bg)] transition disabled:opacity-50"
+          style={{ border: "1px solid var(--border)" }}
+        >
+          {busy ? (
+            <Loader2 size={14} className="animate-spin" aria-hidden />
+          ) : (
+            <MoreVertical size={15} aria-hidden />
+          )}
+        </button>
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute end-0 top-full mt-2 min-w-[200px] rounded-xl z-30 py-1 overflow-hidden"
+            style={{
+              background:
+                "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+              border: "1px solid var(--border-gold)",
+              boxShadow: "0 16px 40px -16px rgba(0,0,0,0.55)",
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false);
+                onDeleteClick();
+              }}
+              className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+              style={{
+                color: "rgb(252,165,165)",
+                width: "calc(100% - 8px)",
+              }}
+            >
+              <Trash2 size={15} aria-hidden />
+              <span className="flex-1 text-start">הסר מהקטלוג</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Suspended (soft-deleted) row with a one-click restore button. */
+function SuspendedVendorRow({
+  app,
+  busy,
+  onRestore,
+}: {
+  app: VendorApplicationRecord;
+  busy: boolean;
+  onRestore: () => void;
+}) {
+  const cat = VENDOR_CATEGORIES.find((c) => c.id === app.category);
+  return (
+    <div
+      className="card p-3 flex items-center justify-between text-sm gap-3"
+      style={{ borderColor: "rgba(251,191,36,0.4)" }}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span aria-hidden>{cat?.emoji}</span>
+          <span className="font-semibold truncate">{app.business_name}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-400/10 text-amber-400 shrink-0">
+            מושעה
+          </span>
+        </div>
+        <div
+          className="text-xs truncate mt-0.5"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          {cat?.label} · {app.contact_name}
+          {app.deletion_reason ? ` · ${app.deletion_reason}` : ""}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onRestore}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-full transition disabled:opacity-50"
+        style={{
+          border: "1px solid var(--border-gold)",
+          color: "var(--accent)",
+        }}
+      >
+        {busy ? (
+          <Loader2 size={12} className="animate-spin" aria-hidden />
+        ) : (
+          <RotateCcw size={12} aria-hidden />
+        )}
+        שחזר
+      </button>
+    </div>
   );
 }
 

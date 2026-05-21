@@ -55,4 +55,10 @@ export interface VendorApplicationRecord extends VendorApplicationInput {
   approved_vendor_id: string | null;
   phone_verified: boolean;
   created_at: string;
+  // R67 (R84) — admin soft-delete columns. null on rows that have
+  // never been deleted; populated by /api/admin/vendors/delete and
+  // cleared by /api/admin/vendors/restore.
+  deleted_at?: string | null;
+  deleted_by_email?: string | null;
+  deletion_reason?: string | null;
 }
