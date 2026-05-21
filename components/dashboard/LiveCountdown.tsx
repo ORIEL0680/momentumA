@@ -166,15 +166,20 @@ export function LiveCountdown({
       aria-live="off"
     >
       <div className="flex items-start justify-center gap-2 sm:gap-3" dir="ltr">
-        <Segment value={remaining.days} label="ימים" size="big" />
+        {/* R87 (R69-6) — all four segments are the same size now. The
+            "big/medium/small" variants made the digits jump heights
+            and felt visually busy. Only the trailing "seconds" segment
+            gets a slight opacity drop so it doesn't pull focus away
+            from the meaningful days count. */}
+        <Segment value={remaining.days} label="ימים" />
         <Separator />
-        <Segment value={remaining.hours} label="שעות" size="medium" />
+        <Segment value={remaining.hours} label="שעות" />
         <Separator />
-        <Segment value={remaining.minutes} label="דק׳" size="medium" />
+        <Segment value={remaining.minutes} label="דק׳" />
         {showSeconds && (
           <>
             <Separator pulse={!reducedMotion} />
-            <Segment value={remaining.seconds} label="שנ׳" size="small" />
+            <Segment value={remaining.seconds} label="שנ׳" subtle />
           </>
         )}
       </div>
@@ -184,36 +189,29 @@ export function LiveCountdown({
 
 /* ─────────────────────── child components (memoised) ─────────────────────── */
 
-type SegmentSize = "big" | "medium" | "small";
-
 const Segment = memo(function Segment({
   value,
   label,
-  size,
+  subtle,
 }: {
   value: number;
   label: string;
-  size: SegmentSize;
+  /** Trailing segments (seconds) get a slight opacity drop so the days
+   *  digit stays the visual anchor. All segments are the SAME font
+   *  size — required so digits never jump heights at tick. */
+  subtle?: boolean;
 }) {
   const padded = value.toString().padStart(2, "0");
-  const numberClass =
-    size === "big"
-      ? "text-5xl sm:text-6xl md:text-7xl"
-      : size === "medium"
-        ? "text-3xl sm:text-4xl md:text-5xl"
-        : "text-2xl sm:text-3xl md:text-4xl opacity-70";
-  const labelClass =
-    size === "big" ? "text-xs sm:text-sm" : "text-[10px] sm:text-xs";
   return (
-    <div className="flex flex-col items-center min-w-[56px] sm:min-w-[72px]">
+    <div className="flex flex-col items-center min-w-[60px] sm:min-w-[72px]">
       <span
-        className={`ltr-num font-extrabold tracking-tight gradient-gold leading-none ${numberClass}`}
+        className={`ltr-num font-extrabold tracking-tight gradient-gold leading-none text-4xl sm:text-5xl md:text-6xl ${subtle ? "opacity-70" : ""}`}
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
         {padded}
       </span>
       <span
-        className={`mt-1.5 sm:mt-2 uppercase tracking-widest font-semibold ${labelClass}`}
+        className="mt-2 text-xs uppercase tracking-widest font-semibold"
         style={{ color: "var(--foreground-muted)" }}
       >
         {label}
@@ -226,7 +224,7 @@ const Separator = memo(function Separator({ pulse }: { pulse?: boolean }) {
   return (
     <span
       aria-hidden
-      className={`text-3xl sm:text-4xl md:text-5xl font-extrabold gradient-gold opacity-40 leading-none self-start mt-1 sm:mt-2 ${
+      className={`text-4xl sm:text-5xl md:text-6xl font-extrabold gradient-gold opacity-40 leading-none self-start ${
         pulse ? "animate-pulse" : ""
       }`}
     >

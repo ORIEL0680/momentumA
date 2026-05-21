@@ -207,10 +207,11 @@ export function Header() {
             className="flex items-center shrink-0 hover:opacity-90 transition"
             aria-label="Momentum — חזרה לעמוד הראשי"
           >
+            {/* R87 (R69-5) — Logo already renders the "Momentum"
+                wordmark next to its SVG glyph. The previous duplicate
+                <span> wordmark right here showed "Momentum" twice in
+                the top-right of the header. Now just the Logo. */}
             <Logo size={30} />
-            <span className="ms-2 hidden sm:inline text-xl font-extrabold gradient-gold-shimmer">
-              Momentum
-            </span>
           </Link>
 
           {/* Landing anchors live here (anon /). Hidden on small screens. */}

@@ -4,16 +4,16 @@
  * Bug we kept hitting: vendors enter their Instagram in every imaginable
  * format and the catalog UI was naive-prepending `https://instagram.com/`.
  * Real entries we found in prod:
- *   • `@dafus_oman`                            → handle, with @
- *   • `dafus_oman`                              → handle, plain
- *   • `https://www.instagram.com/dafus_oman`    → already a URL
- *   • `https://www.instagram.com/dafus_oman/`   → URL with trailing /
- *   • `https://instagram.com/dafus_oman?hl=he`  → URL with query
- *   • `instagram.com/dafus_oman`                → URL without scheme
+ *   • `@some_vendor`                            → handle, with @
+ *   • `some_vendor`                              → handle, plain
+ *   • `https://www.instagram.com/some_vendor`    → already a URL
+ *   • `https://www.instagram.com/some_vendor/`   → URL with trailing /
+ *   • `https://instagram.com/some_vendor?hl=he`  → URL with query
+ *   • `instagram.com/some_vendor`                → URL without scheme
  *
  * Previous logic only did `raw.replace(/^@/, "")` then prefixed — so
  * URLs got encoded into the path like
- *   `https://instagram.com/https%3A%2F%2Fwww.instagram.com%2Fdafus_oman`
+ *   `https://instagram.com/https%3A%2F%2Fwww.instagram.com%2Fsome_vendor`
  * which Instagram serves as a "page not found".
  *
  * This module exports one builder per platform that returns either:

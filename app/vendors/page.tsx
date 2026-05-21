@@ -502,7 +502,14 @@ function VendorsInner() {
               cards never replaced skeletons. (The Skeleton component is kept
               for future use — list virtualization or paginated streams.) */}
           {filtered.length === 0 ? (
-            <SmartEmptyState actions={emptyStateActions} onClearAll={clearAll} />
+            // R87 (R69-2) — distinguish a genuinely empty catalog
+            // (no vendors approved yet) from a filtered-empty view
+            // ("filters hide everything"). Different copy + CTAs.
+            allVendors.length === 0 ? (
+              <EmptyCatalog />
+            ) : (
+              <SmartEmptyState actions={emptyStateActions} onClearAll={clearAll} />
+            )
           ) : (
             <>
               <motion.div
@@ -663,6 +670,55 @@ function SmartEmptyState({
           🎯 אתה ספק? הצטרף אלינו עכשיו
         </Link>
       </div>
+    </div>
+  );
+}
+
+/**
+ * R87 (R69-2) — full-catalog empty state. Different from
+ * SmartEmptyState (which assumes the catalog has rows but filters
+ * are hiding them all). Used when there are literally zero approved
+ * vendors in the system — the message is recruitment-first.
+ */
+function EmptyCatalog() {
+  return (
+    <div
+      className="mt-6 card-gold p-10 text-center"
+      role="status"
+      aria-live="polite"
+    >
+      <div
+        className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-3"
+        style={{
+          background:
+            "linear-gradient(135deg, rgba(244,222,169,0.2), rgba(168,136,74,0.08))",
+          border: "1px solid var(--border-gold)",
+        }}
+        aria-hidden
+      >
+        <span style={{ fontSize: 28 }}>🏪</span>
+      </div>
+      <h2 className="text-xl font-bold gradient-gold-shimmer">
+        הקטלוג בהקמה
+      </h2>
+      <p
+        className="mt-3 text-sm leading-relaxed max-w-md mx-auto"
+        style={{ color: "var(--foreground-soft)" }}
+      >
+        אנחנו אוספים את הספקים הראשונים בישראל. אם אתם ספקי אירועים —
+        הצטרפו עכשיו וקבלו דף נחיתה חינם בקטלוג.
+      </p>
+      <Link
+        href="/vendors/join"
+        className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition hover:translate-y-[-1px]"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+          color: "var(--gold-button-text)",
+        }}
+      >
+        🎯 הצטרפו כספק
+      </Link>
     </div>
   );
 }
