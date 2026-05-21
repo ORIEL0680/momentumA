@@ -98,10 +98,29 @@ function VendorsInner() {
         const { data, error } = (await supabase.rpc(
           "list_approved_vendors",
         )) as { data: ApprovedVendorRow[] | null; error: unknown };
-        if (cancelled || error || !Array.isArray(data)) return;
+        if (cancelled) return;
+        if (error) {
+          // R82 — surface RPC errors. Most likely cause if this ever
+          // fires: the function wasn't migrated to prod, or its GRANT
+          // EXECUTE TO anon was revoked. Either way, knowing it failed
+          // is better than silent fallback to static-only.
+          console.warn("[vendors-catalog] list_approved_vendors error:", error);
+          return;
+        }
+        if (!Array.isArray(data)) {
+          console.warn("[vendors-catalog] RPC returned non-array:", data);
+          return;
+        }
         const mapped = mapApprovedRows(data);
+        // Always log for diagnostic — easy to verify in DevTools that
+        // a freshly-approved vendor came back from the RPC.
+        console.info(
+          `[vendors-catalog] approved vendors from DB: ${mapped.length}`,
+          mapped.map((v) => ({ id: v.id, name: v.name, region: v.region })),
+        );
         if (mapped.length) setApproved(mapped);
-      } catch {
+      } catch (e) {
+        console.warn("[vendors-catalog] RPC threw:", e);
         /* keep [] — static catalog still works */
       }
     })();
@@ -126,8 +145,26 @@ function VendorsInner() {
     const next: VendorFiltersShape = { ...EMPTY_FILTERS };
     let nextSort: SortMode = "recommended";
 
+    // R82 — `?refresh=1` (or `?from=admin`) is a "show me everything fresh"
+    // signal. Used by the admin approve flow to navigate straight to the
+    // catalog without persisted region/type filters silently hiding the
+    // just-approved vendor. Also wipes the sessionStorage cache so the
+    // next normal visit doesn't re-apply the stale filters.
+    const forceReset =
+      searchParams.get("refresh") === "1" ||
+      searchParams.get("from") === "admin";
+    if (forceReset) {
+      try {
+        window.sessionStorage.removeItem(FILTER_STORAGE_KEY);
+      } catch {
+        /* ignore — fall through to defaults */
+      }
+    }
+
     try {
-      const raw = window.sessionStorage.getItem(FILTER_STORAGE_KEY);
+      const raw = forceReset
+        ? null
+        : window.sessionStorage.getItem(FILTER_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<VendorFiltersShape & { sort: SortMode }>;
         if (parsed.region && (parsed.region === "all" || parsed.region in REGION_LABELS)) {
@@ -169,7 +206,10 @@ function VendorsInner() {
     // First-time seed: default region from the host's event when nothing
     // else was provided. Does not run on subsequent visits because storage
     // would override.
-    if (next.region === "all" && state.event?.region) {
+    // R82 — also skip the auto-prefill when `forceReset` is on so an
+    // admin visiting from the approve flow sees ALL regions, not just
+    // their own wedding's region.
+    if (!forceReset && next.region === "all" && state.event?.region) {
       next.region = state.event.region;
     }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Modal } from "@/components/Modal";
 import { AdminGuard, useAdminToken } from "@/components/admin/AdminGuard";
+import { showToast } from "@/components/Toast";
 import { getSupabase } from "@/lib/supabase";
 import {
   VENDOR_CATEGORIES,
@@ -93,6 +94,15 @@ function Inner() {
       setView(null);
       setRejecting(null);
       setReason("");
+      // R82 — direct toast feedback so the admin knows exactly what
+      // happened and where to look next. The approval-flow toast
+      // links to the catalog with `?refresh=1` so sessionStorage
+      // filters can't silently hide the just-approved vendor.
+      if (decision === "approved") {
+        showToast("✓ אושר. הספק יופיע ב-/vendors מיד.", "success");
+      } else {
+        showToast("הבקשה נדחתה.", "success");
+      }
     } catch {
       setError("הפעולה נכשלה.");
     } finally {
@@ -111,12 +121,30 @@ function Inner() {
         >
           <ArrowRight size={14} /> חזרה ללוח הבקרה
         </Link>
-        <h1 className="mt-4 text-3xl font-bold gradient-text">
-          בקשות ספקים
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: "var(--foreground-soft)" }}>
-          {apps ? `${apps.length} ממתינות לאישור` : "טוען…"}
-        </p>
+        <div className="mt-4 flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold gradient-text">בקשות ספקים</h1>
+            <p
+              className="mt-1 text-sm"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              {apps ? `${apps.length} ממתינות לאישור` : "טוען…"}
+            </p>
+          </div>
+          {/* R82 — quick jump to the catalog with filter-cache reset.
+              Saves an admin who just approved a vendor from chasing
+              filters when the new card doesn't appear. */}
+          <Link
+            href="/vendors?refresh=1"
+            className="text-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition hover:bg-[var(--secondary-button-bg)]"
+            style={{
+              border: "1px solid var(--border-gold)",
+              color: "var(--accent)",
+            }}
+          >
+            צפה בקטלוג <ExternalLink size={13} />
+          </Link>
+        </div>
 
         {error && (
           <div
