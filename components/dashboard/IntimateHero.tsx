@@ -8,11 +8,20 @@ import { LivingSpark } from "@/components/dashboard/LivingSpark";
 import { LiveCountdown } from "@/components/dashboard/LiveCountdown";
 
 /**
- * R41 — the intimate dashboard hero. R44 §1 — the static count-up was
- * replaced by LIVING SPARK: a gold spark that evolves with the journey
- * (it carries the "how far / how close" feeling; the day number stays
- * as a small factual line, not a tooltip). Gradient-only background
- * (EventInfo has no cover-photo field — spec's optional branch omitted).
+ * R77 (R63 follow-up) — IntimateHero shrunk + premium polish.
+ *
+ * R76 paired LivingSpark with a live countdown. The combined card felt
+ * too tall (~460px min-height + 12/16 padding) and the visual
+ * hierarchy was static. This pass:
+ *   • drops minHeight ~460→340px and tightens vertical padding
+ *   • shrinks LivingSpark 300→220 to make room for the clock
+ *   • adds a soft floating gold orb behind the spark (float-slow)
+ *   • adds a hairline top accent stripe + inset gold ring
+ *   • upgrades the names from gradient-gold → gradient-gold-shimmer
+ *   • compresses the divider rhythm
+ *
+ * The contextual caption + past/today branches and the live clock
+ * itself are unchanged.
  */
 export function IntimateHero({
   event,
@@ -36,9 +45,6 @@ export function IntimateHero({
   const today = daysLeft === 0;
 
   // R76 (R63) — contextual subtitle paired with the live countdown.
-  // Tone matches "how far / how close" the journey is: from the calm
-  // "you've got time" through the focused "next month is critical" to
-  // the intimate "tomorrow you're getting married."
   let countdownCaption = "";
   if (daysLeft != null && daysLeft > 0) {
     if (daysLeft > 30) {
@@ -56,27 +62,46 @@ export function IntimateHero({
     <section
       className="relative overflow-hidden rounded-3xl mt-4"
       style={{
-        minHeight: "min(60vh, 460px)",
+        // R77 — was min(60vh, 460px); the new layout sits comfortably
+        // around 340px even with the largest segment sizes.
+        minHeight: "min(48vh, 340px)",
         background:
-          "radial-gradient(120% 80% at 50% -10%, rgba(212,176,104,0.22), transparent 60%), linear-gradient(180deg, #0E0B07 0%, #07060A 100%)",
+          "radial-gradient(140% 80% at 50% -20%, rgba(212,176,104,0.22), transparent 60%), linear-gradient(180deg, #0E0B07 0%, #07060A 100%)",
         border: "1px solid var(--border-gold)",
+        // Subtle inset gold ring + lifted drop shadow — extra "card"
+        // depth without growing the footprint.
+        boxShadow:
+          "inset 0 1px 0 rgba(244,222,169,0.18), 0 24px 60px -28px var(--accent-glow)",
       }}
     >
-      <div
+      {/* Hairline gold accent at the top — premium magazine feel. */}
+      <span
         aria-hidden
-        className="absolute -top-24 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full opacity-50 pointer-events-none"
+        className="absolute top-0 left-1/2 -translate-x-1/2 h-px w-[60%] pointer-events-none"
         style={{
           background:
-            "radial-gradient(circle, rgba(244,222,169,0.18), transparent 70%)",
-          filter: "blur(50px)",
+            "linear-gradient(90deg, transparent, var(--accent), transparent)",
+          opacity: 0.55,
         }}
       />
 
-      <div className="relative z-10 flex flex-col items-center text-center px-6 py-12 md:py-16">
+      {/* Soft floating gold orb. float-slow respects reduced motion via
+          the global media-query in globals.css. */}
+      <div
+        aria-hidden
+        className="absolute -top-20 left-1/2 -translate-x-1/2 w-[380px] h-[380px] rounded-full opacity-50 pointer-events-none float-slow"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(244,222,169,0.22), transparent 70%)",
+          filter: "blur(40px)",
+        }}
+      />
+
+      <div className="relative z-10 flex flex-col items-center text-center px-6 py-8 md:py-10">
         <span
-          className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm"
+          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-wider font-semibold"
           style={{
-            background: "rgba(0,0,0,0.3)",
+            background: "rgba(0,0,0,0.35)",
             border: "1px solid var(--border-gold)",
             color: "var(--accent)",
           }}
@@ -85,46 +110,49 @@ export function IntimateHero({
           {typeLabel}
         </span>
 
+        {/* Names — gradient-gold-shimmer (slow sheen sweep) replaces the
+            static gold gradient for extra "alive" feel without flashing. */}
         <h1
-          className="mt-6 font-extrabold tracking-tight gradient-gold leading-[1.08]"
-          style={{ fontSize: "clamp(2.5rem, 7vw, 3.5rem)" }}
+          className="mt-4 font-extrabold tracking-tight gradient-gold-shimmer leading-[1.05]"
+          style={{ fontSize: "clamp(1.875rem, 5vw, 2.625rem)" }}
         >
           {names}
         </h1>
 
         {dateStr && (
           <p
-            className="mt-4 text-lg md:text-xl"
+            className="mt-2 text-sm md:text-base"
             style={{ color: "var(--foreground-soft)" }}
           >
             {dateStr}
           </p>
         )}
 
-        <div className="mt-6 flex flex-col items-center w-full">
+        <div className="mt-5 flex flex-col items-center w-full">
           <LivingSpark
             daysUntilEvent={daysLeft}
             progress={progress}
-            size={300}
+            size={220}
           />
 
-          {/* Gold divider between spark and the live clock. */}
+          {/* Compressed divider rhythm: less air between the spark and
+              the clock, but the gold line still anchors the section. */}
           <div
             aria-hidden
-            className="mx-auto mt-6 mb-6 w-16 h-px"
-            style={{ background: "var(--border-gold)" }}
+            className="mx-auto mt-4 mb-4 w-12 h-px"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, var(--accent), transparent)",
+              opacity: 0.7,
+            }}
           />
 
-          {/* R76 (R63) — live countdown clock. Replaces the previous
-              static "N ימים לאירוע" line with a real DD:HH:MM(:SS)
-              ticking display. The branches for past/today are kept
-              outside so we never instantiate the clock pointlessly. */}
           {past ? (
-            <span className="text-xl md:text-2xl font-bold gradient-gold">
+            <span className="text-xl md:text-2xl font-bold gradient-gold-shimmer">
               🎉 חגגתם! תודה שתכננתם איתנו
             </span>
           ) : today ? (
-            <span className="text-2xl md:text-4xl font-extrabold gradient-gold animate-pulse">
+            <span className="text-2xl md:text-4xl font-extrabold gradient-gold-shimmer animate-pulse">
               🎉 היום הגדול הגיע!
             </span>
           ) : (
@@ -133,7 +161,7 @@ export function IntimateHero({
 
           {countdownCaption && (
             <div
-              className="mt-6 text-sm md:text-base max-w-md"
+              className="mt-4 text-xs md:text-sm max-w-md leading-relaxed"
               style={{ color: "var(--foreground-muted)" }}
             >
               {countdownCaption}
