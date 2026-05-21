@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getSupabase } from "./supabase";
+import { isFounderEmail } from "./constants";
 
 /**
  * Returns `true` if the signed-in user's email appears in `admin_emails`.
@@ -47,6 +48,19 @@ export function useIsAdmin(): boolean {
           return;
         }
         const email = user.email.toLowerCase().trim();
+
+        // R64 (R79) — founder bypass. Never re-issue the DB query if
+        // we know the email is the founder; this works even if the
+        // admin_emails table has been wiped / RLS misconfigured.
+        if (isFounderEmail(email)) {
+          cached = true;
+          setIsAdmin(true);
+          try {
+            window.localStorage.setItem(CACHE_KEY, "1");
+          } catch {}
+          return;
+        }
+
         const { data } = (await supabase
           .from("admin_emails")
           .select("email")

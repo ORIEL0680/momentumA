@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isFounderEmail } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,14 +30,17 @@ export async function POST(req: NextRequest) {
     // Verify the user is on the admin list. RLS on `admin_emails` only
     // surfaces the row when the JWT email matches, so a `.single()` returning
     // null is the rejection signal.
-    const { data: adminCheck } = await supabase
-      .from("admin_emails")
-      .select("email")
-      .eq("email", user.email)
-      .single();
-
-    if (!adminCheck) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    // R64 (R79) — founder bypass before the DB lookup so the admin
+    // surface is reachable even if admin_emails was wiped.
+    if (!isFounderEmail(user.email)) {
+      const { data: adminCheck } = await supabase
+        .from("admin_emails")
+        .select("email")
+        .eq("email", user.email)
+        .maybeSingle();
+      if (!adminCheck) {
+        return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      }
     }
 
     const { applicationId, decision, rejectionReason } = (await req.json()) as {

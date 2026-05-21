@@ -14,6 +14,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { isFounderEmail } from "../constants";
 
 export type AdminGateResult =
   | { ok: true; adminClient: SupabaseClient; email: string }
@@ -65,16 +66,21 @@ export async function requireAdmin(
   }
   const email = user.email.toLowerCase().trim();
 
-  const { data: adminRow } = (await userClient
-    .from("admin_emails")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle()) as { data: { email: string } | null };
-  if (!adminRow) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "Not authorized" }, { status: 403 }),
-    };
+  // R64 (R79) — founder bypass. Skip the admin_emails RLS lookup
+  // entirely when the JWT email is the founder. Keeps /admin reachable
+  // even if the DB row is missing (post-truncation, RLS misconfig, …).
+  if (!isFounderEmail(email)) {
+    const { data: adminRow } = (await userClient
+      .from("admin_emails")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle()) as { data: { email: string } | null };
+    if (!adminRow) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: "Not authorized" }, { status: 403 }),
+      };
+    }
   }
 
   if (!serviceRoleKey) {

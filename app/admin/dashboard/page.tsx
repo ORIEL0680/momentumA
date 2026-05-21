@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { isFounderEmail } from "@/lib/constants";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
 
@@ -76,6 +77,19 @@ export default function AdminDashboardPage() {
   // different Gmail than the one in admin_emails.
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
 
+  // R64 (R79) — clear the localStorage admin-cache hint on every
+  // /admin/dashboard visit so the Header's pill re-checks against the
+  // DB. Without this, a stale "false" cached after a bad earlier
+  // check would keep the admin nav hidden until the user manually
+  // cleared storage.
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem("momentum.isAdmin.v1");
+    } catch {
+      /* private mode / quota — best-effort */
+    }
+  }, []);
+
   useEffect(() => {
     // R12 §2J — every exit path lives inside try/catch/finally so a
     // single throw can't leave the page spinning forever. AbortController
@@ -117,15 +131,19 @@ export default function AdminDashboardPage() {
         const userEmail = user.email.toLowerCase().trim();
         setSignedInEmail(userEmail);
 
-        const { data: adminRow } = (await supabase
-          .from("admin_emails")
-          .select("email")
-          .eq("email", userEmail)
-          .maybeSingle()) as { data: { email: string } | null };
-
-        if (!adminRow) return;
-
-        setAuthorized(true);
+        // R64 (R79) — founder bypass before the DB lookup so the
+        // admin surface is reachable even if admin_emails was wiped.
+        if (isFounderEmail(userEmail)) {
+          setAuthorized(true);
+        } else {
+          const { data: adminRow } = (await supabase
+            .from("admin_emails")
+            .select("email")
+            .eq("email", userEmail)
+            .maybeSingle()) as { data: { email: string } | null };
+          if (!adminRow) return;
+          setAuthorized(true);
+        }
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;

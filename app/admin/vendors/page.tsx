@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
+import { isFounderEmail } from "@/lib/constants";
 import { showToast } from "@/components/Toast";
 import {
   ArrowLeft,
@@ -45,13 +46,20 @@ export default function AdminVendorsPage() {
         }
         return;
       }
-      const { data: adminRow } = await supabase
-        .from("admin_emails")
-        .select("email")
-        .eq("email", user.email)
-        .single();
+      // R64 (R79) — founder bypass before the admin_emails query so
+      // the page is reachable even if the DB row has been wiped.
+      let ok = isFounderEmail(user.email);
+      if (!ok) {
+        const { data: adminRow } = await supabase
+          .from("admin_emails")
+          .select("email")
+          .eq("email", user.email)
+          .maybeSingle();
+        if (cancelled) return;
+        ok = !!adminRow;
+      }
       if (cancelled) return;
-      if (!adminRow) {
+      if (!ok) {
         setAuthorized(false);
         setLoading(false);
         return;

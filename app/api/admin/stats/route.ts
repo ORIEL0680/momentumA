@@ -8,6 +8,7 @@ import {
   type Delta,
   type AdminEventSummary,
 } from "@/lib/admin/queries";
+import { isFounderEmail } from "@/lib/constants";
 
 /**
  * Admin dashboard aggregates.
@@ -144,13 +145,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { data: adminCheck } = (await userClient
-      .from("admin_emails")
-      .select("email")
-      .eq("email", user.email)
-      .maybeSingle()) as { data: { email: string } | null };
-    if (!adminCheck) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    // R64 (R79) — founder bypass before the admin_emails RLS lookup.
+    if (!isFounderEmail(user.email)) {
+      const { data: adminCheck } = (await userClient
+        .from("admin_emails")
+        .select("email")
+        .eq("email", user.email)
+        .maybeSingle()) as { data: { email: string } | null };
+      if (!adminCheck) {
+        return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+      }
     }
 
     if (!serviceRoleKey) {

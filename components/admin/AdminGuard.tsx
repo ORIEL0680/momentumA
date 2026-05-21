@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { isFounderEmail } from "@/lib/constants";
 
 /**
  * R59 (R49) — client admin gate.
@@ -70,13 +71,20 @@ export function AdminGuard({
           return;
         }
         const email = user.email.toLowerCase().trim();
-        const { data: adminRow } = (await supabase
-          .from("admin_emails")
-          .select("email")
-          .eq("email", email)
-          .maybeSingle()) as { data: { email: string } | null };
-        if (cancelled) return;
-        if (!adminRow) {
+
+        // R64 (R79) — founder bypass before the admin_emails RLS
+        // lookup so the gate works even if the table was wiped.
+        let isAdmin = isFounderEmail(email);
+        if (!isAdmin) {
+          const { data: adminRow } = (await supabase
+            .from("admin_emails")
+            .select("email")
+            .eq("email", email)
+            .maybeSingle()) as { data: { email: string } | null };
+          if (cancelled) return;
+          isAdmin = !!adminRow;
+        }
+        if (!isAdmin) {
           // Silent — never reveal that an admin area exists.
           console.warn("[admin-guard] non-admin attempted access");
           router.replace("/dashboard");
