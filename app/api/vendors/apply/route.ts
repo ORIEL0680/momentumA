@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "@/lib/supabase/service";
 import { notifyAdminOfNewApplication } from "@/lib/vendorNotifications";
 import { VENDOR_CATEGORIES, type VendorApplicationInput } from "@/lib/vendorApplication";
 import { normalizeIsraeliPhone } from "@/lib/phone";
@@ -57,11 +57,35 @@ function checkApplyRateLimit(ip: string | null): { ok: true } | { ok: false; ret
 }
 
 export async function POST(req: NextRequest) {
+  console.log("[vendor-apply] request received");
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !anonKey) {
-      return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+    // R81 (R65 fix) — switched from anon-client to service-role.
+    //
+    // The anon-keyed insert path was failing because Supabase performs the
+    // .select() that returns the new id THROUGH RLS — and the only SELECT
+    // policy on vendor_applications requires admin. Anonymous applicants
+    // could INSERT but not read the row back, so the entire call returned
+    // an error to the client. Symptom: "שמירת הבקשה נכשלה" on every submit.
+    //
+    // Switching to service-role bypasses RLS entirely. We keep the policy
+    // (defense in depth against direct DB access) and rely on the strict
+    // server-side validation below — required fields, category enum,
+    // phone normalization, https-only URLs, length caps — exactly the
+    // same checks the RLS `with check` clause was enforcing.
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.SUPABASE_SERVICE_ROLE_KEY
+    ) {
+      console.error(
+        "[vendor-apply] missing env: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+      );
+      return NextResponse.json(
+        {
+          error: "server_misconfigured",
+          message: "השרת לא מוגדר נכון. צור קשר: talhemo132@gmail.com",
+        },
+        { status: 503 },
+      );
     }
 
     // Rate-limit BEFORE we parse the body. A spammer who hits the limit
@@ -206,8 +230,10 @@ export async function POST(req: NextRequest) {
       return fail(400, "invalid_url", "אתר חייב להתחיל ב-https://", "website");
     }
 
-    // Use anon key for inserts — RLS policy allows public insert in `pending` only.
-    const supabase = createClient(supabaseUrl, anonKey);
+    // R81 — service-role client bypasses RLS. Server-side validation
+    // above already enforces every constraint the RLS `with check`
+    // clause did (status defaulted to 'pending' by the DB, etc.).
+    const supabase = createServiceClient();
 
     // Reuse the IP we already extracted for rate-limiting. Keeps the route
     // honest about the fact that there's exactly one IP under consideration
