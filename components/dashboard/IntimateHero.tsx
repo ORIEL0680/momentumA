@@ -5,6 +5,7 @@ import { EVENT_TYPE_LABELS } from "@/lib/types";
 import { EVENT_TYPE_EMOJI } from "@/lib/invitationMessage";
 import { formatEventDate } from "@/lib/format";
 import { LivingSpark } from "@/components/dashboard/LivingSpark";
+import { LiveCountdown } from "@/components/dashboard/LiveCountdown";
 
 /**
  * R41 — the intimate dashboard hero. R44 §1 — the static count-up was
@@ -31,9 +32,25 @@ export function IntimateHero({
   const typeLabel = EVENT_TYPE_LABELS[event.type] ?? "אירוע";
   const dateStr = formatEventDate(event.date, "long");
 
-  const safeDays = daysLeft != null && daysLeft > 0 ? daysLeft : 0;
   const past = daysLeft != null && daysLeft < 0;
   const today = daysLeft === 0;
+
+  // R76 (R63) — contextual subtitle paired with the live countdown.
+  // Tone matches "how far / how close" the journey is: from the calm
+  // "you've got time" through the focused "next month is critical" to
+  // the intimate "tomorrow you're getting married."
+  let countdownCaption = "";
+  if (daysLeft != null && daysLeft > 0) {
+    if (daysLeft > 30) {
+      countdownCaption = "עוד יש זמן — תקבלו החלטות בקצב הנכון";
+    } else if (daysLeft > 7) {
+      countdownCaption = "החודש הבא קריטי — כל פגישה חשובה";
+    } else if (daysLeft > 1) {
+      countdownCaption = "השבוע האחרון. תהיו מרוכזים בעצמכם";
+    } else {
+      countdownCaption = "מחר אתם מתחתנים. עוצרים, נושמים, מתרגשים.";
+    }
+  }
 
   return (
     <section
@@ -84,43 +101,44 @@ export function IntimateHero({
           </p>
         )}
 
-        <div className="mt-6 flex flex-col items-center">
+        <div className="mt-6 flex flex-col items-center w-full">
           <LivingSpark
             daysUntilEvent={daysLeft}
             progress={progress}
             size={300}
           />
-          <div className="mt-3 text-center">
-            {daysLeft == null ? (
-              <span
-                className="text-sm"
-                style={{ color: "var(--foreground-muted)" }}
-              >
-                סופרים את הימים…
-              </span>
-            ) : past ? (
-              <span className="text-xl md:text-2xl font-bold gradient-gold">
-                🎉 חגגתם! תודה שתכננתם איתנו
-              </span>
-            ) : today ? (
-              <span className="text-2xl md:text-4xl font-extrabold gradient-gold">
-                🎉 היום הגדול הגיע!
-              </span>
-            ) : (
-              <span
-                className="text-lg md:text-xl"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                <strong
-                  className="gradient-gold ltr-num"
-                  style={{ fontSize: "clamp(1.75rem, 6vw, 2.5rem)" }}
-                >
-                  {safeDays}
-                </strong>{" "}
-                {safeDays === 1 ? "יום לאירוע" : "ימים לאירוע"}
-              </span>
-            )}
-          </div>
+
+          {/* Gold divider between spark and the live clock. */}
+          <div
+            aria-hidden
+            className="mx-auto mt-6 mb-6 w-16 h-px"
+            style={{ background: "var(--border-gold)" }}
+          />
+
+          {/* R76 (R63) — live countdown clock. Replaces the previous
+              static "N ימים לאירוע" line with a real DD:HH:MM(:SS)
+              ticking display. The branches for past/today are kept
+              outside so we never instantiate the clock pointlessly. */}
+          {past ? (
+            <span className="text-xl md:text-2xl font-bold gradient-gold">
+              🎉 חגגתם! תודה שתכננתם איתנו
+            </span>
+          ) : today ? (
+            <span className="text-2xl md:text-4xl font-extrabold gradient-gold animate-pulse">
+              🎉 היום הגדול הגיע!
+            </span>
+          ) : (
+            <LiveCountdown targetDate={event.date} />
+          )}
+
+          {countdownCaption && (
+            <div
+              className="mt-6 text-sm md:text-base max-w-md"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              {countdownCaption}
+            </div>
+          )}
         </div>
       </div>
     </section>
