@@ -82,12 +82,42 @@ export async function POST(req: NextRequest) {
     const rl = checkApplyRateLimit(earlyIp);
     if (!rl.ok) {
       return NextResponse.json(
-        { error: `יותר מדי בקשות מהכתובת הזו. נסה שוב בעוד ${Math.ceil(rl.retryAfterSec / 60)} דקות.` },
+        {
+          error: "rate_limited",
+          message: `יותר מדי בקשות מהכתובת הזו. נסה שוב בעוד ${Math.ceil(rl.retryAfterSec / 60)} דקות.`,
+        },
         { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
       );
     }
 
-    const body = (await req.json()) as VendorApplicationInput;
+    let body: VendorApplicationInput;
+    try {
+      body = (await req.json()) as VendorApplicationInput;
+    } catch (parseErr) {
+      console.error("[vendor-apply] JSON parse failed:", parseErr);
+      return NextResponse.json(
+        {
+          error: "bad_json",
+          message: "הגוף של הבקשה לא תקין. רענן את העמוד ונסה שוב.",
+        },
+        { status: 400 },
+      );
+    }
+
+    // R80 (R65) — structured error responses. Each error response now
+    // carries { error: <code>, field?: <which input>, message: <Hebrew> }
+    // so the client can highlight the bad field and show a clear
+    // sentence to the user instead of a generic "ההגשה נכשלה".
+    const fail = (
+      status: number,
+      code: string,
+      message: string,
+      field?: string,
+    ) =>
+      NextResponse.json(
+        field ? { error: code, field, message } : { error: code, message },
+        { status },
+      );
 
     // ── Server-side validation. Never trust the client. ──
     const required: (keyof VendorApplicationInput)[] = [
@@ -103,12 +133,13 @@ export async function POST(req: NextRequest) {
     for (const field of required) {
       const v = body[field];
       if (v === undefined || v === null || (typeof v === "string" && !v.trim())) {
-        return NextResponse.json({ error: `Missing field: ${field}` }, { status: 400 });
+        console.warn(`[vendor-apply] missing required field: ${field}`);
+        return fail(400, "missing_field", `חסר שדה חובה: ${field}`, field);
       }
     }
 
     if (!/.+@.+\..+/.test(body.email)) {
-      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+      return fail(400, "invalid_email", "כתובת מייל לא תקינה.", "email");
     }
     // Number.isFinite guards against NaN, Infinity, -Infinity. The previous
     // `typeof === "number"` was true for NaN, and NaN comparisons returned
@@ -118,14 +149,26 @@ export async function POST(req: NextRequest) {
       body.years_in_field < 0 ||
       body.years_in_field > 80
     ) {
-      return NextResponse.json({ error: "ניסיון בשנים לא תקין" }, { status: 400 });
+      return fail(
+        400,
+        "invalid_years",
+        "מספר שנים בתחום צריך להיות בין 0 ל-80.",
+        "years_in_field",
+      );
     }
-    if (
-      body.business_name.length > 200 ||
-      (body.about !== undefined && body.about.length > 2000) ||
-      body.contact_name.length > 200
-    ) {
-      return NextResponse.json({ error: "Field too long" }, { status: 400 });
+    if (body.business_name.length > 200) {
+      return fail(400, "field_too_long", "שם העסק ארוך מדי.", "business_name");
+    }
+    if (body.contact_name.length > 200) {
+      return fail(
+        400,
+        "field_too_long",
+        "שם איש הקשר ארוך מדי.",
+        "contact_name",
+      );
+    }
+    if (body.about !== undefined && body.about.length > 2000) {
+      return fail(400, "field_too_long", "התיאור ארוך מדי.", "about");
     }
 
     // Category: must be one of the known IDs. Without this guard, a caller
@@ -133,7 +176,7 @@ export async function POST(req: NextRequest) {
     // that match on the enum.
     const validCategoryIds = VENDOR_CATEGORIES.map((c) => c.id) as string[];
     if (!validCategoryIds.includes(body.category)) {
-      return NextResponse.json({ error: "קטגוריה לא חוקית" }, { status: 400 });
+      return fail(400, "invalid_category", "קטגוריה לא חוקית.", "category");
     }
 
     // Phone normalization. Same source of truth as the rest of the app
@@ -141,19 +184,26 @@ export async function POST(req: NextRequest) {
     // "972501234567" — same shape we'd send to wa.me.
     const normalized = normalizeIsraeliPhone(body.phone);
     if (!normalized.valid) {
-      return NextResponse.json({ error: "מספר טלפון לא תקין" }, { status: 400 });
+      return fail(
+        400,
+        "invalid_phone",
+        "מספר טלפון ישראלי לא תקין. דוגמה: 050-1234567.",
+        "phone",
+      );
     }
 
     // URL scheme validation. JSX renders the href verbatim, so a stored
     // `javascript:alert(1)` would execute on click in the admin dashboard.
     if (!isHttpsUrl(body.sample_work_url)) {
-      return NextResponse.json(
-        { error: "קישור לדוגמה חייב להיות https://" },
-        { status: 400 },
+      return fail(
+        400,
+        "invalid_url",
+        "קישור לדוגמה חייב להתחיל ב-https://",
+        "sample_work_url",
       );
     }
     if (body.website && !isHttpsUrl(body.website)) {
-      return NextResponse.json({ error: "אתר חייב להיות https://" }, { status: 400 });
+      return fail(400, "invalid_url", "אתר חייב להתחיל ב-https://", "website");
     }
 
     // Use anon key for inserts — RLS policy allows public insert in `pending` only.
@@ -202,9 +252,21 @@ export async function POST(req: NextRequest) {
       // message to the client. Supabase / Postgres errors can leak schema
       // names, constraint text, internal hostnames — none of that should
       // reach the browser.
-      console.error("[/api/vendors/apply] insert failed", error);
+      // R80 (R65) — log the error CODE (Postgres error code) too so we
+      // can tell RLS rejection (42501) from check-constraint violation
+      // (23514) etc. when triaging Vercel logs.
+      console.error("[vendor-apply] insert failed", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       return NextResponse.json(
-        { error: "שמירת הבקשה נכשלה. נסה שוב בעוד רגע." },
+        {
+          error: "db_insert_failed",
+          message:
+            "שמירת הבקשה נכשלה. נסה שוב או צור קשר: talhemo132@gmail.com",
+        },
         { status: 500 },
       );
     }
@@ -254,9 +316,12 @@ export async function POST(req: NextRequest) {
     // R19 security: log full error server-side, return generic message.
     // The previous `e.message` echo leaked stack traces / internal field
     // names to the browser on any unexpected throw.
-    console.error("[/api/vendors/apply]", e);
+    console.error("[vendor-apply] unexpected error:", e);
     return NextResponse.json(
-      { error: "שגיאה פנימית. נסה שוב בעוד רגע." },
+      {
+        error: "server_error",
+        message: "שגיאה פנימית. נסה שוב בעוד רגע או צור קשר: talhemo132@gmail.com",
+      },
       { status: 500 },
     );
   }

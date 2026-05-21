@@ -2,10 +2,36 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Building2, Send, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Building2,
+  Send,
+  Loader2,
+  AlertTriangle,
+  Mail,
+} from "lucide-react";
 import { VENDOR_CATEGORIES, type VendorCategory } from "@/lib/vendorApplication";
 import { showToast } from "@/components/Toast";
 import { track } from "@/lib/analytics";
+
+/** Map of API error code → which step in the wizard owns the bad field.
+ *  Used to jump the user back to the right step so they can fix it. */
+const FIELD_TO_STEP: Record<string, 1 | 2 | 3> = {
+  business_name: 1,
+  contact_name: 1,
+  category: 1,
+  city: 1,
+  phone: 2,
+  email: 2,
+  website: 2,
+  business_id: 3,
+  years_in_field: 3,
+  sample_work_url: 3,
+  about: 3,
+  instagram: 3,
+  facebook: 3,
+};
 
 interface FormData {
   business_name: string;
@@ -47,6 +73,10 @@ export default function VendorJoinPage() {
   // R18 §G — 3-step wizard. Splitting the 13-field wall into bite-size
   // steps roughly tripled completion in the brief's intent.
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  // R80 (R65) — persistent inline error banner with the API's specific
+  // message, instead of relying only on the toast (which disappears
+  // after a couple of seconds and is easy to miss while typing).
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -73,6 +103,7 @@ export default function VendorJoinPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
+    setSubmitError(null);
 
     if (
       !form.business_name ||
@@ -84,6 +115,7 @@ export default function VendorJoinPage() {
       !form.business_id ||
       !form.years_in_field
     ) {
+      setSubmitError("חסרים שדות חובה. ודאו שכל השדות המסומנים ב-* מלאים.");
       showToast("חסרים שדות חובה", "error");
       return;
     }
@@ -98,31 +130,92 @@ export default function VendorJoinPage() {
           years_in_field: Number(form.years_in_field),
         }),
       });
-      const data = await res.json();
+      // R80 (R65) — defend against the (rare) case where the server
+      // returns a non-JSON body (timeout from a CDN, HTML error page).
+      let data: {
+        error?: string;
+        message?: string;
+        field?: string;
+        success?: boolean;
+      } = {};
+      try {
+        data = await res.json();
+      } catch {
+        /* fallthrough — handled below by the !res.ok branch */
+      }
       if (!res.ok) {
-        showToast(data.error ?? "ההגשה נכשלה", "error");
+        // Specific human message > generic. Falls back to a clear
+        // instruction with the support email.
+        const message =
+          data.message ??
+          (res.status === 429
+            ? "יותר מדי בקשות. נסה שוב בעוד כמה דקות."
+            : "ההגשה נכשלה. נסה שוב או צור קשר: talhemo132@gmail.com");
+        setSubmitError(message);
+        showToast(message, "error");
+        // If the error names a specific field, jump the wizard back
+        // to the right step so the user can fix it.
+        if (data.field && FIELD_TO_STEP[data.field]) {
+          setStep(FIELD_TO_STEP[data.field]);
+        }
         setSubmitting(false);
         return;
       }
       // R63 (R53) — funnel: vendor application submitted.
       track("vendor_application_submitted", { category: form.category });
       setSubmitted(true);
-    } catch {
-      showToast("שגיאה ברשת — נסה שוב", "error");
+    } catch (err) {
+      console.error("[vendors/join] network error:", err);
+      const message = "שגיאת רשת. בדוק חיבור אינטרנט ונסה שוב.";
+      setSubmitError(message);
+      showToast(message, "error");
     }
     setSubmitting(false);
   };
 
   if (submitted) {
     return (
-      <main className="min-h-screen flex items-center justify-center px-5">
+      <main className="min-h-screen flex items-center justify-center px-5 py-12">
         <div className="card-gold p-8 text-center max-w-md">
-          <CheckCircle2 size={40} className="mx-auto text-emerald-400" />
-          <h1 className="mt-4 text-2xl font-bold gradient-gold">הבקשה התקבלה!</h1>
-          <p className="mt-3 text-sm" style={{ color: "var(--foreground-soft)" }}>
-            נבדוק את הבקשה שלך תוך 1-3 ימי עסקים. אם תאושר, נשלח לך מייל עם
-            קישור להפעלת הפרופיל באפליקציה.
+          <div
+            className="mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-2"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(110,231,183,0.18), rgba(52,211,153,0.08))",
+              border: "1px solid rgba(52,211,153,0.35)",
+            }}
+            aria-hidden
+          >
+            <CheckCircle2 size={32} className="text-emerald-400" />
+          </div>
+          <h1 className="mt-4 text-2xl font-bold gradient-gold-shimmer">
+            הבקשה התקבלה!
+          </h1>
+          <p
+            className="mt-3 text-sm leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            נבדוק את הפרטים שלך תוך <strong>1-3 ימי עסקים</strong>.
+            ברגע שהבקשה תאושר נשלח לך מייל עם קישור להפעלת הפרופיל
+            באפליקציה.
           </p>
+          <div
+            className="mt-5 rounded-xl px-3 py-2.5 text-xs inline-flex items-center gap-2"
+            style={{
+              background: "rgba(212,176,104,0.08)",
+              border: "1px solid var(--border-gold)",
+              color: "var(--accent)",
+            }}
+          >
+            <Mail size={13} aria-hidden /> שאלות? כתבו ל-
+            <a
+              href="mailto:talhemo132@gmail.com"
+              className="underline"
+              style={{ color: "var(--accent)" }}
+            >
+              talhemo132@gmail.com
+            </a>
+          </div>
           <Link href="/" className="btn-gold mt-6 inline-flex">
             חזרה לדף הבית
           </Link>
@@ -197,6 +290,46 @@ export default function VendorJoinPage() {
                 <Field label="פייסבוק" value={form.facebook} onChange={(v) => set("facebook", v)} placeholder="username" />
               </div>
             </Section>
+          )}
+
+          {/* R80 (R65) — persistent inline error banner. Shows the
+              server's specific Hebrew message + a direct-contact
+              fallback. Cleared on the next submit attempt. */}
+          {submitError && (
+            <div
+              role="alert"
+              className="rounded-2xl p-4 flex items-start gap-3"
+              style={{
+                background: "color-mix(in srgb, rgb(248,113,113) 8%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, rgb(248,113,113) 40%, transparent)",
+              }}
+            >
+              <AlertTriangle
+                size={18}
+                className="shrink-0 mt-0.5"
+                style={{ color: "rgb(248,113,113)" }}
+                aria-hidden
+              />
+              <div className="text-sm leading-relaxed flex-1">
+                <div
+                  className="font-semibold mb-1"
+                  style={{ color: "rgb(252,165,165)" }}
+                >
+                  ההגשה לא הצליחה
+                </div>
+                <div style={{ color: "var(--foreground-soft)" }}>
+                  {submitError}
+                </div>
+                <a
+                  href="mailto:talhemo132@gmail.com?subject=בעיה%20בהצטרפות%20כספק"
+                  className="inline-flex items-center gap-1 mt-2 text-xs underline"
+                  style={{ color: "var(--accent)" }}
+                >
+                  <Mail size={12} aria-hidden /> צור קשר
+                </a>
+              </div>
+            </div>
           )}
 
           {/* R18 §G — wizard nav. Prev (steps 2/3), Next (steps 1/2),

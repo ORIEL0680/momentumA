@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isFounderEmail } from "@/lib/constants";
+import { sendVendorApprovalEmail } from "@/lib/vendorNotifications";
 
 export async function POST(req: NextRequest) {
   try {
@@ -98,18 +99,49 @@ export async function POST(req: NextRequest) {
     // at the same time used to cause the second to silently overwrite the
     // first. The `eq("status", "pending")` clause filters out any row that
     // already moved on, and we treat "0 affected rows" as a 409 conflict.
+    // R80 (R65) — also `select()` enough columns to power the welcome
+    // email below, so we don't have to do a second round-trip.
     const { data: updated, error: updateErr } = await supabase
       .from("vendor_applications")
       .update(updates)
       .eq("id", applicationId)
       .eq("status", "pending")
-      .select("id");
+      .select("id, email, contact_name, business_name");
 
     if (updateErr) {
+      console.error("[vendors-decide] update failed:", updateErr);
       return NextResponse.json({ error: "פעולה נכשלה" }, { status: 500 });
     }
     if (!updated || updated.length === 0) {
       return NextResponse.json({ error: "הבקשה כבר אושרה/נדחתה" }, { status: 409 });
+    }
+
+    // R80 (R65) — fire the vendor welcome email on approval. Failure
+    // does NOT roll the approval back (the DB row is the source of
+    // truth); we log so the admin can see it in the notifications log
+    // if Resend ever stalled.
+    if (decision === "approved") {
+      const row = updated[0] as {
+        id: string;
+        email: string;
+        contact_name: string;
+        business_name: string;
+      };
+      try {
+        const result = await sendVendorApprovalEmail({
+          email: row.email,
+          contact_name: row.contact_name,
+          business_name: row.business_name,
+        });
+        await supabase.from("vendor_notifications_log").insert({
+          application_id: row.id,
+          channel: result.channel,
+          status: result.status,
+          error: result.error ?? null,
+        });
+      } catch (mailErr) {
+        console.error("[vendors-decide] welcome email failed:", mailErr);
+      }
     }
 
     return NextResponse.json({ success: true });
