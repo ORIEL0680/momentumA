@@ -174,12 +174,13 @@ export function Header() {
   };
   const moreItems = visibleMoreItems(moreCtx);
 
-  const handleSignOut = async () => {
-    try {
-      await userActions.signOut();
-    } finally {
-      window.location.href = "/signup";
-    }
+  const handleSignOut = () => {
+    // R78 — non-blocking. signOutAndRedirect() bounces the user
+    // immediately (with a 1.5s belt-and-suspenders retry) and runs the
+    // Supabase revoke + localStorage purge in the background. Target
+    // is the landing page so signed-out users land on a clear
+    // "מתחילים מחדש" surface instead of the signup form.
+    userActions.signOutAndRedirect("/");
   };
 
   const headerHome = hydrated && user ? "/dashboard" : "/";

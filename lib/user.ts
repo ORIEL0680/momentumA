@@ -290,6 +290,35 @@ export const userActions = {
     if (error) throw error;
   },
 
+  /**
+   * R78 — bulletproof logout entry point.
+   *
+   * Fires `signOut()` in the background but doesn't wait for it to
+   * resolve before navigating. If Supabase's local revoke ever hangs
+   * (slow network, browser-level stall, ad-blocker interfering with
+   * the SDK), the user still ends up at the destination within a
+   * single tick. The actual localStorage purge inside `signOut()` is
+   * fast enough that it has effectively always completed by the time
+   * `window.location.href = …` triggers the document unload.
+   *
+   * @param target Where to send the user. Default `/` (landing page).
+   */
+  signOutAndRedirect(target = "/") {
+    if (typeof window === "undefined") return;
+    // Best-effort signOut. We do NOT await it — if it hangs we still
+    // bounce the user. Errors are swallowed (already logged inside
+    // signOut() itself).
+    void this.signOut().catch(() => {});
+    // Belt-and-suspenders: if the navigation below somehow gets
+    // queued behind the in-flight fetch, fire it again after 1.5s.
+    window.setTimeout(() => {
+      if (window.location.pathname !== target) {
+        window.location.href = target;
+      }
+    }, 1500);
+    window.location.href = target;
+  },
+
   async signOut() {
     // R13 — bulletproof sign-out.
     //

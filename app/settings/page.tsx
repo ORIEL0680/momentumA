@@ -444,17 +444,11 @@ export default function SettingsPage() {
             {/* Danger zone — keep sign-out separate so accidental clicks don't sign people out. */}
             <Section icon={<AlertTriangle size={20} className="text-red-300" />} title="התנתקות" danger>
               <button
-                onClick={async () => {
-                  // R12+ — same fix as Header: hard-reload to wipe every
-                  // in-memory cache (admin badge, supabase client, user
-                  // store) so the next render truly is signed-out.
-                  // R19 — destination /signup (was /). See Header.handleSignOut
-                  // for the rationale.
-                  try {
-                    await userActions.signOut();
-                  } finally {
-                    window.location.href = "/signup";
-                  }
+                onClick={() => {
+                  // R78 — non-blocking logout. Bounces to "/" (landing)
+                  // even if Supabase's local revoke stalls. See
+                  // lib/user.ts → signOutAndRedirect for details.
+                  userActions.signOutAndRedirect("/");
                 }}
                 className="w-full rounded-xl py-2.5 text-sm font-semibold transition"
                 style={{ border: "1px solid var(--border-strong)", color: "var(--foreground-soft)" }}
