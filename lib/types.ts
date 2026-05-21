@@ -417,6 +417,8 @@ export interface SavedVendor {
 }
 
 export interface AppState {
+  /** Bumped on every local mutation — used by cloud sync conflict resolution. */
+  updatedAt?: string;
   event: EventInfo | null;
   guests: Guest[];
   budget: BudgetItem[];

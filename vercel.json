@@ -21,6 +21,12 @@
     "app/api/vendors/admin/decide/route.ts": {
       "maxDuration": 15
     },
+    "app/api/guests/voice-campaign/start/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/webhooks/nlpearl/route.ts": {
+      "maxDuration": 15
+    },
     "app/api/send-scheduled/route.ts": {
       "maxDuration": 60
     }
