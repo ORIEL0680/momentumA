@@ -22,7 +22,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { actions, useAppState } from "@/lib/store";
 import { vendorImageFor } from "@/lib/images";
-import { safeHttpUrl } from "@/lib/safeUrl";
+import {
+  buildInstagramUrl,
+  buildFacebookUrl,
+  buildWebsiteUrl,
+} from "@/lib/socialHandles";
 import { getSupabase } from "@/lib/supabase";
 import {
   REGION_LABELS,
@@ -190,14 +194,10 @@ export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuick
     }
   };
 
-  const igHandle = vendor.instagram?.replace(/^@/, "");
-  const igUrl = igHandle ? safeHttpUrl(`https://instagram.com/${encodeURIComponent(igHandle)}`) : undefined;
-  const fbUrl = vendor.facebook
-    ? vendor.facebook.startsWith("http")
-      ? safeHttpUrl(vendor.facebook)
-      : safeHttpUrl(`https://facebook.com/${encodeURIComponent(vendor.facebook)}`)
-    : undefined;
-  const webUrl = safeHttpUrl(vendor.website);
+  // R85 (R67 fix) — all three URLs through the central normalizer.
+  const igUrl = buildInstagramUrl(vendor.instagram) ?? undefined;
+  const fbUrl = buildFacebookUrl(vendor.facebook) ?? undefined;
+  const webUrl = buildWebsiteUrl(vendor.website) ?? undefined;
 
   const prevImg = () => setImgIdx((i) => (i - 1 + galleryImages.length) % galleryImages.length);
   const nextImg = () => setImgIdx((i) => (i + 1) % galleryImages.length);
@@ -347,7 +347,23 @@ export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuick
             </div>
             {/* R67 (R84) — price block removed per "no prices anywhere"
                 policy. priceFrom still exists in the type but isn't
-                surfaced in the catalog UI. */}
+                surfaced in the catalog UI.
+                R85 (R67 fix) — "View full page" link, but ONLY for
+                vendors that actually have a landing page (auto for
+                app-<id> ids; the static seed catalog at lib/vendors.ts
+                doesn't have per-vendor pages). */}
+            {vendor.id.startsWith("app-") && (
+              <Link
+                href={`/vendor/${encodeURIComponent(vendor.id)}`}
+                className="text-xs inline-flex items-center gap-1.5 py-1.5 px-3 rounded-full transition hover:translate-y-[-1px]"
+                style={{
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+              >
+                לדף המלא ↗
+              </Link>
+            )}
           </div>
 
           <div className="mt-3 flex items-center gap-4 flex-wrap text-sm" style={{ color: "var(--foreground-soft)" }}>

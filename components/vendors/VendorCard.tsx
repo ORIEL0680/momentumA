@@ -26,8 +26,12 @@ import {
 } from "lucide-react";
 import { actions } from "@/lib/store";
 import { vendorImageFor } from "@/lib/images";
-import { safeHttpUrl } from "@/lib/safeUrl";
 import { REGION_LABELS, VENDOR_TYPE_LABELS, type Vendor } from "@/lib/types";
+import {
+  buildInstagramUrl,
+  buildFacebookUrl,
+  buildWebsiteUrl,
+} from "@/lib/socialHandles";
 import { FacebookGlyph, InstagramGlyph } from "./typeIcons";
 
 // R70 (R59) — `has_saved_vendor` localStorage gate. Read via
@@ -338,14 +342,12 @@ function VendorCardImpl({
 }
 
 function SocialRow({ vendor }: { vendor: Vendor }) {
-  const igHandle = vendor.instagram?.replace(/^@/, "");
-  const igUrl = igHandle ? safeHttpUrl(`https://instagram.com/${encodeURIComponent(igHandle)}`) : undefined;
-  const fbUrl = vendor.facebook
-    ? vendor.facebook.startsWith("http")
-      ? safeHttpUrl(vendor.facebook)
-      : safeHttpUrl(`https://facebook.com/${encodeURIComponent(vendor.facebook)}`)
-    : undefined;
-  const webUrl = safeHttpUrl(vendor.website);
+  // R85 (R67 fix) — all three URLs through the central normalizer
+  // (lib/socialHandles). Replaces the old naive prepend that broke
+  // when a vendor pasted a full URL into the handle field.
+  const igUrl = buildInstagramUrl(vendor.instagram) ?? undefined;
+  const fbUrl = buildFacebookUrl(vendor.facebook) ?? undefined;
+  const webUrl = buildWebsiteUrl(vendor.website) ?? undefined;
   if (!igUrl && !fbUrl && !webUrl) return null;
   return (
     <div className="mt-3 flex items-center gap-1.5" data-no-quicklook onClick={(e) => e.stopPropagation()}>

@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { fetchVendorBySlug, getVendorPhotoUrl } from "@/lib/vendorStudio";
+import {
+  fetchApprovedApplication,
+  isAutoLandingSlug,
+} from "@/lib/vendorAutoLanding";
+import { VENDOR_CATEGORIES } from "@/lib/vendorApplication";
 import { jsonLdSafe } from "@/lib/jsonLdSafe";
 import { VendorLandingClient } from "@/components/vendor-studio/VendorLandingClient";
+import { VendorAutoLanding } from "@/components/vendors/VendorAutoLanding";
 import { VendorChatLauncher } from "@/components/chat/VendorChatLauncher";
 
 /**
@@ -24,6 +30,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // the DB. Otherwise we'd build a partially-formed JSON-LD with "/vendor/"
   // as the canonical URL.
   if (!slug?.trim()) return { title: "ספק לא נמצא — Momentum" };
+
+  // R85 (R67 fix) — auto landings for approved applications (slug
+  // prefix `app-`) get their own lightweight metadata so the catalog
+  // card's link → real page works without 404s, and OG previews look
+  // clean when shared.
+  if (isAutoLandingSlug(slug)) {
+    const v = await fetchApprovedApplication(slug);
+    if (!v) return { title: "ספק לא נמצא — Momentum" };
+    const cat = VENDOR_CATEGORIES.find((c) => c.id === v.category)?.label;
+    return {
+      title: `${v.business_name} — ${cat ?? "ספק"}${v.city ? ` ב-${v.city}` : ""} | Momentum`,
+      description: (v.about ?? `${v.business_name} — ספק מאומת ב-Momentum.`).slice(0, 160),
+      alternates: { canonical: `/vendor/${slug}` },
+      openGraph: {
+        title: v.business_name,
+        description: (v.about ?? "").slice(0, 200),
+        type: "website",
+        locale: "he_IL",
+      },
+    };
+  }
 
   const vendor = await fetchVendorBySlug(slug);
   if (!vendor) return { title: "ספק לא נמצא — Momentum" };
@@ -74,6 +101,17 @@ export default async function VendorLandingPage({ params }: PageProps) {
   // R11 P0 #1 — same guard as generateMetadata. notFound() throws, which
   // Next handles by rendering the 404 page.
   if (!slug?.trim()) notFound();
+
+  // R85 (R67 fix) — auto-landing path: slug shaped like `app-<uuid>`
+  // is an approved vendor application. Render the mini landing
+  // component, which is server-rendered + reads ONLY public-safe
+  // columns via the service-role helper.
+  if (isAutoLandingSlug(slug)) {
+    const autoVendor = await fetchApprovedApplication(slug);
+    if (!autoVendor) notFound();
+    return <VendorAutoLanding vendor={autoVendor} />;
+  }
+
   const vendor = await fetchVendorBySlug(slug);
   if (!vendor) notFound();
 
