@@ -112,17 +112,48 @@ export default async function ShortInvitePage({
   // redirect() throws NEXT_REDIRECT — must run outside any try/catch.
   if (safePath) redirect(safePath);
 
+  // R90 (R73) — diagnostic logging. Previous copy claimed "פג תוקף"
+  // (expired) even though THE TABLE HAS NO `expires_at` COLUMN and the
+  // lookup RPC has no time check. The real reasons we fall through to
+  // this branch are:
+  //   • Token not present in `short_links` (event was hard-deleted, or
+  //     the URL was mistyped, or the host shared a link that was never
+  //     persisted because Supabase was offline at create time).
+  //   • RPC returned an error (env mis-config / RLS hiccup).
+  //   • The returned `long_path` failed the safeRedirectPath regex
+  //     (which would indicate a corrupted DB row).
+  // Logging the specific branch makes the next round trivial.
+  console.warn("[invite/short] lookup miss", {
+    token: token.slice(0, 4) + "…",
+    lookupReturnedNull: longPath === null,
+    pathRejectedBySafetyRegex: !!longPath && !safePath,
+    longPathPrefix: longPath ? longPath.slice(0, 12) : null,
+  });
+
   return (
-    <main className="min-h-screen flex items-center justify-center px-5">
+    <main className="min-h-screen flex items-center justify-center px-5 bg-[var(--background)]">
       <div className="card p-8 text-center max-w-md">
-        <div className="text-4xl">💌</div>
-        <h1 className="mt-4 text-xl font-bold">ההזמנה הזאת פגה תוקף</h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
-          ייתכן שהקישור הוחלף או שהאירוע כבר עבר. בקשו מהמארחים קישור עדכני.
+        <div className="text-5xl mb-2" aria-hidden>💌</div>
+        <h1 className="mt-4 text-2xl font-bold gradient-gold-shimmer">
+          ההזמנה לא נמצאה
+        </h1>
+        <p
+          className="mt-3 text-sm leading-relaxed"
+          style={{ color: "var(--foreground-soft)" }}
+        >
+          ייתכן שהקישור הוקלד שגוי, או שהאירוע הוסר על-ידי המארחים.
+          נסו לפתוח את הקישור שוב — אם הבעיה ממשיכה, בקשו מהזוג קישור
+          חדש.
+        </p>
+        <p
+          className="mt-5 text-[11px] font-mono ltr-num"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          ref: {token.slice(0, 8)}
         </p>
         <Link
           href="/"
-          className="text-xs underline mt-4 inline-block"
+          className="text-xs underline mt-5 inline-block"
           style={{ color: "var(--foreground-muted)" }}
         >
           חזרה לדף הבית
