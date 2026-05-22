@@ -2,6 +2,7 @@
 
 import { memo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 
 // Module-scope counter — guarantees uniqueness even when two floaters
@@ -93,8 +94,16 @@ function VendorCardImpl({
   onOpenQuickLook,
 }: VendorCardProps) {
   const reducedMotion = useReducedMotion();
+  const router = useRouter();
   const meshClass = `mesh-${(meshIndex % 6) + 1}`;
   const imageUrl = vendorImageFor(vendor.type, meshIndex);
+
+  // R95 — every approved-vendor card has its own /vendor/<id> landing
+  // page (built in R85). Click should open that page directly. The
+  // QuickLook modal is preserved as a fallback for static-seed entries
+  // (lib/vendors.ts was emptied in R94, but if any future entry has
+  // an id NOT starting with "app-", we still pop the modal).
+  const hasLandingPage = vendor.id.startsWith("app-");
 
   // "+1" floaters that bubble up from the trophy/heart on click.
   // Ids must be unique even within the same millisecond — two simultaneous
@@ -146,16 +155,26 @@ function VendorCardImpl({
     actions.toggleCompareVendor(vendor.id);
     if (!inCompare) emitFloater("compare");
   };
+  const openVendor = () => {
+    // R95 — primary action: navigate to the dedicated mini landing
+    // page. Falls back to QuickLook modal for any legacy / static
+    // vendor that doesn't have its own page yet.
+    if (hasLandingPage) {
+      router.push(`/vendor/${encodeURIComponent(vendor.id)}`);
+    } else {
+      onOpenQuickLook(vendor);
+    }
+  };
   const handleCardClick = (e: React.MouseEvent) => {
-    // Only open quick look if the click isn't on an interactive child.
+    // Only navigate if the click isn't on an interactive child.
     const target = e.target as HTMLElement;
     if (target.closest("button, a, [data-no-quicklook]")) return;
-    onOpenQuickLook(vendor);
+    openVendor();
   };
   const handleCardKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      onOpenQuickLook(vendor);
+      openVendor();
     }
   };
 
