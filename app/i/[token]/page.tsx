@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { lookupShortLink } from "@/lib/shortLinks";
+// R91 (R73 fix) — server-side variant. The original `lookupShortLink`
+// imports a client-only `getSupabase`; Next 16 + Turbopack threw the
+// boundary violation silently and every guest saw "not found".
+import { lookupShortLinkServer } from "@/lib/shortLinks/server";
 import { lookupEventByToken } from "@/lib/invitationLookup";
 import { EVENT_TYPE_LABELS } from "@/lib/types";
 import { formatEventDate } from "@/lib/format";
@@ -106,7 +109,7 @@ export default async function ShortInvitePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const longPath = await lookupShortLink(token);
+  const longPath = await lookupShortLinkServer(token);
   const safePath = safeRedirectPath(longPath);
 
   // redirect() throws NEXT_REDIRECT — must run outside any try/catch.

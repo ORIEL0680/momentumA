@@ -1,6 +1,13 @@
 import type { EventType } from "@/lib/types";
 import { decodeInvitation } from "@/lib/invitation";
-import { lookupShortLink } from "@/lib/shortLinks";
+// R91 (R73 fix) — module is documented as server-side (used by the
+// /i page + the OG image route). The original `lookupShortLink`
+// transitively imports the client-only Supabase singleton via
+// `"use client"`, and Next 16's strict boundary check turned that
+// into a thrown error caught here (returning null → "not found"
+// page for every guest). Server variant constructs its own anon
+// client and stays out of the client bundle.
+import { lookupShortLinkServer } from "@/lib/shortLinks/server";
 
 /**
  * R28 — resolve a short invitation id to displayable event details,
@@ -38,7 +45,7 @@ export async function lookupEventByToken(
   // errors, but decodeInvitation / URL parsing must not throw out of
   // here either (this runs in the OG/server path).
   try {
-    const longPath = await lookupShortLink(token);
+    const longPath = await lookupShortLinkServer(token);
     if (!longPath) return null;
 
     const d = payloadFromPath(longPath);
