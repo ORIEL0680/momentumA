@@ -183,7 +183,19 @@ export function Header() {
     userActions.signOutAndRedirect("/");
   };
 
-  const headerHome = hydrated && user ? "/dashboard" : "/";
+  // R89 — was `hydrated && user ? "/dashboard" : "/"`. The
+  // hydrated/user pair briefly flips back to false during route
+  // transitions, which meant clicking the logo from /balance (or any
+  // inner page) sometimes sent the user to the landing page instead
+  // of the dashboard — exactly the bug reported.
+  //
+  // Pathname-based check is deterministic: if you're already on the
+  // landing page, the logo just refreshes it (no jarring nav). From
+  // anywhere else, it goes to /dashboard. Anon users on /signup,
+  // /vendors, etc. who somehow click the logo go through /dashboard,
+  // which has its own auth gate that bounces them to /signup — no
+  // worse than the previous behaviour.
+  const headerHome = pathname === "/" ? "/" : "/dashboard";
 
   return (
     <header
