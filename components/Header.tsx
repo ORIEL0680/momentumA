@@ -243,21 +243,11 @@ export function Header() {
           {hydrated && user ? (
             <>
               <ChatBell />
-              {/* Mobile event countdown — compact form, only when no
-                  multi-event switcher is needed. */}
-              {validEventDate && days != null && (
-                <span
-                  className="md:hidden text-xs font-bold ltr-num px-2 py-1 rounded-full"
-                  style={{
-                    color: "var(--accent)",
-                    background:
-                      "color-mix(in srgb, var(--accent) 12%, transparent)",
-                  }}
-                  aria-label={`${days} ימים לאירוע`}
-                >
-                  {days}י׳
-                </span>
-              )}
+              {/* R88 (R70-2) — the mobile compact `Nי׳` countdown chip
+                  was removed: it duplicated the center EventChip on
+                  larger screens and competed visually with the big
+                  countdown on /dashboard's IntimateHero. The single
+                  remaining countdown is the center EventChip (≥ md). */}
               <AvatarMenu
                 name={user.name}
                 isAdmin={isAdmin}

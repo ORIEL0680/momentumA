@@ -39,8 +39,12 @@ export function Logo({ className = "", size = 28 }: { className?: string; size?:
         />
         <circle cx="28" cy="23" r="1.8" fill="url(#lg-gold)" />
       </svg>
+      {/* R88 (R70-1) — wordmark is gold (gradient-gold-shimmer) instead
+          of inheriting the foreground colour. The class lives in
+          globals.css with theme-aware --gold-* tokens and a reduced-
+          motion fallback that freezes the gradient (never disappears). */}
       <span
-        className="font-bold tracking-tight"
+        className="gradient-gold-shimmer font-extrabold tracking-tight"
         style={{ fontSize: size * 0.72, letterSpacing: "-0.02em" }}
       >
         Momentum
