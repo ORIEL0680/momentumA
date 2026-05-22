@@ -502,7 +502,11 @@ function AuthModeTabs({
               background: active
                 ? "linear-gradient(135deg, var(--gold-300), var(--gold-500))"
                 : "transparent",
-              color: active ? "#0A0A0F" : "var(--foreground-soft)",
+              // R88 (R71) — gold-button-text flips automatically: dark
+              // on a gold background in dark mode (#1A1208), light on
+              // the deeper light-mode gold (#FFFFFF). Was hardcoded
+              // dark, illegible on light-mode gold.
+              color: active ? "var(--gold-button-text)" : "var(--foreground-soft)",
               boxShadow: active ? "0 4px 12px -4px var(--accent-glow)" : "none",
             }}
           >

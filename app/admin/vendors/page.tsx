@@ -561,7 +561,8 @@ function ApprovedVendorRow({
             className="absolute end-0 top-full mt-2 min-w-[200px] rounded-xl z-30 py-1 overflow-hidden"
             style={{
               background:
-                "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+                // R88 (R71) — theme-aware. Light mode flips automatically.
+                "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
               border: "1px solid var(--border-gold)",
               boxShadow: "0 16px 40px -16px rgba(0,0,0,0.55)",
             }}

@@ -66,7 +66,9 @@ export function IntimateHero({
         // around 340px even with the largest segment sizes.
         minHeight: "min(48vh, 340px)",
         background:
-          "radial-gradient(140% 80% at 50% -20%, rgba(212,176,104,0.22), transparent 60%), linear-gradient(180deg, #0E0B07 0%, #07060A 100%)",
+          // R88 (R71) — theme-aware. Was hardcoded dark gradient
+          // (#0E0B07 → #07060A) that stayed dark in light mode.
+          "radial-gradient(140% 80% at 50% -20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2) 0%, var(--background) 100%)",
         border: "1px solid var(--border-gold)",
         // Subtle inset gold ring + lifted drop shadow — extra "card"
         // depth without growing the footprint.

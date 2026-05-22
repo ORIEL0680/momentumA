@@ -403,6 +403,24 @@ body {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+/* R88 (R71) — light-mode override. The dark-mode gradient goes from
+   light gold (#E9CB87) → deep gold (#7A6233) → back, which on a
+   white background bottoms out at the light end and reads as
+   transparent. Force the WHOLE gradient into the deep-tone range so
+   the wordmark stays readable on FAFAF7. */
+:root[data-theme="light"] .gradient-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--gold-500) 0%,
+    var(--gold-600) 50%,
+    var(--gold-500) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
 @media (prefers-reduced-motion: reduce) {
   .gradient-gold-shimmer { animation: none; }
 }

@@ -74,7 +74,10 @@ export function VendorAutoLanding({
           className="relative overflow-hidden"
           style={{
             background:
-              "radial-gradient(120% 80% at 50% 0%, rgba(212,176,104,0.18), transparent 60%), linear-gradient(180deg, #0B090F 0%, #07060A 100%)",
+              // R88 (R71) — theme-aware hero gradient. The gold halo
+              // stays gold; the under-layer flips between dark and
+              // light via --background / --background-2.
+              "radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2) 0%, var(--background) 100%)",
           }}
         >
           {/* Soft floating gold orb. */}
@@ -334,14 +337,16 @@ export function VendorAutoLanding({
         <div
           className="md:hidden fixed inset-x-0 bottom-0 z-40 px-3 pb-3 pt-2"
           style={{
+            // R88 (R71) — theme-aware. Both were hardcoded dark and
+            // looked wrong against a light-mode page.
             background:
-              "linear-gradient(180deg, transparent, rgba(10,10,15,0.92) 40%)",
+              "linear-gradient(180deg, transparent, color-mix(in srgb, var(--background) 92%, transparent) 40%)",
           }}
         >
           <div
             className="grid grid-cols-2 gap-2 rounded-2xl p-2"
             style={{
-              background: "rgba(10,10,15,0.92)",
+              background: "color-mix(in srgb, var(--background) 92%, transparent)",
               backdropFilter: "blur(18px)",
               WebkitBackdropFilter: "blur(18px)",
               border: "1px solid var(--border-gold)",

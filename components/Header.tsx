@@ -191,11 +191,22 @@ export function Header() {
         scrolled ? "header-scrolled" : ""
       }`}
       style={{
-        background: scrolled ? "rgba(10,10,15,0.92)" : "rgba(10,10,15,0.7)",
+        // R88 (R71) — was hardcoded `rgba(10,10,15,…)` (dark even in
+        // light mode → unreadable header on light pages). Now uses
+        // color-mix on --background which flips automatically with
+        // [data-theme="light"]. The glass-strong / glass-bg CSS vars
+        // also vary by theme (defined in globals.css), but we want a
+        // slightly more opaque background here to hide content as the
+        // user scrolls.
+        background: scrolled
+          ? "color-mix(in srgb, var(--background) 92%, transparent)"
+          : "color-mix(in srgb, var(--background) 72%, transparent)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
         borderBottom: "1px solid var(--border-gold)",
-        boxShadow: scrolled ? "0 2px 20px rgba(0,0,0,0.3)" : "none",
+        boxShadow: scrolled
+          ? "0 2px 20px color-mix(in srgb, var(--foreground) 12%, transparent)"
+          : "none",
       }}
     >
       {/* ─── Tier 1 — Brand bar (h-14) ─── */}
@@ -331,7 +342,7 @@ export function Header() {
                 className="absolute end-0 top-full mt-2 min-w-[220px] rounded-2xl z-[60] py-1.5 overflow-hidden"
                 style={{
                   background:
-                    "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+                    "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
                   border: "1px solid var(--border-gold)",
                   boxShadow: "0 20px 60px -20px rgba(0,0,0,0.55)",
                 }}
@@ -424,7 +435,9 @@ export function Header() {
         <div
           className="md:hidden w-full"
           style={{
-            background: "rgba(10,10,15,0.97)",
+            // R88 (R71) — theme-aware. Was `rgba(10,10,15,0.97)` =
+            // dark in both themes; now flips via --background.
+            background: "color-mix(in srgb, var(--background) 97%, transparent)",
             borderTop: "1px solid var(--border)",
           }}
         >
@@ -620,7 +633,7 @@ function AvatarMenu({
           role="menu"
           className="absolute end-0 top-full mt-2 w-64 rounded-2xl z-[60] overflow-hidden"
           style={{
-            background: "linear-gradient(170deg, #1A1A1F 0%, #0A0A0F 100%)",
+            background: "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
             border: "1px solid var(--border-gold)",
             boxShadow: "0 20px 60px -20px rgba(0,0,0,0.55)",
           }}
