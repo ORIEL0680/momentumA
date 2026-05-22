@@ -36,8 +36,6 @@ import { CategoryRail } from "@/components/vendors/CategoryRail";
 import { SelectedBar } from "@/components/vendors/CompareBar";
 import { ActiveFilterPills } from "@/components/vendors/ActiveFilterPills";
 import { VendorQuickLook } from "@/components/vendors/VendorQuickLook";
-// VendorSkeletonGrid is defined for future paginated/virtualized loads; kept
-// out of imports here so the linter doesn't flag an unused import.
 
 /** Persisted filter state — restored on next visit so users don't lose context. */
 const FILTER_STORAGE_KEY = "momentum.vendors_filter.v1";
