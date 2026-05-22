@@ -128,9 +128,18 @@ function GuestsPageInner() {
       contacts?: { select: (props: string[], opts?: { multiple?: boolean }) => Promise<Array<{ name?: string[]; tel?: string[] }>> };
     };
     const nav = navigator as ContactPickerNavigator;
+    // R92 (R74) — every "doesn't work / failed" branch USED to leave
+    // the user with a toast and no next step. iPhone Safari users were
+    // hitting this constantly. Now: when the Contacts API isn't
+    // available OR a non-cancellation error fires, we transparently
+    // open the paste-list UI (which works everywhere) with a brief
+    // explanatory toast — no dead end.
     if (!nav.contacts?.select) {
-      setImportMsg("ייבוא אנשי קשר נתמך כרגע רק בכרום על אנדרואיד / iOS. אפשר להוסיף ידנית במקום.");
-      setTimeout(() => setImportMsg(null), 5000);
+      setPasteOpen(true);
+      setImportMsg(
+        "המכשיר שלך לא תומך בייבוא ישיר מאנשי הקשר. במקום — הדבק רשימה (מ-WhatsApp, אקסל, או כל מקום).",
+      );
+      setTimeout(() => setImportMsg(null), 6000);
       return;
     }
     setImportBusy(true);
@@ -155,8 +164,14 @@ function GuestsPageInner() {
       // User cancelled or denied permission — keep the message friendly.
       const msg = err instanceof Error ? err.message : String(err);
       if (!/cancel|abort/i.test(msg)) {
-        setImportMsg("הייבוא נכשל. נסה שוב או הוסף ידנית.");
-        setTimeout(() => setImportMsg(null), 4000);
+        // R92 (R74) — was "הייבוא נכשל. נסה שוב או הוסף ידנית."
+        // (toast + dead end). Now: open the paste UI immediately so
+        // the user has a working alternative without re-clicking.
+        setPasteOpen(true);
+        setImportMsg(
+          "הייבוא ישיר לא עבד הפעם. במקום — הדבק רשימה כאן.",
+        );
+        setTimeout(() => setImportMsg(null), 6000);
       }
     } finally {
       setImportBusy(false);
@@ -310,14 +325,31 @@ function GuestsPageInner() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <PrintButton label="ייצא רשימה ל-PDF" />
+              {/* R92 (R74) — single button, branches by platform. On
+                  Chrome-Android (contactsSupported) it tries the
+                  native picker; on iPhone Safari / Desktop / Firefox
+                  it opens the paste-list panel directly. No "not
+                  supported" dead end anywhere. */}
               <button
-                onClick={importFromContacts}
+                onClick={
+                  contactsSupported
+                    ? importFromContacts
+                    : () => setPasteOpen(true)
+                }
                 disabled={importBusy}
                 className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50"
-                title="ייבוא מאנשי הקשר של הטלפון (כרום על מובייל)"
+                title={
+                  contactsSupported
+                    ? "ייבוא מאנשי הקשר של הטלפון"
+                    : "הדבק רשימה מ-WhatsApp, אקסל, או כל מקום"
+                }
               >
                 <BookUser size={18} />
-                {importBusy ? "מייבא..." : "ייבוא מאנשי קשר"}
+                {importBusy
+                  ? "מייבא..."
+                  : contactsSupported
+                    ? "ייבוא מאנשי קשר"
+                    : "ייבוא רשימה"}
               </button>
               {stats.expressEligible > 0 && (
                 <button
@@ -349,6 +381,74 @@ function GuestsPageInner() {
           {importMsg && (
             <div className="mt-4 card p-3 text-sm" style={{ borderColor: "var(--border-gold)", background: "rgba(212,176,104,0.08)", color: "var(--foreground-soft)" }}>
               {importMsg}
+            </div>
+          )}
+
+          {/* R92 (R74) — toolbar-level paste panel. The empty-state has
+              its own copy of this UI for first-visit users; this one
+              kicks in when the user already has guests AND clicks the
+              "ייבוא רשימה" button (or when the Contacts API failed and
+              we routed them here as a fallback). Toggleable, with a
+              small "סגור" so the user can dismiss if they opened it
+              by mistake. */}
+          {pasteOpen && (
+            <div
+              className="mt-4 card p-4"
+              style={{ borderColor: "var(--border-gold)" }}
+            >
+              <div className="flex items-center justify-between mb-2 gap-3">
+                <div>
+                  <h3 className="font-bold text-sm">ייבוא רשימת מוזמנים</h3>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    שורה לכל מוזמן —{" "}
+                    <span className="ltr-num">שם, 050-1234567</span>. תומך
+                    בהדבקה מ-WhatsApp, אקסל, או טקסט חופשי.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasteOpen(false);
+                    setPasteText("");
+                  }}
+                  className="text-xs underline shrink-0"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  סגור
+                </button>
+              </div>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={6}
+                className="input w-full text-sm"
+                placeholder={"דנה כהן, 0501234567\nיוסי לוי, 0529876543\nשירה גלעד 054-111-2222"}
+                autoFocus
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span
+                  className="text-xs ltr-num"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  {pasteText.split(/\r?\n/).filter((l) => l.trim()).length}{" "}
+                  שורות
+                </span>
+                <button
+                  type="button"
+                  onClick={handlePasteImport}
+                  disabled={!pasteText.trim()}
+                  className="btn-gold py-2.5 px-5 text-sm disabled:opacity-50"
+                >
+                  ייבא{" "}
+                  {pasteText
+                    .split(/\r?\n/)
+                    .filter((l) => l.trim()).length || ""}{" "}
+                  מוזמנים
+                </button>
+              </div>
             </div>
           )}
 
