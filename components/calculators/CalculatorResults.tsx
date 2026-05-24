@@ -40,8 +40,6 @@ function DonutChart({
   const cx = 100;
   const cy = 100;
   const strokeW = 22;
-  const circ = 2 * Math.PI * R;
-
   // Build arc segments
   const segments = useMemo(() => {
     let offset = -Math.PI / 2; // start at 12 o'clock
@@ -259,6 +257,36 @@ export function CalculatorResults({
                 : "🟡 בדיוק בממוצע"}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * R76 — small banner shown above calculator inputs when values were
+ * auto-prefilled from the event. Pass an onReset callback if the user
+ * should be able to revert to the auto-filled values.
+ */
+export function PrefillBanner({ onReset }: { onReset?: () => void }) {
+  return (
+    <div
+      className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm"
+      style={{
+        background: "color-mix(in srgb, var(--gold-100) 10%, transparent)",
+        border: "1px solid var(--border-gold)",
+      }}
+    >
+      <span style={{ color: "var(--foreground-muted)" }}>
+        💡 הערכים מולאו אוטומטית מהאירוע שלכם
+      </span>
+      {onReset && (
+        <button
+          onClick={onReset}
+          className="text-xs underline shrink-0 mr-3"
+          style={{ color: "var(--accent)" }}
+        >
+          🔄 איפוס
+        </button>
       )}
     </div>
   );

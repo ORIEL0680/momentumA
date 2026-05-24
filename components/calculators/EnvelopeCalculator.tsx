@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CalculatorActions } from "./CalculatorActions";
 import {
   calcEnvelopeFromState,
   calcEnvelope,
@@ -128,6 +129,17 @@ export function EnvelopeCalculator({ state }: { state: AppState }) {
           data yet (the user can plan envelope intake before logging any
           budget items). totalCost falls back to 0 cleanly. */}
       <RelationshipCalculator totalCost={envelope.totalCost} />
+      {/* R76 — actions */}
+      <CalculatorActions
+        result={{
+          total: envelope.totalCost,
+          breakdown: [
+            { category: "כיסוי מלא", value: envelope.breakEven * envelope.guestCount, color: "#D4B068" },
+            { category: "עלות האירוע", value: envelope.totalCost, color: "#A8884A" },
+          ].filter((b) => b.value > 0),
+        }}
+        calculatorName="מחשבון מעטפה"
+      />
     </div>
   );
 }

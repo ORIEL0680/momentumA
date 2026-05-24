@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, Check, X, Minus, Plus, Star } from "lucide-react";
+import { CalculatorActions } from "./CalculatorActions";
+import { PrefillBanner } from "./CalculatorResults";
 import type { AppState } from "@/lib/types";
 import { getSupabase } from "@/lib/supabase";
 import { MoneyInput, parseMoney } from "@/components/inputs/MoneyInput";
@@ -125,6 +127,10 @@ export function AiPackagesCalculator({ state }: { state: AppState }) {
 
   return (
     <div>
+      {/* R76 — prefill notice */}
+      <div className="mb-4">
+        <PrefillBanner />
+      </div>
       {/* ── Input form ── */}
       <div
         className="rounded-3xl p-5 md:p-6"
@@ -288,6 +294,33 @@ export function AiPackagesCalculator({ state }: { state: AppState }) {
           </div>
         </div>
       )}
+
+      {/* R76 — actions when a result is available */}
+      {status === "done" && result && (() => {
+        const pkg = result.packages.find((p) => p.name === active) ?? result.packages[0];
+        if (!pkg) return null;
+        const bd = pkg.breakdown as unknown as Record<string, number>;
+        const pkgTotal = Object.values(bd).reduce((a, b) => a + b, 0);
+        const colors: Record<string, string> = {
+          food: "#E8B4B8", venue: "#D4B068", music: "#7CB9E8",
+          photography: "#A8884A", decor: "#B8784A", alcohol: "#8B4513",
+        };
+        return (
+          <CalculatorActions
+            result={{
+              total: pkgTotal,
+              breakdown: Object.entries(bd)
+                .map(([k, v]) => ({
+                  category: BREAKDOWN_LABELS[k] ?? k,
+                  value: v,
+                  color: colors[k] ?? "#80745A",
+                }))
+                .filter((b) => b.value > 0),
+            }}
+            calculatorName={pkg.name}
+          />
+        );
+      })()}
     </div>
   );
 }

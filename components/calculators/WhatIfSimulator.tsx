@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, Save, Check, Plane, Home, Camera } from "lucide-react";
 import type { AppState } from "@/lib/types";
+import { CalculatorActions } from "./CalculatorActions";
+import { PrefillBanner } from "./CalculatorResults";
 import { useCountUp } from "@/lib/useCountUp";
 import {
   simulate,
+  breakdownOf,
   impactHint,
   VENUE_TIER_LABELS,
   MEAL_OPTION_LABELS,
@@ -69,6 +72,20 @@ export function WhatIfSimulator({ state }: { state: AppState }) {
   );
   const totalShek = useCountUp(shek(result.total_event), 900);
 
+  // R76 — breakdown for CalculatorActions share/save
+  const actionBreakdown = useMemo(() => {
+    const bd = breakdownOf(inputs);
+    const shk = (a: number) => Math.round(a / 100);
+    return [
+      { category: "אולם", value: shk(bd.venue), color: "#D4B068" },
+      { category: "קייטרינג", value: shk(bd.catering), color: "#E8B4B8" },
+      { category: "אלכוהול", value: shk(bd.bar), color: "#8B4513" },
+      { category: "צילום", value: shk(bd.photography), color: "#A8884A" },
+      { category: "עיצוב ופרחים", value: shk(bd.decoration), color: "#B8784A" },
+      { category: "הזמנות", value: shk(bd.invitations), color: "#C9A961" },
+    ].filter(b => b.value > 0);
+  }, [inputs]);
+
   // Gold flash on improve / red flash on more-expensive.
   useEffect(() => {
     const d = result.delta_from_baseline;
@@ -121,6 +138,8 @@ export function WhatIfSimulator({ state }: { state: AppState }) {
         {/* ── Controls ── */}
         <div className="space-y-6">
           <h3 className="text-lg md:text-xl font-bold">🎚️ מעבדת התקציב</h3>
+          {/* R76 — prefill notice */}
+          <PrefillBanner onReset={() => setInputs(baseline)} />
 
           {/* Guests slider */}
           <div>
@@ -353,6 +372,10 @@ export function WhatIfSimulator({ state }: { state: AppState }) {
           )}
         </div>
       </div>
+      <CalculatorActions
+        result={{ total: shek(result.total_event), breakdown: actionBreakdown }}
+        calculatorName="מעבדת התקציב"
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Share2, Lightbulb, Users } from "lucide-react";
+import { CalculatorActions } from "./CalculatorActions";
 import Link from "next/link";
 import type { AppState } from "@/lib/types";
 import { useCountUp } from "@/lib/useCountUp";
@@ -239,6 +240,21 @@ export function RealCostPerGuestCard({ state }: { state: AppState }) {
             </div>
           ))}
         </div>
+
+        {/* R76 — actions: save to budget / share / compare / print */}
+        <CalculatorActions
+          result={{
+            total: effPerGuest > 0 ? Math.round(result.total_event / 100) : 0,
+            breakdown: COST_BUCKET_META
+              .map((m) => ({
+                category: m.label,
+                value: Math.round(result.breakdown[m.key] / 100),
+                color: m.color,
+              }))
+              .filter((b) => b.value > 0),
+          }}
+          calculatorName="כמה אורח עולה"
+        />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CalculatorActions } from "./CalculatorActions";
 import { useAppState } from "@/lib/store";
 import {
   calculateAlcohol,
@@ -889,6 +890,20 @@ export function AlcoholCalculator() {
           </div>
         )}
       </section>
+
+      {/* R76 — save / share / compare / print */}
+      <CalculatorActions
+        result={{
+          total: effectiveTotal,
+          breakdown: [
+            { category: "יין", value: result.wine.cost, color: "#D4B068" },
+            { category: "בירה", value: result.beer.cost, color: "#C9A961" },
+            { category: "חריפים", value: result.spirits.cost, color: "#8B4513" },
+            { category: "שתייה קלה", value: result.soft.cost, color: "#7CB9E8" },
+          ].filter((b) => b.value > 0),
+        }}
+        calculatorName="מחשבון אלכוהול"
+      />
     </div>
   );
 }

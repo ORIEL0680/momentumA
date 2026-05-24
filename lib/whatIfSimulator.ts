@@ -108,6 +108,31 @@ export function priceOf(inputs: SimulationInputs): number {
   return venue + meal + bar + photo + decor + invitations + extras;
 }
 
+
+export interface SimulationBreakdown {
+  venue: number;  // agorot
+  catering: number;
+  bar: number;
+  photography: number;
+  decoration: number;
+  invitations: number;
+}
+
+export function breakdownOf(inputs: SimulationInputs): SimulationBreakdown {
+  const g = Math.max(1, inputs.guests);
+  const venue =
+    VENUE_MODEL[inputs.venueTier].base +
+    VENUE_MODEL[inputs.venueTier].perGuest * g;
+  const catering = MEAL_PER_GUEST[inputs.mealOption] * g;
+  const bar = BAR_PER_GUEST_HOUR * inputs.barHours * g;
+  const photography =
+    PHOTO_MODEL[inputs.photoTier] +
+    inputs.photoExtras.reduce((a, e) => a + PHOTO_EXTRA_MODEL[e], 0);
+  const decoration = DECOR_PER_GUEST[inputs.decorTier] * g;
+  const invitations = INVITATION_MODEL[inputs.invitationTier];
+  return { venue, catering, bar, photography, decoration, invitations };
+}
+
 export function simulate(
   inputs: SimulationInputs,
   baseline: SimulationInputs,
