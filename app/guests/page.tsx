@@ -511,7 +511,15 @@ function GuestsPageInner() {
                   אורחים לא יוכלו להחזיר תשובה אוטומטית בוואטסאפ ללא טלפון שלך.
                 </div>
               </div>
-              <Link href="/onboarding?edit=1" className="text-xs rounded-full px-3 py-1.5 inline-flex items-center gap-1 shrink-0" style={{ border: "1px solid var(--border-strong)", color: "var(--accent)" }}>
+              <Link
+                href="/onboarding?edit=1"
+                className="text-xs rounded-full px-3 inline-flex items-center gap-1 shrink-0"
+                style={{
+                  border: "1px solid var(--border-strong)",
+                  color: "var(--accent)",
+                  minHeight: 36,
+                }}
+              >
                 הוסף טלפון
               </Link>
             </div>
@@ -963,20 +971,26 @@ function GuestRow({
 
           <div className="sm:col-span-2 flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={() => actions.setRsvp(guest.id, "confirmed", guest.attendingCount || 1)}
-              className="text-xs rounded-full border border-emerald-400/30 text-emerald-300 px-3 py-1.5 hover:bg-emerald-400/10"
+              className="text-xs rounded-full border border-emerald-400/30 text-emerald-300 px-3 hover:bg-emerald-400/10 inline-flex items-center"
+              style={{ minHeight: 36 }}
             >
               סמן כאישר
             </button>
             <button
+              type="button"
               onClick={() => actions.setRsvp(guest.id, "declined", 0)}
-              className="text-xs rounded-full border border-red-400/30 text-red-300 px-3 py-1.5 hover:bg-red-400/10"
+              className="text-xs rounded-full border border-red-400/30 text-red-300 px-3 hover:bg-red-400/10 inline-flex items-center"
+              style={{ minHeight: 36 }}
             >
               סמן כלא מגיע
             </button>
             <button
+              type="button"
               onClick={() => actions.removeGuest(guest.id)}
-              className="ms-auto text-xs rounded-full border border-white/10 text-white/60 px-3 py-1.5 hover:bg-white/5 inline-flex items-center gap-1.5"
+              className="ms-auto text-xs rounded-full border border-white/10 px-3 hover:bg-white/5 inline-flex items-center gap-1.5"
+              style={{ color: "var(--foreground-soft)", minHeight: 36 }}
             >
               <Trash2 size={12} /> מחק
             </button>
@@ -1027,12 +1041,23 @@ function QuickStatusButton({
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="hidden sm:inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition"
+      className="hidden sm:inline-flex items-center gap-1 rounded-full px-3 text-xs font-semibold transition"
       style={
         active
-          ? { background: styles.activeBg, color: styles.activeText, border: `1px solid ${styles.activeBg}` }
-          : { background: styles.idleBg, color: styles.idleColor, border: `1px solid ${styles.idleBorder}` }
+          ? {
+              background: styles.activeBg,
+              color: styles.activeText,
+              border: `1px solid ${styles.activeBg}`,
+              minHeight: 32,
+            }
+          : {
+              background: styles.idleBg,
+              color: styles.idleColor,
+              border: `1px solid ${styles.idleBorder}`,
+              minHeight: 32,
+            }
       }
       aria-pressed={active}
       title={`סמן ${label}`}

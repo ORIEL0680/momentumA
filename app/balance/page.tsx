@@ -186,11 +186,13 @@ export default function BalancePage() {
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={() => setShowVoice(true)}
-                  className="text-xs rounded-full px-3.5 py-1.5 inline-flex items-center gap-1.5 font-semibold transition shrink-0"
+                  className="text-xs rounded-full px-3.5 inline-flex items-center gap-1.5 font-semibold transition shrink-0"
                   style={{
                     background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
                     color: "var(--gold-button-text)",
+                    minHeight: 36,
                   }}
                 >
                   <Mic size={13} /> קלט קולי
@@ -199,11 +201,16 @@ export default function BalancePage() {
                 <FilterPill icon={<Check size={12} />} label="מולא" active={filter === "filled"} onClick={() => setFilter("filled")} />
                 <FilterPill icon={<Mail size={12} />} label="חסר" active={filter === "empty"} onClick={() => setFilter("empty")} />
                 <button
+                  type="button"
                   onClick={() => setSortByGiven((v) => !v)}
-                  className={`text-xs rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition ${
+                  className={`text-xs rounded-full px-3 inline-flex items-center gap-1.5 transition ${
                     sortByGiven ? "bg-[var(--secondary-button-bg-hover)]" : ""
                   }`}
-                  style={{ border: "1px solid var(--border)", color: sortByGiven ? "var(--accent)" : "var(--foreground-soft)" }}
+                  style={{
+                    border: "1px solid var(--border)",
+                    color: sortByGiven ? "var(--accent)" : "var(--foreground-soft)",
+                    minHeight: 36,
+                  }}
                 >
                   <ArrowDownUp size={12} /> מיין לפי סכום
                 </button>
@@ -330,12 +337,14 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 function FilterPill({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="text-xs rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition"
+      className="text-xs rounded-full px-3 inline-flex items-center gap-1.5 transition"
       style={{
         border: "1px solid var(--border)",
         background: active ? "var(--secondary-button-bg-hover)" : "transparent",
         color: active ? "var(--foreground)" : "var(--foreground-soft)",
+        minHeight: 36,
       }}
     >
       {icon} {label}

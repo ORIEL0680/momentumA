@@ -310,9 +310,14 @@ export function AssistantWidget() {
                 {suggestions.map((q) => (
                   <button
                     key={q}
+                    type="button"
                     onClick={() => void sendMessage(q)}
-                    className="text-[11px] rounded-full px-2.5 py-1 transition hover:bg-[var(--secondary-button-bg)]"
-                    style={{ border: "1px solid var(--border)", color: "var(--foreground-muted)" }}
+                    className="text-xs rounded-full px-3 transition hover:bg-[var(--secondary-button-bg)] inline-flex items-center"
+                    style={{
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground-muted)",
+                      minHeight: 32,
+                    }}
                   >
                     {q}
                   </button>

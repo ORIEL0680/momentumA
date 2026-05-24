@@ -262,7 +262,12 @@ export default function BudgetPage() {
           ) : (
             <div className="mt-8 space-y-4">
               {grouped.map(([cat, items]) => {
-                const catTotal = items.reduce((s, i) => s + (i.actual ?? i.estimated), 0);
+                // R98: triple-fallback — actual → estimated → 0 — so a row
+                // with neither set doesn't poison the category total with NaN.
+                const catTotal = items.reduce(
+                  (s, i) => s + (i.actual ?? i.estimated ?? 0),
+                  0,
+                );
                 return (
                   <div key={cat} className="card p-5">
                     <div className="flex items-center justify-between">
@@ -327,7 +332,8 @@ function BudgetRow({ item }: { item: BudgetItem }) {
     actions.updateBudgetItem(item.id, { paid: n });
   };
 
-  const value = item.actual ?? item.estimated;
+  // R98: triple-fallback so .toLocaleString() below never sees undefined.
+  const value = item.actual ?? item.estimated ?? 0;
   const paidAmount = item.paid ?? 0;
   const pct = value > 0 ? Math.min(100, (paidAmount / value) * 100) : 0;
 
