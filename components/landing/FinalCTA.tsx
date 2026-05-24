@@ -23,7 +23,10 @@ export function FinalCTA() {
             color: "var(--foreground-soft)",
           }}
         >
-          התחילו עכשיו — התחלה חינמית · ללא התחייבות. תוך 5 דקות יש לכם אירוע מנוהל.
+          {/* R96 (R75) — was "ללא התחייבות" doubled-up with later
+              guarantees. New copy is honest about the two pricing
+              models without over-promising. */}
+          התחילו בחינם — 50 מוזמנים, אירוע אחד. שדרוג ל-Pro כשהאירוע גדל. בלי הפתעות, בלי הסכמים מורכבים.
         </p>
 
         <div className="mt-10 flex justify-center">

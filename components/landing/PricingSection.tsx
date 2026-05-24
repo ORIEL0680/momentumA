@@ -176,13 +176,42 @@ export function PricingSection() {
           </div>
         </div>
 
-        <div
-          className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold"
-          style={{ color: "var(--foreground-soft)" }}
-        >
-          <span>✓ ביטול בכל רגע</span>
-          <span>✓ החזר מלא 30 יום</span>
-          <span>✓ תמיכה אנושית</span>
+        {/* R96 (R75) — separate explicit policy for couples vs vendors.
+            The previous "ביטול בכל רגע · החזר מלא 30 יום" applied a
+            SaaS-style refund promise to a one-time event purchase
+            (couples), which we cannot honour. Now each side gets its
+            own honest line. */}
+        <div className="mt-10 grid gap-3 max-w-2xl mx-auto text-sm font-semibold">
+          <div
+            className="card p-4 flex flex-wrap items-center gap-x-3 gap-y-1.5"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            <span
+              className="text-xs uppercase tracking-widest font-bold shrink-0"
+              style={{ color: "var(--accent)" }}
+            >
+              זוגות
+            </span>
+            <span className="opacity-50">·</span>
+            <span>✓ תשלום חד-פעמי</span>
+            <span>✓ גישה לאירוע + 12 חודשים אחריו</span>
+            <span>✓ בלי הפתעות</span>
+          </div>
+          <div
+            className="card p-4 flex flex-wrap items-center gap-x-3 gap-y-1.5"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            <span
+              className="text-xs uppercase tracking-widest font-bold shrink-0"
+              style={{ color: "var(--accent)" }}
+            >
+              ספקים
+            </span>
+            <span className="opacity-50">·</span>
+            <span>✓ ביטול מנוי בכל עת</span>
+            <span>✓ ללא חוזה ארוך טווח</span>
+            <span>✓ תשלום חודשי בלבד</span>
+          </div>
         </div>
 
         {/* R48 — tech trust badges (text-only, no external assets). */}

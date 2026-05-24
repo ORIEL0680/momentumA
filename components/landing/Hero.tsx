@@ -131,8 +131,13 @@ export function Hero() {
           className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs sm:text-sm fade-up"
           style={{ color: "var(--foreground-muted)", animationDelay: "0.2s" }}
         >
+          {/* R96 (R75) — was "ביטול בכל רגע" which implied a refund
+              policy that doesn't exist for couples. The new lines
+              honour both sides: couples get a one-time purchase +
+              long-tail access; vendors get cancel-anytime on their
+              subscription. */}
           <span>✓ התחלה חינמית · ללא התחייבות</span>
-          <span>✓ ביטול בכל רגע</span>
+          <span>✓ תשלום חד-פעמי · גישה לאירוע + 12 חודשים אחריו</span>
           <span>✓ מותאם לישראל · בעיצוב יוקרתי · תמיכה אנושית</span>
         </div>
       </div>
