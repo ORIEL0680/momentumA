@@ -496,6 +496,42 @@ body {
   background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7));
 }
 
+/* ─────────────── Calculator action buttons (R76) ─────────────── */
+.action-btn {
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 200ms, transform 200ms, border-color 200ms;
+  min-height: 48px;
+  cursor: pointer;
+}
+.action-btn:hover {
+  background: var(--secondary-button-bg-hover, var(--surface-3));
+  transform: translateY(-1px);
+  border-color: var(--border-strong, var(--border));
+}
+.action-btn.primary {
+  background: linear-gradient(135deg, var(--gold-100), var(--gold-500));
+  color: var(--gold-button-text, #1a1310);
+  border-color: transparent;
+}
+.action-btn.primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-btn { transition: none !important; }
+  .action-btn:hover { transform: none !important; }
+}
+
 /* ─────────────── Print / PDF export ─────────────── */
 @media print {
   body {
@@ -525,6 +561,15 @@ body {
   main { padding-bottom: 0 !important; }
   a[href]::after { content: "" !important; } /* hide href on links */
   .ltr-num { color: inherit !important; }
+  /* R76 — calculator print */
+  .action-btn, .no-print { display: none !important; }
+  .gradient-gold {
+    color: #A8884A !important;
+    -webkit-text-fill-color: #A8884A !important;
+    background: none !important;
+  }
+  svg { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  @page { size: A4; margin: 20mm; }
 }
 
 /* ─────────────── 3D seating floor ─────────────── */
