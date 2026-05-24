@@ -27,7 +27,11 @@ import {
   Layers,
   Crown,
   RefreshCw,
+  Send,
+  Loader2,
 } from "lucide-react";
+import { showToast } from "@/components/Toast";
+import { useWhatsAppSeating } from "@/hooks/useWhatsAppSeating";
 
 /** dataTransfer mime — keeps drag payload distinct from raw text drops. */
 const DRAG_MIME = "application/x-momentum-guest";
@@ -113,6 +117,15 @@ export default function SeatingPage() {
     const total = eligibleGuests.reduce((sum, g) => sum + (g.attendingCount ?? 1), 0);
     return { assigned, total };
   }, [eligibleGuests, state.seatAssignments]);
+
+  const { busy: seatingWaBusy, sendSeating } = useWhatsAppSeating();
+  const seatedConfirmedCount = useMemo(
+    () =>
+      state.guests.filter(
+        (g) => g.status === "confirmed" && state.seatAssignments[g.id],
+      ).length,
+    [state.guests, state.seatAssignments],
+  );
 
   // ─── Auto-arrange (smart) ───
   const [thinking, setThinking] = useState(false);
@@ -341,6 +354,56 @@ export default function SeatingPage() {
                 {thinking ? "חושב..." : "✨ סדר אוטומטית"}
               </motion.button>
               <PrintButton label="ייצא ל-PDF" />
+              {seatedConfirmedCount > 0 && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  disabled={seatingWaBusy}
+                  onClick={async () => {
+                    if (!state.event) return;
+                    if (
+                      !window.confirm(
+                        `לשלוח הודעת WhatsApp עם מספר שולחן ל-${seatedConfirmedCount} מוזמנים שאישרו הגעה?`,
+                      )
+                    ) {
+                      return;
+                    }
+                    const result = await sendSeating(
+                      state.event,
+                      state.guests,
+                      state.tables,
+                      state.seatAssignments,
+                    );
+                    if (!result.ok) {
+                      showToast(
+                        result.error === "no_confirmed_seated"
+                          ? "אין מוזמנים מאושרים עם שולחן"
+                          : "השליחה נכשלה",
+                        "error",
+                      );
+                      return;
+                    }
+                    if (!result.configured) {
+                      showToast(result.message ?? "WhatsApp לא מחובר", "error");
+                      return;
+                    }
+                    showToast(
+                      `נשלחו ${result.sent ?? 0} הודעות הושבה`,
+                      "success",
+                    );
+                  }}
+                  className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-40"
+                  title="שליחת מספר שולחן ב-WhatsApp למוזמנים שאישרו"
+                >
+                  {seatingWaBusy ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Send size={14} />
+                  )}
+                  שלח מקומות ({seatedConfirmedCount})
+                </motion.button>
+              )}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}

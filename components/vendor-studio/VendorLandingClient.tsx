@@ -236,8 +236,8 @@ function LeadInterestModal({
               className="mt-2 text-sm"
               style={{ color: "var(--foreground-soft)" }}
             >
-              {vendor.name} יקבל הודעה ב-SMS ובמייל. בדרך כלל הם עונים תוך
-              24 שעות.
+              הפרטים הועברו לספק — הוא יצור עמכם קשר בהקדם (WhatsApp, SMS
+              או מייל, לפי ההגדרות שלו).
             </p>
           </div>
         ) : needSignIn ? (

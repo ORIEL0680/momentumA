@@ -492,6 +492,24 @@ export const actions = {
       ),
     });
   },
+  markWhatsAppRsvpSent(ids: string[]) {
+    const s = readState();
+    const idSet = new Set(ids);
+    const now = new Date().toISOString();
+    writeState({
+      ...s,
+      guests: s.guests.map((g) =>
+        idSet.has(g.id)
+          ? {
+              ...g,
+              status: g.status === "pending" ? "invited" : g.status,
+              invitedAt: g.invitedAt ?? now,
+              whatsappRsvpSentAt: now,
+            }
+          : g,
+      ),
+    });
+  },
   setRsvp(id: string, status: "confirmed" | "declined" | "maybe", attendingCount: number) {
     const s = readState();
     writeState({
