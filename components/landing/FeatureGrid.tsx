@@ -7,7 +7,6 @@ import {
   Layout,
   Activity,
   CheckCircle2,
-  Calendar,
   PiggyBank,
   Store,
   Award,
@@ -15,10 +14,13 @@ import {
 } from "lucide-react";
 
 /**
- * R48 — the full feature catalog, presented with respect. 12 core
- * features in a 3-up grid (1-up on mobile). Server component, CSS-only
- * hover. Icons in a gold token chip (no hardcoded hex — color-mix off
- * the --gold-100 token so it tracks the theme).
+ * R48 — the full feature catalog, presented with respect.
+ * R97 (R76) — was 12 features; the "לוח שנה ו-Brain" card (and its
+ * `Calendar` icon import) were removed because /calendar was deleted
+ * in R74. Grid is now 11 features in a 3-up grid (1-up on mobile).
+ * Server component, CSS-only hover. Icons in a gold token chip
+ * (no hardcoded hex — color-mix off the --gold-100 token so it
+ * tracks the theme).
  */
 const FEATURES: Array<{ icon: LucideIcon; title: string; body: string }> = [
   {
@@ -62,11 +64,6 @@ const FEATURES: Array<{ icon: LucideIcon; title: string; body: string }> = [
     body: "מנהל-משנה מסמן אורחים שהגיעו בלחיצה אחת — בלי הדפסה, בלי QR, בלי תקלות בכניסה",
   },
   {
-    icon: Calendar,
-    title: "לוח שנה ו-Brain",
-    body: "לוח עם heatmap מחירים, הצעות AI לתאריך, פגישות עם ספקים — והצ׳קליסט שלא תשכחו כלום",
-  },
-  {
     icon: PiggyBank,
     title: "מאזן רווח/הפסד",
     body: "אחרי האירוע — מי שם מעטפה, כמה, ומי תצטרכו להחזיר לו באירוע שלו. כולל קלט קולי",
@@ -94,11 +91,13 @@ export function FeatureGrid() {
           >
             כל מה שצריך לאירוע מושלם — במקום אחד
           </h2>
+          {/* R97 (R76) — count derives from the array so we never
+              get out of sync again if features come/go. */}
           <p
             className="mt-3 text-lg"
             style={{ color: "var(--foreground-soft)" }}
           >
-            12 פיצ׳רים שמחליפים 12 כלים שונים
+            {FEATURES.length} פיצ׳רים שמחליפים {FEATURES.length} כלים שונים
           </p>
         </div>
 
