@@ -40,30 +40,35 @@ function DonutChart({
   const cx = 100;
   const cy = 100;
   const strokeW = 22;
-  // Build arc segments
+  // Build arc segments — compute cumulative offsets first (no let-reassign).
   const segments = useMemo(() => {
-    let offset = -Math.PI / 2; // start at 12 o'clock
-    return data
-      .filter((d) => d.value > 0)
-      .map((d) => {
-        const fraction = total > 0 ? d.value / total : 0;
-        const angle = fraction * 2 * Math.PI;
-        const startAngle = offset;
-        const endAngle = offset + angle;
-        offset = endAngle;
-
-        const x1 = cx + R * Math.cos(startAngle);
-        const y1 = cy + R * Math.sin(startAngle);
-        const x2 = cx + R * Math.cos(endAngle);
-        const y2 = cy + R * Math.sin(endAngle);
-        const largeArc = angle > Math.PI ? 1 : 0;
-
-        return {
-          ...d,
-          fraction,
-          path: `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2}`,
-        };
-      });
+    const filtered = data.filter((d) => d.value > 0);
+    const start = -Math.PI / 2;
+    // Pre-compute cumulative angle at the *start* of each segment.
+    const offsets = filtered.map((_, i) =>
+      filtered
+        .slice(0, i)
+        .reduce(
+          (s, x) => s + (total > 0 ? (x.value / total) * 2 * Math.PI : 0),
+          start,
+        ),
+    );
+    return filtered.map((d, i) => {
+      const fraction = total > 0 ? d.value / total : 0;
+      const angle = fraction * 2 * Math.PI;
+      const startAngle = offsets[i];
+      const endAngle = startAngle + angle;
+      const x1 = cx + R * Math.cos(startAngle);
+      const y1 = cy + R * Math.sin(startAngle);
+      const x2 = cx + R * Math.cos(endAngle);
+      const y2 = cy + R * Math.sin(endAngle);
+      const largeArc = angle > Math.PI ? 1 : 0;
+      return {
+        ...d,
+        fraction,
+        path: `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2}`,
+      };
+    });
   }, [data, total]);
 
   if (segments.length === 0) {

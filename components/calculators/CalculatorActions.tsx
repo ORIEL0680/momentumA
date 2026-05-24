@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Save, Share2, GitCompare, Printer } from "lucide-react";
+import { ScenariosCompare } from "./ScenariosCompare";
 import { actions } from "@/lib/store";
 import { showToast } from "@/components/Toast";
 import type { BreakdownItem } from "./CalculatorResults";
@@ -52,6 +54,9 @@ function mapCategory(name: string): BudgetCategory {
 }
 
 export function CalculatorActions({ result, calculatorName }: Props) {
+  const [showCompare, setShowCompare] = useState(false);
+  const storageKey = `momentum.scenarios.${calculatorName}`;
+
   const handleSaveToBudget = () => {
     const items = result.breakdown.filter((b) => b.value > 0);
     if (items.length === 0) {
@@ -87,10 +92,9 @@ export function CalculatorActions({ result, calculatorName }: Props) {
   };
 
   const handleCompare = () => {
-    const key = `momentum.scenarios.${calculatorName}`;
     let saved: SavedScenario[] = [];
     try {
-      saved = JSON.parse(localStorage.getItem(key) || "[]");
+      saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
     } catch {
       /* corrupt data — start fresh */
     }
@@ -102,7 +106,7 @@ export function CalculatorActions({ result, calculatorName }: Props) {
     });
     const trimmed = saved.slice(-3); // keep last 3
     try {
-      localStorage.setItem(key, JSON.stringify(trimmed));
+      localStorage.setItem(storageKey, JSON.stringify(trimmed));
     } catch {
       /* private mode / quota — ignore */
     }
@@ -112,31 +116,41 @@ export function CalculatorActions({ result, calculatorName }: Props) {
         : "✓ תרחיש ראשון נשמר — הוסיפו עוד אחד להשוואה",
       "success",
     );
+    // Open comparison modal
+    setShowCompare(true);
   };
 
   const handlePrint = () => window.print();
 
   return (
-    <div
-      className="grid grid-cols-2 gap-3 mt-8 pt-6 no-print"
-      style={{ borderTop: "1px solid var(--border)" }}
-    >
-      <button onClick={handleSaveToBudget} className="action-btn primary">
-        <Save className="w-4 h-4" aria-hidden />
-        שמור לתקציב
-      </button>
-      <button onClick={handleShare} className="action-btn">
-        <Share2 className="w-4 h-4" aria-hidden />
-        שלח לבן/בת זוג
-      </button>
-      <button onClick={handleCompare} className="action-btn">
-        <GitCompare className="w-4 h-4" aria-hidden />
-        השווה תרחישים
-      </button>
-      <button onClick={handlePrint} className="action-btn">
-        <Printer className="w-4 h-4" aria-hidden />
-        הדפס PDF
-      </button>
-    </div>
+    <>
+      <div
+        className="grid grid-cols-2 gap-3 mt-8 pt-6 no-print"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        <button onClick={handleSaveToBudget} className="action-btn primary">
+          <Save className="w-4 h-4" aria-hidden />
+          שמור לתקציב
+        </button>
+        <button onClick={handleShare} className="action-btn">
+          <Share2 className="w-4 h-4" aria-hidden />
+          שלח לבן/בת זוג
+        </button>
+        <button onClick={handleCompare} className="action-btn">
+          <GitCompare className="w-4 h-4" aria-hidden />
+          השווה תרחישים
+        </button>
+        <button onClick={handlePrint} className="action-btn">
+          <Printer className="w-4 h-4" aria-hidden />
+          הדפס PDF
+        </button>
+      </div>
+      {showCompare && (
+        <ScenariosCompare
+          storageKey={storageKey}
+          onClose={() => setShowCompare(false)}
+        />
+      )}
+    </>
   );
 }
