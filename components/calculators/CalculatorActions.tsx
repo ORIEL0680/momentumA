@@ -11,9 +11,6 @@ import type { BudgetCategory } from "@/lib/types";
 interface Props {
   result: { total: number; breakdown: BreakdownItem[] };
   calculatorName: string;
-  /** Pass the event id if available; the save button is still shown but will
-   *  show an info toast if empty (not all users have set up an event yet). */
-  eventId?: string;
 }
 
 interface SavedScenario {
