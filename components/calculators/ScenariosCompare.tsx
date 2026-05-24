@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X, Check } from "lucide-react";
 import { actions } from "@/lib/store";
 import { showToast } from "@/components/Toast";
@@ -118,6 +118,20 @@ export function ScenariosCompare({ storageKey, onClose }: Props) {
   const [scenarios, setScenarios] = useState<SavedScenario[]>(() =>
     readScenarios(storageKey),
   );
+
+  // Esc-to-close + lock background scroll on mobile.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
   const minTotal = useMemo(
     () => Math.min(...scenarios.map((s) => s.total)),

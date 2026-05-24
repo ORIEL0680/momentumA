@@ -366,6 +366,7 @@ export function ReviewForm({
                   </span>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={initialQuote}
                     onChange={(e) => setInitialQuote(e.target.value)}
                     className="input ltr-num"
@@ -380,6 +381,7 @@ export function ReviewForm({
                   </span>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={agreedPrice}
                     onChange={(e) => setAgreedPrice(e.target.value)}
                     className="input ltr-num"

@@ -74,7 +74,7 @@ export function MobileBottomNav() {
                   />
                 )}
                 <Icon size={20} aria-hidden />
-                <span className="text-[11px] font-medium">{item.label}</span>
+                <span className="text-xs font-medium">{item.label}</span>
               </Link>
             </li>
           );

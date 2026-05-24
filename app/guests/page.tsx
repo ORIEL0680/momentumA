@@ -311,7 +311,11 @@ function GuestsPageInner() {
         <div aria-hidden className="glow-orb glow-orb-gold w-[500px] h-[500px] -top-40 right-0 opacity-25" />
 
         <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-10 relative z-10">
-          <Link href="/dashboard" className="text-sm text-white/50 hover:text-white inline-flex items-center gap-1.5">
+          <Link
+            href="/dashboard"
+            className="text-sm hover:text-white inline-flex items-center gap-1.5"
+            style={{ color: "var(--foreground-soft)" }}
+          >
             <ArrowRight size={14} /> חזרה למסע
           </Link>
 
@@ -321,7 +325,7 @@ function GuestsPageInner() {
               <h1 className="mt-3 text-4xl md:text-5xl font-bold tracking-tight gradient-text">
                 רשימת מוזמנים
               </h1>
-              <p className="mt-2 text-white/55">הוסף, הזמן בוואטסאפ, ועקוב אחרי אישורי הגעה.</p>
+              <p className="mt-2" style={{ color: "var(--foreground-soft)" }}>הוסף, הזמן בוואטסאפ, ועקוב אחרי אישורי הגעה.</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <PrintButton label="ייצא רשימה ל-PDF" />
@@ -1110,26 +1114,56 @@ function AddGuestModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-5 space-y-4">
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>שם מלא <span style={{ color: "var(--accent)" }}>*</span></label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="דנה כהן" autoFocus />
+            <label
+              className="block text-sm mb-1.5"
+              style={{ color: "var(--foreground-soft)" }}
+              htmlFor="guest-name"
+            >
+              שם מלא <span style={{ color: "var(--accent)" }}>*</span>
+            </label>
+            <input
+              id="guest-name"
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="דנה כהן"
+              autoComplete="name"
+              autoFocus
+            />
           </div>
           <div>
-            <label className="block text-sm mb-1.5" style={{ color: "var(--foreground-soft)" }}>
+            <label
+              className="block text-sm mb-1.5"
+              style={{ color: "var(--foreground-soft)" }}
+              htmlFor="guest-phone"
+            >
               טלפון <span className="text-xs" style={{ color: "var(--foreground-muted)" }}>(לא חובה — נדרש לוואטסאפ)</span>
             </label>
             <input
+              id="guest-phone"
               className="input"
               dir="ltr"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="050-1234567"
             />
           </div>
           <div>
-            <label className="block text-sm text-white/70 mb-1.5">כמה אנשים מצופים מהמוזמן?</label>
+            <label
+              className="block text-sm mb-1.5"
+              style={{ color: "var(--foreground-soft)" }}
+              htmlFor="guest-count"
+            >
+              כמה אנשים מצופים מהמוזמן?
+            </label>
             <input
+              id="guest-count"
               className="input"
               type="number"
+              inputMode="numeric"
               min={1}
               value={count}
               onChange={(e) => setCount(e.target.value)}

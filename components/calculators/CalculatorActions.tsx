@@ -125,19 +125,35 @@ export function CalculatorActions({ result, calculatorName }: Props) {
         className="grid grid-cols-2 gap-3 mt-8 pt-6 no-print"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        <button onClick={handleSaveToBudget} className="action-btn primary">
+        <button
+          type="button"
+          onClick={handleSaveToBudget}
+          className="action-btn primary"
+        >
           <Save className="w-4 h-4" aria-hidden />
           שמור לתקציב
         </button>
-        <button onClick={handleShare} className="action-btn">
+        <button
+          type="button"
+          onClick={handleShare}
+          className="action-btn"
+        >
           <Share2 className="w-4 h-4" aria-hidden />
           שלח לבן/בת זוג
         </button>
-        <button onClick={handleCompare} className="action-btn">
+        <button
+          type="button"
+          onClick={handleCompare}
+          className="action-btn"
+        >
           <GitCompare className="w-4 h-4" aria-hidden />
           השווה תרחישים
         </button>
-        <button onClick={handlePrint} className="action-btn">
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="action-btn"
+        >
           <Printer className="w-4 h-4" aria-hidden />
           הדפס PDF
         </button>

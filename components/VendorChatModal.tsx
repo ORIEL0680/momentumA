@@ -34,7 +34,13 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
   // call setTyping(false) on a torn-down component.
   const replyTimeoutRef = useRef<number | null>(null);
   useEffect(() => {
+    // Lock background scroll while the chat modal is open — prevents the
+    // page behind the bottom-sheet from scrolling when the user pans
+    // through the message list on mobile.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
+      document.body.style.overflow = prevOverflow;
       if (replyTimeoutRef.current !== null) {
         window.clearTimeout(replyTimeoutRef.current);
         replyTimeoutRef.current = null;

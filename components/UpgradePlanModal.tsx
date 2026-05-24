@@ -19,7 +19,14 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Lock background scroll while modal is open (mobile fix — prevents
+    // the page behind the modal from scrolling when the user pans).
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
   return (
@@ -64,7 +71,7 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
           >
             <div className="text-sm font-bold">חינם</div>
             <div className="mt-1 text-2xl font-extrabold ltr-num">₪0</div>
-            <div className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>
+            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
               לתמיד
             </div>
           </div>
@@ -79,7 +86,7 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
               <Crown size={13} className="text-[--accent]" aria-hidden /> פרימיום
             </div>
             <div className="mt-1 text-2xl font-extrabold ltr-num gradient-gold">₪399</div>
-            <div className="text-[11px]" style={{ color: "var(--foreground-muted)" }}>
+            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
               חד-פעמי לאירוע
             </div>
           </div>

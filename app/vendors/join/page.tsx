@@ -264,18 +264,18 @@ export default function VendorJoinPage() {
         <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
           {step === 1 && (
             <Section title="פרטי העסק">
-              <Field label="שם העסק *" value={form.business_name} onChange={(v) => set("business_name", v)} />
-              <Field label="איש קשר *" value={form.contact_name} onChange={(v) => set("contact_name", v)} />
+              <Field label="שם העסק *" value={form.business_name} onChange={(v) => set("business_name", v)} autoComplete="organization" />
+              <Field label="איש קשר *" value={form.contact_name} onChange={(v) => set("contact_name", v)} autoComplete="name" />
               <CategoryPicker value={form.category} onChange={(v) => set("category", v)} />
-              <Field label="עיר / אזור" value={form.city} onChange={(v) => set("city", v)} />
+              <Field label="עיר / אזור" value={form.city} onChange={(v) => set("city", v)} autoComplete="address-level2" />
             </Section>
           )}
 
           {step === 2 && (
             <Section title="יצירת קשר">
-              <Field label="טלפון *" value={form.phone} onChange={(v) => set("phone", v)} type="tel" placeholder="050-1234567" />
-              <Field label="מייל *" value={form.email} onChange={(v) => set("email", v)} type="email" />
-              <Field label="אתר" value={form.website} onChange={(v) => set("website", v)} placeholder="https://..." />
+              <Field label="טלפון *" value={form.phone} onChange={(v) => set("phone", v)} type="tel" placeholder="050-1234567" autoComplete="tel" />
+              <Field label="מייל *" value={form.email} onChange={(v) => set("email", v)} type="email" autoComplete="email" />
+              <Field label="אתר" value={form.website} onChange={(v) => set("website", v)} placeholder="https://..." autoComplete="url" />
             </Section>
           )}
 
@@ -394,13 +394,24 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
+  autoComplete?: string;
 }) {
+  // R98: pick the right mobile keyboard for numeric / tel / email types.
+  const inputMode =
+    type === "number"
+      ? "numeric"
+      : type === "tel"
+        ? "tel"
+        : type === "email"
+          ? "email"
+          : undefined;
   return (
     <label className="block">
       <span className="text-xs block mb-1.5" style={{ color: "var(--foreground-soft)" }}>
@@ -408,6 +419,8 @@ function Field({
       </span>
       <input
         type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -442,7 +455,7 @@ function Textarea({
         style={{ resize: "none" }}
       />
       {maxLength && (
-        <div className="text-[10px] text-end mt-1 ltr-num" style={{ color: "var(--foreground-muted)" }}>
+        <div className="text-xs text-end mt-1 ltr-num" style={{ color: "var(--foreground-muted)" }}>
           {value.length}/{maxLength}
         </div>
       )}

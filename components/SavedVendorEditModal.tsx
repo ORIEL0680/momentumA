@@ -36,12 +36,19 @@ export function SavedVendorEditModal({ saved, catalog, onClose }: Props) {
   const [rating, setRating] = useState(saved.rating ?? 0);
 
   // Esc-to-close — matches the rest of the app's modal convention.
+  // Also locks background scroll on mobile so the page behind the modal
+  // doesn't scroll when the user pans inside the modal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [onClose]);
 
   const handleSave = () => {
@@ -174,7 +181,8 @@ export function SavedVendorEditModal({ saved, catalog, onClose }: Props) {
                   onClick={() => setRating(n === rating ? 0 : n)}
                   aria-label={`${n} כוכבים`}
                   aria-pressed={n <= rating}
-                  className="p-1"
+                  className="inline-flex items-center justify-center"
+                  style={{ minHeight: 44, minWidth: 44 }}
                 >
                   <Star
                     size={22}
@@ -201,7 +209,7 @@ export function SavedVendorEditModal({ saved, catalog, onClose }: Props) {
               style={{ resize: "none" }}
             />
             <div
-              className="text-[10px] text-end mt-1 ltr-num"
+              className="text-xs text-end mt-1 ltr-num"
               style={{ color: "var(--foreground-muted)" }}
             >
               {notes.length}/1000
@@ -211,15 +219,22 @@ export function SavedVendorEditModal({ saved, catalog, onClose }: Props) {
 
         <div className="mt-6 grid grid-cols-2 gap-2">
           <button
+            type="button"
             onClick={onClose}
             className="rounded-2xl py-3 text-sm font-semibold"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
+            style={{
+              background: "var(--input-bg)",
+              border: "1px solid var(--border)",
+              minHeight: 48,
+            }}
           >
             ביטול
           </button>
           <button
+            type="button"
             onClick={handleSave}
             className="btn-gold inline-flex items-center justify-center gap-2 py-3"
+            style={{ minHeight: 48 }}
           >
             <Save size={16} /> שמור
           </button>
@@ -242,6 +257,10 @@ function Field({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
+  // R98: pick the right mobile keyboard. Number → numeric pad (no decimal
+  // for prices in NIS — most are whole-shekel), tel → phone keypad.
+  const inputMode =
+    type === "number" ? "numeric" : type === "tel" ? "tel" : undefined;
   return (
     <label className="block">
       <span className="text-xs block mb-1.5" style={{ color: "var(--foreground-soft)" }}>
@@ -249,6 +268,7 @@ function Field({
       </span>
       <input
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

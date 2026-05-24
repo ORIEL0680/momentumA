@@ -418,6 +418,7 @@ function RelationshipCalculator({ totalCost }: { totalCost: number }) {
               </div>
               <input
                 type="number"
+                inputMode="numeric"
                 min={0}
                 max={500}
                 value={counts[norm.id] ?? ""}

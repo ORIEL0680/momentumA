@@ -638,7 +638,7 @@ export default function VendorStudioEditor() {
                 placeholder="ספר על העסק שלך, הניסיון, הסגנון, איך אתה עובד..."
               />
               <div
-                className="text-[10px] text-end mt-1 ltr-num"
+                className="text-xs text-end mt-1 ltr-num"
                 style={{ color: "var(--foreground-muted)" }}
               >
                 {aboutLong.length}/2000
@@ -683,6 +683,7 @@ export default function VendorStudioEditor() {
               </span>
               <input
                 type="number"
+                inputMode="numeric"
                 value={yearsExperience}
                 onChange={(e) => setYearsExperience(e.target.value)}
                 className="input ltr-num"

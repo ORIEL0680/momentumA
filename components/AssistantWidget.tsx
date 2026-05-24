@@ -282,9 +282,14 @@ export function AssistantWidget() {
                   {QUICK_PROMPTS.map((q) => (
                     <button
                       key={q}
+                      type="button"
                       onClick={() => void sendMessage(q)}
-                      className="text-xs rounded-full px-3 py-1.5 transition hover:bg-[var(--secondary-button-bg)]"
-                      style={{ border: "1px solid var(--border)", color: "var(--foreground-soft)" }}
+                      className="text-xs rounded-full px-3 transition hover:bg-[var(--secondary-button-bg)] inline-flex items-center"
+                      style={{
+                        border: "1px solid var(--border)",
+                        color: "var(--foreground-soft)",
+                        minHeight: 36,
+                      }}
                     >
                       {q}
                     </button>
