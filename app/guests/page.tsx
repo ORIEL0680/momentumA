@@ -14,6 +14,7 @@ import { buildHostInvitationWhatsappLink } from "@/lib/invitation";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { normalizeIsraeliPhone } from "@/lib/phone";
 import { ExpressSendModal } from "@/components/guests/ExpressSendModal";
+import { WhatsAppDeliveryPanel } from "@/components/guests/WhatsAppDeliveryPanel";
 import { BulkSendViaMomentumModal } from "@/components/guests/BulkSendViaMomentumModal";
 import { buildWhatsAppMessage } from "@/lib/rsvpLinks";
 import { useGuestWhatsappLink, prewarmGuestWhatsappLinks } from "@/hooks/useGuestWhatsappLink";
@@ -456,6 +457,14 @@ function GuestsPageInner() {
               {importMsg}
             </div>
           )}
+
+          {/* R113 — host-side diagnostic: did the last batch of
+              "send via Momentum" actually reach guests? Collapsed by
+              default; expand to see Twilio's real delivery status per
+              SID + an explanation banner when failures hit. */}
+          <div className="mt-4">
+            <WhatsAppDeliveryPanel />
+          </div>
 
           {/* R92 (R74) — toolbar-level paste panel. The empty-state has
               its own copy of this UI for first-visit users; this one

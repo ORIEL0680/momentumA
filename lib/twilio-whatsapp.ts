@@ -99,6 +99,63 @@ export async function sendWhatsApp({
   }
 }
 
+/** Status snapshot of a single WhatsApp message Twilio is tracking. */
+export interface MessageStatus {
+  sid: string;
+  to: string;
+  from: string;
+  body?: string;
+  status: string;
+  /** Twilio error code, when status === "failed" or "undelivered". */
+  errorCode?: number | null;
+  errorMessage?: string | null;
+  dateCreated?: string;
+  dateUpdated?: string;
+  dateSent?: string;
+}
+
+/**
+ * Fetch the latest WhatsApp messages this account has sent. Used by
+ * the host-side diagnostic panel to answer "did the message actually
+ * get delivered, or did Twilio silently reject it?".
+ *
+ * Filtered to the `whatsapp:` channel only (the account also sends SMS
+ * via lib/twilioClient for vendor flows; those would clutter the view).
+ */
+export async function fetchRecentWhatsAppMessages(
+  limit = 20,
+): Promise<{ ok: true; messages: MessageStatus[] } | { ok: false; error: string }> {
+  const client = getClient();
+  if (!client || !TWILIO_WHATSAPP_FROM) {
+    return { ok: false, error: "not_configured" };
+  }
+  try {
+    const list = await client.messages.list({
+      from: `whatsapp:${TWILIO_WHATSAPP_FROM}`,
+      limit,
+    });
+    const messages: MessageStatus[] = list.map((m) => ({
+      sid: m.sid,
+      to: m.to,
+      from: m.from,
+      body: m.body,
+      status: m.status,
+      errorCode: m.errorCode ?? null,
+      errorMessage: m.errorMessage ?? null,
+      dateCreated: m.dateCreated?.toISOString(),
+      dateUpdated: m.dateUpdated?.toISOString(),
+      dateSent: m.dateSent?.toISOString(),
+    }));
+    return { ok: true, messages };
+  } catch (e) {
+    console.error("[twilio-whatsapp] fetch recent failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message.slice(0, 200) : "unknown",
+    };
+  }
+}
+
 /**
  * Send an approved WhatsApp template — required for the first message
  * to a user (or any message outside the 24-hour service window).
