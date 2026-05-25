@@ -565,44 +565,129 @@ export default function VendorStudioEditor() {
             </div>
           </section>
 
-          {/* Hero */}
-          <section className="card p-5">
-            <h2 className="font-bold mb-3">תמונת ראשית (Hero)</h2>
-            {heroPhotoPath && (
-              <div className="relative rounded-2xl overflow-hidden mb-3 aspect-video">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={getVendorPhotoUrl(heroPhotoPath)}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => setHeroPhotoPath(null)}
-                  className="absolute top-2 end-2 p-2 rounded-full bg-black/60 text-white"
-                  aria-label="הסר תמונה"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-            <label
-              className="flex items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed cursor-pointer hover:bg-white/5"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <Camera size={20} className="text-[--accent]" aria-hidden />
-              <span className="text-sm">העלה תמונה ראשית</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handlePhotoUpload(f, true);
-                  e.target.value = "";
+          {/* Hero / Profile photo — R117 surfaces this as the "face of
+              the business" that appears as a gold-bordered avatar on
+              every vendor's catalog tile. Same field, clearer copy. */}
+          <section
+            className="card p-5"
+            style={{ borderColor: "var(--border-gold)" }}
+          >
+            <div className="flex items-start gap-3 mb-1">
+              <div
+                className="w-10 h-10 rounded-2xl inline-flex items-center justify-center shrink-0"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(244,222,169,0.18), rgba(168,136,74,0.05))",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
                 }}
-              />
-            </label>
+              >
+                <Camera size={18} aria-hidden />
+              </div>
+              <div>
+                <h2 className="font-bold leading-tight">
+                  תמונת פרופיל / לוגו
+                </h2>
+                <p
+                  className="text-xs mt-0.5 leading-relaxed"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  הפנים של העסק שלך בקטלוג של Momentum. הזוגות יראו את התמונה
+                  הזו כאוואטר זהוב על הכרטיס שלך — לוגו, צילום של מוצר מוכר, או
+                  כל תמונה מייצגת אחרת.
+                </p>
+              </div>
+            </div>
+
+            {heroPhotoPath ? (
+              <div className="mt-4 flex items-center gap-4">
+                {/* Live preview at the actual avatar size + gradient ring
+                    so the vendor sees exactly what the catalog will show. */}
+                <div
+                  className="rounded-full p-[2.5px] shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--gold-100), var(--gold-500) 60%, var(--gold-100))",
+                    width: 96,
+                    height: 96,
+                  }}
+                >
+                  <div
+                    className="w-full h-full rounded-full overflow-hidden"
+                    style={{ background: "var(--background)" }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={getVendorPhotoUrl(heroPhotoPath)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div
+                    className="text-xs"
+                    style={{ color: "var(--foreground-soft)" }}
+                  >
+                    👀 ככה הזוגות יראו אותך בקטלוג.
+                  </div>
+                  <div className="flex gap-2">
+                    <label
+                      className="action-btn primary cursor-pointer text-xs"
+                      style={{ minHeight: 40 }}
+                    >
+                      <Camera size={13} aria-hidden />
+                      החלף תמונה
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void handlePhotoUpload(f, true);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setHeroPhotoPath(null)}
+                      className="action-btn text-xs"
+                      style={{ minHeight: 40 }}
+                    >
+                      הסר
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <label
+                className="mt-4 flex items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed cursor-pointer transition hover:bg-white/[0.02]"
+                style={{ borderColor: "var(--border-gold)" }}
+              >
+                <Camera size={22} className="text-[--accent]" aria-hidden />
+                <span className="text-sm font-semibold">
+                  לחץ להעלאת תמונת פרופיל / לוגו
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handlePhotoUpload(f, true);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+            <div
+              className="text-[11px] mt-2 leading-relaxed"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              💡 הכי טוב: תמונה מרובעת ברזולוציה גבוהה (לפחות 512×512), JPG /
+              PNG / WEBP, עד 5MB.
+            </div>
           </section>
 
           {/* Text */}

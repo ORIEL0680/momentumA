@@ -232,6 +232,11 @@ export interface Vendor {
   instagram?: string; // handle without "@"
   facebook?: string;  // page slug or full URL
   website?: string;   // full https URL
+  /** R117 — full public URL for the vendor's profile photo / logo (the
+   *  "face of the business" in the catalog). Resolved upstream from the
+   *  vendor-studio Storage bucket. Absent for static seed vendors and
+   *  for DB vendors who haven't uploaded a hero yet. */
+  photoUrl?: string;
 }
 
 export interface EventInfo {

@@ -1,4 +1,5 @@
 import type { Vendor, VendorType, Region } from "./types";
+import { getVendorPhotoUrl } from "./vendorStudio";
 
 /**
  * R38 — map an APPROVED `vendor_applications` row (returned by the
@@ -18,6 +19,10 @@ export interface ApprovedVendorRow {
   website: string | null;
   instagram: string | null;
   facebook: string | null;
+  /** R117 — Storage path (vendor-studio bucket) for the vendor's
+   *  profile photo / logo, joined in from vendor_landings via the
+   *  auth user's email. Null when the vendor hasn't uploaded yet. */
+  hero_photo_path: string | null;
   created_at: string | null;
 }
 
@@ -72,6 +77,14 @@ function cleanHandle(v: string | null | undefined): string | undefined {
 export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
   const type = CATEGORY_TO_TYPE[row.category] ?? "entertainment";
   const city = (row.city ?? "").trim();
+  // R117 — resolve the storage path to a full public URL ONCE here, so
+  // the VendorCard can render <img src={photoUrl} /> without each card
+  // re-doing the URL math (and without leaking Supabase URL formatting
+  // into the UI layer). Empty string when there's no photo — falsy
+  // check in the card hides the avatar block cleanly.
+  const photoUrl = row.hero_photo_path
+    ? getVendorPhotoUrl(row.hero_photo_path)
+    : "";
   return {
     // `app-` prefix keeps DB-backed ids distinct from the static seed.
     id: `app-${row.id}`,
@@ -90,6 +103,7 @@ export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
     website: cleanHandle(row.website),
     instagram: cleanHandle(row.instagram),
     facebook: cleanHandle(row.facebook),
+    photoUrl: photoUrl || undefined,
   };
 }
 
