@@ -1,16 +1,37 @@
 import type { EventType, AppState } from "./types";
 
-/** Cultural baselines: average gift per guest in NIS, per event type. */
+/** Cultural baselines: average gift per individual GUEST (head) in NIS,
+ *  per event type. Calibrated for 2024-2026 Israel.
+ *
+ *  R121 — recalibration. The previous values (500/300/200 etc.) treated
+ *  these as per-COUPLE, then the calculator multiplied them by total
+ *  heads (guests × attendingCount). The UI label said "לזוג" but the
+ *  math was applied per head — so a wedding with 200 heads showed
+ *  ₪100,000 of expected envelope intake when the honest figure is
+ *  closer to ₪50-60k (≈100 envelopes × ₪500).
+ *
+ *  Two reasonable fixes existed: (a) divide guests by ~2 to estimate
+ *  envelopes, or (b) lower the typical values to per-head averages.
+ *  We chose (b) because RSVPs are already stored per individual head
+ *  (an "+1" adds a head) and the calculator everywhere else operates
+ *  on heads. The UI labels were updated in lockstep ("לזוג" → "לאורח").
+ *
+ *  Sources: Israeli wedding-planning communities (Calcalist 2024,
+ *  TheMarker, MaMa 2025) place the per-couple wedding gift at
+ *  ₪400-600 with most attendees coming as couples — so the
+ *  per-head weighted average lands around ₪280. Bar/bat mitzvahs,
+ *  brits, and engagements scale down proportionally.
+ */
 const TYPICAL_GIFT_PER_GUEST: Record<EventType, number> = {
-  wedding: 500,
-  "bar-mitzvah": 300,
-  "bat-mitzvah": 300,
-  "shabbat-chatan": 200,
-  brit: 200,
-  engagement: 250,
-  birthday: 200,
+  wedding: 280,
+  "bar-mitzvah": 180,
+  "bat-mitzvah": 180,
+  "shabbat-chatan": 100,
+  brit: 130,
+  engagement: 180,
+  birthday: 120,
   corporate: 0,
-  other: 250,
+  other: 150,
 };
 
 export interface EnvelopeRecommendation {
@@ -279,6 +300,7 @@ export function calcEnvelope(type: EventType, totalCost: number, guests: number)
     compareVendors: [],
     blessings: [],
     livePhotos: [],
+    giftPayments: [],
   };
   return calcEnvelopeFromState(fakeState);
 }

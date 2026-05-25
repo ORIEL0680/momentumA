@@ -351,6 +351,41 @@ export interface Blessing {
   at: string;
 }
 
+/** R121 — A monetary gift a guest paid via credit card through the app
+ *  (Stripe / Tranzila / Pelecard once payments are wired in). Until a
+ *  real PSP integration ships, this is the data model the /gifts page
+ *  reads — sample/manual rows surface during demo & rollout. Mirrors
+ *  Blessing so the host can read the gift + the guest's note together.
+ *
+ *  The gift is stored separately from `Guest.envelopeAmount` (the cash
+ *  envelope tracked on /balance) because the host needs to see both —
+ *  some guests will pay online AND bring cash, and the receipt trail
+ *  for credit-card gifts is a tax/accounting concern that envelopes
+ *  are not. */
+export interface GiftPayment {
+  id: string;
+  /** Optional link to a Guest row when the gift is tied to a known
+   *  invitee. Free-text gifts (uncle who isn't in the RSVP list yet)
+   *  store `guestName` only. */
+  guestId?: string;
+  /** Display name shown in the list — required because guestId is
+   *  optional and we still want to print "מי שילם" on the card. */
+  guestName: string;
+  /** Amount in NIS. Integers only (Israeli credit-card receipts are in
+   *  whole shekels for gifts). */
+  amount: number;
+  /** Blessing/message the guest typed at checkout. Optional; capped at
+   *  500 chars on the input side. */
+  message?: string;
+  /** Last 4 digits of the card used — purely cosmetic on the receipt. */
+  cardLast4?: string;
+  /** ISO timestamp the payment cleared. */
+  paidAt: string;
+  /** Status from the PSP. "pending" rows appear greyed-out so the host
+   *  doesn't double-count an in-flight payment. */
+  status: "pending" | "paid" | "refunded";
+}
+
 /** Live-mode photo uploaded from a guest's phone. Stored as data: URL because we
  *  often run without a backend; max 5MB enforced upstream. The image bytes live
  *  in localStorage which has its own caps — we trim oldest first if quota fails. */
@@ -453,6 +488,9 @@ export interface AppState {
   blessings: Blessing[];
   /** Photos uploaded in live mode. Same lifecycle as blessings. */
   livePhotos: LivePhoto[];
+  /** R121 — credit-card gifts the guests paid via the app's checkout
+   *  flow. Separate from `Guest.envelopeAmount` (cash). */
+  giftPayments: GiftPayment[];
 }
 
 // ───────────────────────── Momentum Live (R20) ───────────────────────────

@@ -27,6 +27,7 @@ import {
   ClipboardList,
   PieChart,
   Briefcase,
+  Gift,
   X,
 } from "lucide-react";
 
@@ -389,6 +390,9 @@ function ToolsSection() {
     { href: "/vendors/my", label: "הספקים שלי", icon: <ClipboardList size={20} /> },
     { href: "/budget", label: "תקציב", icon: <Wallet size={20} /> },
     { href: "/balance", label: "מאזן", icon: <PieChart size={20} /> },
+    // R121 — gifts sits right after מאזן so the host scans both money pages
+    // together (cash envelopes on one, credit-card gifts on the other).
+    { href: "/gifts", label: "מתנות", icon: <Gift size={20} /> },
     { href: "/event-day", label: "מצב יום האירוע", icon: <Sparkles size={20} /> },
   ];
 

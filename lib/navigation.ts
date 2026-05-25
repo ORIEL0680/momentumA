@@ -90,6 +90,9 @@ export interface MoreMenuItem {
  * state (event proximity, vendor flag, admin flag, unread inbox).
  */
 export const MORE_MENU_NAV: readonly MoreMenuItem[] = [
+  // R121 — מתנות sits at the top of the More menu so a host who's
+  // already in /balance can flip to credit-card gifts in one click.
+  { href: "/gifts", label: "מתנות", icon: "Gift" },
   { href: "/event-day", label: "מצב חי", icon: "Activity" },
   { href: "/vendors/dashboard", label: "דשבורד ספק", icon: "Briefcase" },
   { href: "/admin/dashboard", label: "Admin", icon: "Shield" },

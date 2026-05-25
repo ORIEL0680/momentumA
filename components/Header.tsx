@@ -7,6 +7,7 @@ import {
   Activity,
   Briefcase,
   CreditCard,
+  Gift,
   HelpCircle,
   LogOut,
   Mail,
@@ -66,6 +67,7 @@ import { useNow, daysUntil } from "@/lib/useNow";
 const MORE_ICONS: Record<string, LucideIcon> = {
   Activity,
   Briefcase,
+  Gift,
   Shield,
   Mail,
   Settings,

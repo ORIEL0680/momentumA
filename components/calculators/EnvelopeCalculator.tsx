@@ -190,7 +190,7 @@ function EnvelopeCard({
             </h2>
             <p className="mt-2 text-white/60 leading-relaxed">
               בישראל מקובל שהאורחים מביאים מעטפה כתמיכה לזוג. בנינו לכם מחשבון
-              חכם שמראה כמה ממוצע צריך להגיע מכל זוג — כדי שתדעו אם תכסו את
+              חכם שמראה כמה ממוצע צריך להגיע מכל אורח — כדי שתדעו אם תכסו את
               עלות האירוע, תרוויחו קצת, או תוסיפו מהכיס.
             </p>
           </div>
@@ -199,12 +199,12 @@ function EnvelopeCard({
         {/* Headline number */}
         <div className="mt-6 grid sm:grid-cols-[1fr_auto] gap-5 items-end">
           <div>
-            <div className="text-xs text-white/55 uppercase tracking-wider">סכום ממוצע מומלץ לזוג</div>
+            <div className="text-xs text-white/55 uppercase tracking-wider">סכום ממוצע מומלץ לאורח</div>
             <div className="mt-2 text-5xl md:text-6xl font-extrabold tracking-tight gradient-gold ltr-num">
               ₪{suggestedPerGuest.toLocaleString("he-IL")}
             </div>
             <div className="text-sm text-white/55 mt-2">
-              לזוג · עבור <span className="ltr-num">{guests}</span> אורחים = <span className="ltr-num">₪{(suggestedPerGuest * guests).toLocaleString("he-IL")}</span>
+              לאורח · עבור <span className="ltr-num">{guests}</span> אורחים = <span className="ltr-num">₪{(suggestedPerGuest * guests).toLocaleString("he-IL")}</span>
             </div>
           </div>
           <div className={`rounded-2xl px-4 py-3 inline-flex items-center gap-2 border ${
@@ -240,7 +240,7 @@ function EnvelopeCard({
             perGuest={breakEven}
             total={breakEven * guests}
             net={0}
-            note="הסכום שצריך להגיע מכל זוג בממוצע כדי שהאירוע ישלם על עצמו במלואו."
+            note="הסכום שצריך להגיע מכל אורח בממוצע כדי שהאירוע ישלם על עצמו במלואו."
           />
           <ScenarioCard
             tone="profit"
