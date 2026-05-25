@@ -124,12 +124,18 @@ export async function POST(req: NextRequest) {
     // already moved on, and we treat "0 affected rows" as a 409 conflict.
     // R83 — UPDATE via service-role to bypass RLS. Admin gate already
     // enforced above (isFounderEmail OR admin_emails query).
+    // R116 — also pull category/city/phone/website/socials/about so we can
+    // mint a vendor_landings row below. Without those fields the landing
+    // creation step ran with nulls and the vendor's dashboard kept
+    // showing "no profile" even after the row landed.
     const { data: updated, error: updateErr } = await adminClient
       .from("vendor_applications")
       .update(updates)
       .eq("id", applicationId)
       .eq("status", "pending")
-      .select("id, email, contact_name, business_name");
+      .select(
+        "id, email, contact_name, business_name, category, city, phone, website, instagram, facebook, about, years_in_field",
+      );
 
     if (updateErr) {
       console.error("[vendors-decide] update failed:", {
@@ -157,7 +163,103 @@ export async function POST(req: NextRequest) {
         email: string;
         contact_name: string;
         business_name: string;
+        category?: string | null;
+        city?: string | null;
+        phone?: string | null;
+        website?: string | null;
+        instagram?: string | null;
+        facebook?: string | null;
+        about?: string | null;
+        years_in_field?: number | null;
       };
+
+      // R116 — auto-create the vendor_landings row so the vendor's
+      // useVendorContext flips to isVendor=true on their next page load.
+      // Before this, approve() only stamped status='approved' on the
+      // application; the dashboard kept showing "no profile" because
+      // useVendorContext looks at vendor_landings, not applications.
+      //
+      // Two failure modes are tolerated:
+      //   1. No auth user with this email yet (vendor applied first,
+      //      hasn't signed up). The landing is skipped + a backfill
+      //      hook can pick it up on first sign-in (TODO). For now an
+      //      admin can re-trigger by calling apply→decide again.
+      //   2. A landing already exists (re-approval of a previously-
+      //      approved-then-rejected vendor). insert with onConflict on
+      //      owner_user_id would be the right call, but onConflict
+      //      needs a unique constraint on owner_user_id which we don't
+      //      have today. Instead: skip insert if landing exists.
+      try {
+        // Look up auth user by email. Service-role bypasses RLS.
+        const { data: authList } = await adminClient.auth.admin.listUsers();
+        const authUser = authList?.users.find(
+          (u) => u.email && u.email.toLowerCase() === row.email.toLowerCase(),
+        );
+        if (!authUser) {
+          console.warn(
+            `[vendors-decide] approved ${row.id} but no auth user with email ${row.email} yet — landing not created`,
+          );
+        } else {
+          // Check for existing landing first (skip on re-approval).
+          const { data: existing } = await adminClient
+            .from("vendor_landings")
+            .select("id")
+            .eq("owner_user_id", authUser.id)
+            .maybeSingle();
+          if (existing) {
+            console.log(
+              `[vendors-decide] vendor_landings row already exists for ${authUser.id}; skipping insert`,
+            );
+          } else {
+            // Mint a URL-safe slug. lowercase + hyphens; the app id suffix
+            // disambiguates collisions (two vendors named "Studio Aviv").
+            const baseSlug = row.business_name
+              .toLowerCase()
+              .normalize("NFKD")
+              .replace(/[^a-z0-9֐-׿]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 40) || "vendor";
+            const slug = `${baseSlug}-${row.id.slice(0, 8)}`;
+            const { error: landingErr } = await adminClient
+              .from("vendor_landings")
+              .insert({
+                slug,
+                owner_user_id: authUser.id,
+                name: row.business_name,
+                category: row.category ?? null,
+                city: row.city ?? null,
+                phone: row.phone ?? null,
+                email: row.email,
+                website: row.website ?? null,
+                instagram: row.instagram ?? null,
+                facebook: row.facebook ?? null,
+                about_long: row.about ?? null,
+                years_experience: row.years_in_field ?? null,
+                landing_published: true,
+              });
+            if (landingErr) {
+              console.error(
+                `[vendors-decide] landing insert failed for ${row.id}:`,
+                {
+                  code: landingErr.code,
+                  message: landingErr.message,
+                  details: landingErr.details,
+                  hint: landingErr.hint,
+                },
+              );
+            } else {
+              console.log(
+                `[vendors-decide] created vendor_landings ${slug} for ${row.business_name}`,
+              );
+            }
+          }
+        }
+      } catch (landingErr) {
+        // The application row is approved regardless — landing creation
+        // is best-effort. Don't surface as a 500 to the admin.
+        console.error("[vendors-decide] landing setup threw:", landingErr);
+      }
+
       try {
         const result = await sendVendorApprovalEmail({
           email: row.email,
