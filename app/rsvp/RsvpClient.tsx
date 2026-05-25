@@ -14,7 +14,6 @@ import { trackEvent } from "@/lib/analytics";
 import { verifyRsvpToken } from "@/lib/crypto";
 import { parseRsvpQuery } from "@/lib/rsvpLinks";
 import { fireConfetti } from "@/lib/confetti";
-import { showToast } from "@/components/Toast";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { buildNavigationLinks } from "@/lib/navigationLinks";
 import {
@@ -223,59 +222,38 @@ function RsvpInner() {
     const finalStatus = status as "confirmed" | "declined" | "maybe";
     const finalCount = finalStatus === "confirmed" ? count : 0;
 
-    // CRITICAL: window.open MUST be synchronous inside the click handler so
-    // browsers don't classify it as an unsolicited popup. We compute first,
-    // open, THEN update React state — and ONLY then await any async work.
-    const { url, valid } = buildGuestResponseWhatsappLink(
-      origin,
-      { hostPhone: resolved.hostPhone, hostName: resolved.hostName, partnerName: resolved.partnerName },
-      resolved.guest,
-      resolved.eventId,
-      finalStatus,
-      finalCount,
-      passthroughSig,
-      note.trim() || undefined,
-    );
-    // Always open WhatsApp. When `valid=false`, buildGuestResponseWhatsappLink
-    // returned a `wa.me/?text=...` link with no phone — that lands on
-    // WhatsApp's recipient-picker, where the guest can pick the host from
-    // their contacts manually. Previously we no-op'd here, leaving the user
-    // on the success animation while their answer never reached anyone.
-    window.open(url, "_blank", "noopener,noreferrer");
-    if (!valid) {
-      // Brief delay so the toast is visible AFTER the new tab focuses out.
-      window.setTimeout(() => {
-        showToast("פותח וואטסאפ — בחר את המארח מאנשי הקשר", "info");
-      }, 300);
-    }
-    // Persist + broadcast through every available transport. publishRsvpUpdate:
-    //   1) writes locally via actions.setRsvp (in-tab dashboard reacts via useAppState)
-    //   2) posts on BroadcastChannel for other tabs of the same browser
-    //   3) upserts to Supabase (best-effort) for cross-device dashboards
-    // We only call it when the host's event matches — same guard as before.
-    // The await + try here is what makes the offline banner possible: a
-    // rejection (Supabase down, RLS violation, network drop) used to silently
-    // disappear into a fire-and-forget void, leaving the guest seeing the
-    // confirmation animation while the host got nothing.
-    if (state.event && state.event.id === resolved.eventId) {
-      const noteTrimmed = note.trim();
-      try {
-        await publishRsvpUpdate({
-          eventId: resolved.eventId,
-          guestId: resolved.guest.id,
-          status: finalStatus,
-          attendingCount: finalCount,
-          notes: noteTrimmed || undefined,
-        });
-      } catch (e) {
-        console.error("[momentum/rsvp] publishRsvpUpdate failed:", e);
-        trackEvent("rsvp_publish_failed", {
-          eventId: resolved.eventId,
-          guestId: resolved.guest.id,
-          status: finalStatus,
-        });
-        setLocalSyncBanner(true);
-      }
+    // R107 — direct-write path. publishRsvpUpdate writes to Supabase +
+    // BroadcastChannel + local store; the host's dashboard already
+    // subscribes to rsvpSync, so confirmations appear in realtime with
+    // no WhatsApp hop in the middle.
+    //
+    // The previous flow ALSO opened wa.me unconditionally — that was a
+    // legacy fallback from when there was no backend. With Supabase
+    // wired end-to-end (and a fallback offline banner when it fails),
+    // the auto-open became friction: every guest had a WhatsApp tab
+    // pop open whether they wanted to message the host or not.
+    //
+    // We no longer gate publishRsvpUpdate on `state.event.id === eventId`.
+    // setRsvp is a no-op when the guest isn't in the local store (the
+    // .map skips), and the Supabase upsert + BroadcastChannel parts
+    // are exactly what we want on a guest device with no local event.
+    const noteTrimmed = note.trim();
+    try {
+      await publishRsvpUpdate({
+        eventId: resolved.eventId,
+        guestId: resolved.guest.id,
+        status: finalStatus,
+        attendingCount: finalCount,
+        notes: noteTrimmed || undefined,
+      });
+    } catch (e) {
+      console.error("[momentum/rsvp] publishRsvpUpdate failed:", e);
+      trackEvent("rsvp_publish_failed", {
+        eventId: resolved.eventId,
+        guestId: resolved.guest.id,
+        status: finalStatus,
+      });
+      setLocalSyncBanner(true);
     }
     trackEvent(`rsvp_${finalStatus}`, {
       eventId: resolved.eventId,
@@ -840,79 +818,153 @@ function ResponseSentCard({
     [origin, event, guest, eventId, status, count, passthroughSignature, note],
   );
 
+  const hostNames = event.partnerName
+    ? `${event.hostName} ו${event.partnerName}`
+    : event.hostName;
+
   const ui =
     status === "confirmed"
       ? {
           icon: <CheckCircle2 size={32} />,
           title: `תודה ${guestName}, נשמח לראותך! 🎉`,
-          sub: count > 1 ? `רשמנו ${count} אנשים. שלחו את האישור למארחים — לחיצה אחת ובסיום.` : "רשמנו את ההגעה שלך. שלחו את האישור למארחים — לחיצה אחת ובסיום.",
+          sub:
+            count > 1
+              ? `אישרת ל-${count} אנשים — ${hostNames} כבר רואים את התשובה שלך.`
+              : `אישרת הגעה — ${hostNames} כבר רואים את התשובה שלך.`,
           color: "from-emerald-500/20 to-emerald-400/5",
+          accent: "rgb(110,231,183)",
         }
       : status === "maybe"
         ? {
             icon: <HelpCircle size={32} />,
             title: `תודה ${guestName}!`,
-            sub: "רשמנו 'אולי'. תוכלו לעדכן בכל רגע.",
+            sub: `רשמנו 'אולי'. ${hostNames} יראו זאת בדשבורד שלהם. תוכלו לעדכן בכל רגע.`,
             color: "from-amber-500/20 to-amber-400/5",
+            accent: "rgb(252,211,77)",
           }
         : {
             icon: <XCircle size={32} />,
             title: `תודה ${guestName} על העדכון`,
-            sub: "נצטער שלא תוכלו להצטרף — נדאג לעדכן את המארחים.",
+            sub: `נצטער שלא תוכלו להצטרף — ${hostNames} יראו את התשובה בדשבורד.`,
             color: "from-white/10 to-white/0",
+            accent: "var(--foreground-soft)",
           };
 
+  // R107 — WhatsApp is now only a SECONDARY fallback inside a collapsed
+  // details element. The primary path is the direct DB write that
+  // already happened in respond(). The host doesn't need a WhatsApp
+  // ping from the guest — their dashboard updates in realtime.
   const [copied, setCopied] = useState(false);
   const onCopy = async () => {
     try {
       await navigator.clipboard.writeText(importUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch {
+      /* clipboard blocked — silent */
+    }
   };
 
   return (
     <div className={`card p-7 mt-6 bg-gradient-to-b ${ui.color}`}>
       <div className="flex flex-col items-center text-center">
         <div
-          className="w-16 h-16 rounded-full flex items-center justify-center text-[--accent]"
-          style={{ background: "var(--input-bg)", border: "1px solid var(--border-strong)" }}
+          className="w-16 h-16 rounded-full flex items-center justify-center"
+          style={{
+            background: "var(--input-bg)",
+            border: `1px solid ${ui.accent}`,
+            color: ui.accent,
+          }}
         >
           {ui.icon}
         </div>
         <h2 className="mt-4 text-xl font-bold">{ui.title}</h2>
-        <p className="mt-1.5 text-sm" style={{ color: "var(--foreground-soft)" }}>{ui.sub}</p>
+        <p
+          className="mt-1.5 text-sm leading-relaxed max-w-sm"
+          style={{ color: "var(--foreground-soft)" }}
+        >
+          {ui.sub}
+        </p>
+
+        {/* "Saved live" pill — reassurance that the dashboard already
+            has the answer. Not styled as a button because there's
+            nothing to do; it just signals success. */}
+        <div
+          className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold"
+          style={{
+            background: "rgba(52,211,153,0.10)",
+            border: "1px solid rgba(52,211,153,0.30)",
+            color: "rgb(110,231,183)",
+          }}
+        >
+          <CheckCircle2 size={13} />
+          התשובה שלך עודכנה אצל המארחים
+        </div>
       </div>
 
       <div className="mt-7 space-y-2.5">
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3.5 inline-flex items-center justify-center gap-2 w-full transition"
-        >
-          <Send size={18} />
-          שלח תשובה לוואטסאפ של המארחים
-        </a>
-
-        <div className="text-xs text-center" style={{ color: "var(--foreground-muted)" }}>
-          {valid
-            ? "ייפתח וואטסאפ עם הודעה מוכנה — צריך רק ללחוץ \"שלח\""
-            : "המארחים לא הזינו טלפון — תוכלו לשלוח את התשובה ידנית"}
-        </div>
-
         <button
-          onClick={onCopy}
-          className="w-full rounded-2xl py-2.5 text-sm inline-flex items-center justify-center gap-2 transition"
-          style={{ border: "1px dashed var(--border-strong)", color: "var(--foreground-soft)" }}
+          type="button"
+          onClick={onChange}
+          className="w-full rounded-2xl py-2.5 text-sm inline-flex items-center justify-center gap-2 transition hover:bg-white/[0.03]"
+          style={{
+            border: "1px solid var(--border)",
+            color: "var(--foreground-soft)",
+            minHeight: 44,
+          }}
         >
-          <Copy size={14} />
-          {copied ? "הועתק ✓" : "העתק קישור (אם וואטסאפ לא נפתח)"}
-        </button>
-
-        <button onClick={onChange} className="w-full text-xs" style={{ color: "var(--foreground-muted)" }}>
           שינוי תשובה
         </button>
+
+        {/* Secondary "send via WhatsApp too" fallback — collapsed by
+            default so it doesn't distract from the already-done state.
+            For guests who specifically want to message the host
+            personally, or who don't trust the silent save. */}
+        <details className="text-xs">
+          <summary
+            className="cursor-pointer text-center py-2 list-none"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            ↓ רוצה לשלוח למארחים גם הודעה אישית בוואטסאפ?
+          </summary>
+          <div className="mt-2 space-y-2">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-2xl py-3 inline-flex items-center justify-center gap-2 w-full transition hover:translate-y-[-1px]"
+              style={{
+                background: "rgba(37,211,102,0.12)",
+                border: "1px solid rgba(37,211,102,0.35)",
+                color: "rgb(110,231,183)",
+                fontWeight: 600,
+              }}
+            >
+              <Send size={15} />
+              שלח גם בוואטסאפ
+            </a>
+            <div
+              className="text-xs text-center"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              {valid
+                ? "ייפתח וואטסאפ עם הודעה מוכנה"
+                : "המארחים לא הזינו טלפון — בחר אותם מאנשי הקשר"}
+            </div>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="w-full rounded-2xl py-2 text-xs inline-flex items-center justify-center gap-2 transition"
+              style={{
+                border: "1px dashed var(--border)",
+                color: "var(--foreground-muted)",
+              }}
+            >
+              <Copy size={12} />
+              {copied ? "הועתק ✓" : "העתק קישור (אם וואטסאפ לא נפתח)"}
+            </button>
+          </div>
+        </details>
       </div>
     </div>
   );
