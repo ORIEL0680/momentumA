@@ -30,11 +30,20 @@ import { QrCanvas } from "@/components/QrCanvas";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { useNow } from "@/lib/useNow";
 import { useVendorContext } from "@/lib/useVendorContext";
+import { VENDOR_CATEGORIES } from "@/lib/vendorApplication";
 import type {
   VendorLandingData,
   VendorLead,
   VendorReview,
 } from "@/lib/types";
+
+// R123 — turn the raw category id (e.g. "music-dj") into the Hebrew
+// label ("DJ ולהקות"). Falls back to the id if the category was
+// renamed/removed from the catalog list.
+function categoryLabel(id?: string): string {
+  if (!id) return "—";
+  return VENDOR_CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
 
 /**
  * Vendor dashboard — the home page for an authenticated vendor account.
@@ -664,21 +673,26 @@ export default function VendorDashboardPage() {
             sub={`${metrics.activeLeads} ממתינים`}
             highlight={metrics.activeLeads > 0}
           />
-          {/* R14 bugfix — /vendors/dashboard/reviews and /…/billing don't
-              exist yet. Route the cards at real destinations: the public
-              landing-page reviews section (where the vendor can see their
-              own ratings) and the global /pricing page. */}
+          {/* R123 — keep Reviews + Billing INSIDE the vendor dashboard
+              instead of bouncing the host out to the public landing
+              page (`/vendor/<slug>#reviews`) or the homepage pricing
+              section. Reviews route into the analytics page, which
+              already aggregates the rating + review feed. Billing
+              stays at `/#pricing` for now because there's no dedicated
+              vendor billing page yet, but we open it in a new tab so
+              the dashboard stays put. */}
           <QuickAction
-            href={`/vendor/${vendorLanding.slug}#reviews`}
+            href="/vendors/dashboard/analytics#reviews"
             icon={<Star size={22} aria-hidden />}
             label="ביקורות"
-            sub="צפה בדף הציבורי"
+            sub="דירוגים מאומתים מזוגות"
           />
           <QuickAction
             href="/#pricing"
+            externalTab
             icon={<CreditCard size={22} aria-hidden />}
             label={hasPaidTier ? "מסלול פרימיום" : "שדרג מסלול"}
-            sub={hasPaidTier ? "פעיל" : "פתוח פיצ׳רים מתקדמים"}
+            sub={hasPaidTier ? "פעיל" : "פתח פיצ׳רים מתקדמים"}
             highlight={!hasPaidTier}
           />
         </section>
@@ -835,7 +849,9 @@ function ApplicationPendingScreen({
                 {application.category && (
                   <div className="flex justify-between gap-3">
                     <dt style={{ color: "var(--foreground-muted)" }}>קטגוריה</dt>
-                    <dd className="font-semibold">{application.category}</dd>
+                    <dd className="font-semibold">
+                      {categoryLabel(application.category)}
+                    </dd>
                   </div>
                 )}
                 {submittedFmt && (
@@ -1076,16 +1092,23 @@ function QuickAction({
   label,
   sub,
   highlight,
+  externalTab,
 }: {
   href: string;
   icon: ReactNode;
   label: string;
   sub: string;
   highlight?: boolean;
+  /** R123 — open in a new tab and don't run the Next.js client router.
+   *  Used for cross-app destinations (pricing page) so the vendor's
+   *  dashboard stays open underneath. */
+  externalTab?: boolean;
 }) {
   return (
     <Link
       href={href}
+      target={externalTab ? "_blank" : undefined}
+      rel={externalTab ? "noopener noreferrer" : undefined}
       className="card p-4 flex items-center gap-3 transition hover:translate-y-[-2px]"
       style={
         highlight

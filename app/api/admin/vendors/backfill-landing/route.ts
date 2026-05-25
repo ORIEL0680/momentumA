@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/server";
 import { findAuthUserByEmail } from "@/lib/supabase/findAuthUserByEmail";
+import { createVendorLandingForApplication } from "@/lib/supabase/createVendorLanding";
 
 /**
  * R122 — POST /api/admin/vendors/backfill-landing
@@ -133,73 +134,46 @@ export async function POST(req: NextRequest) {
       continue;
     }
 
-    // Already have a landing? Skip — the vendor is fine.
-    const { data: existing } = await adminClient
-      .from("vendor_landings")
-      .select("id, slug")
-      .eq("owner_user_id", authUser.id)
-      .maybeSingle();
-    if (existing) {
+    // R123 — single canonical helper. Idempotent: returns
+    // "already-exists" if the landing's there, "created" on insert,
+    // "insert-failed" with the SQL error otherwise.
+    const outcome = await createVendorLandingForApplication(
+      adminClient,
+      row,
+      authUser.id,
+    );
+    if (outcome.status === "created") {
+      console.log(
+        `[backfill-landing] created vendor_landings ${outcome.slug} for ${row.business_name}`,
+      );
+      report.push({
+        applicationId: row.id,
+        businessName: row.business_name,
+        email: row.email,
+        outcome: "created",
+        slug: outcome.slug,
+      });
+    } else if (outcome.status === "already-exists") {
       report.push({
         applicationId: row.id,
         businessName: row.business_name,
         email: row.email,
         outcome: "already-exists",
-        slug: (existing as { id: string; slug: string }).slug,
+        slug: outcome.slug,
       });
-      continue;
-    }
-
-    // Mint the slug + insert. Same logic as the decide route.
-    const baseSlug =
-      row.business_name
-        .toLowerCase()
-        .normalize("NFKD")
-        .replace(/[^a-z0-9֐-׿]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40) || "vendor";
-    const slug = `${baseSlug}-${row.id.slice(0, 8)}`;
-    const { error: insertErr } = await adminClient
-      .from("vendor_landings")
-      .insert({
-        slug,
-        owner_user_id: authUser.id,
-        name: row.business_name,
-        category: row.category ?? null,
-        city: row.city ?? null,
-        phone: row.phone ?? null,
-        email: row.email,
-        website: row.website ?? null,
-        instagram: row.instagram ?? null,
-        facebook: row.facebook ?? null,
-        about_long: row.about ?? null,
-        years_experience: row.years_in_field ?? null,
-        landing_published: true,
-      });
-    if (insertErr) {
+    } else {
+      console.error(
+        `[backfill-landing] insert failed for ${row.business_name}:`,
+        outcome.error,
+      );
       report.push({
         applicationId: row.id,
         businessName: row.business_name,
         email: row.email,
         outcome: "insert-failed",
-        error: insertErr.message,
+        error: outcome.error,
       });
-      console.error(
-        `[backfill-landing] insert failed for ${row.business_name}:`,
-        insertErr,
-      );
-      continue;
     }
-    report.push({
-      applicationId: row.id,
-      businessName: row.business_name,
-      email: row.email,
-      outcome: "created",
-      slug,
-    });
-    console.log(
-      `[backfill-landing] created vendor_landings ${slug} for ${row.business_name}`,
-    );
   }
 
   const summary = {

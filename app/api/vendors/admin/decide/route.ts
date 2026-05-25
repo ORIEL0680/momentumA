@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { isFounderEmail } from "@/lib/constants";
 import { createServiceClient } from "@/lib/supabase/service";
 import { findAuthUserByEmail } from "@/lib/supabase/findAuthUserByEmail";
+import { createVendorLandingForApplication } from "@/lib/supabase/createVendorLanding";
 import { sendVendorApprovalEmail } from "@/lib/vendorNotifications";
 
 export async function POST(req: NextRequest) {
@@ -209,66 +210,34 @@ export async function POST(req: NextRequest) {
         const authUser = await findAuthUserByEmail(adminClient, row.email);
         if (!authUser) {
           console.warn(
-            `[vendors-decide] approved ${row.id} but no auth user with email ${row.email} yet — landing not created`,
+            `[vendors-decide] approved ${row.id} but no auth user with email ${row.email} yet — landing not created. Will self-provision on first sign-in.`,
           );
           landingStatus = "no-auth-user";
         } else {
-          // Check for existing landing first (skip on re-approval).
-          const { data: existing } = await adminClient
-            .from("vendor_landings")
-            .select("id")
-            .eq("owner_user_id", authUser.id)
-            .maybeSingle();
-          if (existing) {
+          // R123 — single canonical helper now mints the slug + writes
+          // the row. Same code path used by backfill + self-provision.
+          const outcome = await createVendorLandingForApplication(
+            adminClient,
+            row,
+            authUser.id,
+          );
+          if (outcome.status === "created") {
             console.log(
-              `[vendors-decide] vendor_landings row already exists for ${authUser.id}; skipping insert`,
+              `[vendors-decide] created vendor_landings ${outcome.slug} for ${row.business_name}`,
+            );
+            landingStatus = "created";
+          } else if (outcome.status === "already-exists") {
+            console.log(
+              `[vendors-decide] vendor_landings already exists (${outcome.slug}); skipping`,
             );
             landingStatus = "already-exists";
           } else {
-            // Mint a URL-safe slug. lowercase + hyphens; the app id suffix
-            // disambiguates collisions (two vendors named "Studio Aviv").
-            const baseSlug = row.business_name
-              .toLowerCase()
-              .normalize("NFKD")
-              .replace(/[^a-z0-9֐-׿]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 40) || "vendor";
-            const slug = `${baseSlug}-${row.id.slice(0, 8)}`;
-            const { error: landingErr } = await adminClient
-              .from("vendor_landings")
-              .insert({
-                slug,
-                owner_user_id: authUser.id,
-                name: row.business_name,
-                category: row.category ?? null,
-                city: row.city ?? null,
-                phone: row.phone ?? null,
-                email: row.email,
-                website: row.website ?? null,
-                instagram: row.instagram ?? null,
-                facebook: row.facebook ?? null,
-                about_long: row.about ?? null,
-                years_experience: row.years_in_field ?? null,
-                landing_published: true,
-              });
-            if (landingErr) {
-              console.error(
-                `[vendors-decide] landing insert failed for ${row.id}:`,
-                {
-                  code: landingErr.code,
-                  message: landingErr.message,
-                  details: landingErr.details,
-                  hint: landingErr.hint,
-                },
-              );
-              landingStatus = "insert-failed";
-              landingError = landingErr.message;
-            } else {
-              console.log(
-                `[vendors-decide] created vendor_landings ${slug} for ${row.business_name}`,
-              );
-              landingStatus = "created";
-            }
+            console.error(
+              `[vendors-decide] landing insert failed for ${row.id}:`,
+              outcome.error,
+            );
+            landingStatus = "insert-failed";
+            landingError = outcome.error;
           }
         }
       } catch (landingExc) {

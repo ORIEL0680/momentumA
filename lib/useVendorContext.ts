@@ -182,23 +182,67 @@ export function useVendorContext(): VendorContextValue {
         } | null;
 
         if (cancelled) return;
-        const found = !!data;
-        setIsVendor(found);
-        setVendorLanding(data);
-        setHasPaidTier(
-          !!data &&
-            (data.price_range === "premium" || data.price_range === "luxury"),
-        );
+        let found = !!data;
+        let landing = data;
+
         // Map the row → typed application status. If no row exists,
         // the user never applied; default to "none".
+        const appStatus: VendorApplicationStatus =
+          appRow?.status === "approved" ||
+          appRow?.status === "pending" ||
+          appRow?.status === "rejected"
+            ? appRow.status
+            : "none";
+
+        // R123 — self-provision the landing if the application is
+        // approved but no landing row exists yet. This covers the
+        // common case of a vendor who filled the form BEFORE signing
+        // up to the app: at approval time there was no auth.users
+        // row, so the admin route logged "no-auth-user" and skipped
+        // landing creation. Now, the moment the vendor opens the
+        // dashboard (= first time we have their JWT in this hook),
+        // we POST to the server endpoint that lazily creates the
+        // landing under service role. The endpoint verifies the
+        // caller's identity from the JWT — they can only provision
+        // their OWN landing.
+        if (appStatus === "approved" && !landing) {
+          try {
+            const res = await fetch("/api/vendors/self-provision-landing", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+            if (res.ok) {
+              // Re-query the landing — the insert happened server-side.
+              const { data: refreshed } = await supabase
+                .from("vendor_landings")
+                .select("*")
+                .eq("owner_user_id", session.user.id)
+                .maybeSingle();
+              if (refreshed) {
+                landing = refreshed as VendorLandingData;
+                found = true;
+              }
+            }
+          } catch (provErr) {
+            // Soft failure — the dashboard's "no landing yet" panel
+            // (R122) still gives the vendor a retry path.
+            console.error("[useVendorContext] self-provision failed:", provErr);
+          }
+        }
+
+        if (cancelled) return;
+        setIsVendor(found);
+        setVendorLanding(landing);
+        setHasPaidTier(
+          !!landing &&
+            (landing.price_range === "premium" ||
+              landing.price_range === "luxury"),
+        );
         if (appRow && appRow.status) {
-          const s = appRow.status;
-          const status: VendorApplicationStatus =
-            s === "approved" || s === "pending" || s === "rejected"
-              ? s
-              : "none";
           setApplication({
-            status,
+            status: appStatus,
             businessName: appRow.business_name,
             category: appRow.category,
             submittedAt: appRow.created_at,
@@ -209,7 +253,7 @@ export function useVendorContext(): VendorContextValue {
         }
         writeCache({
           isVendor: found,
-          vendorSlug: data?.slug ?? null,
+          vendorSlug: landing?.slug ?? null,
           lastChecked: Date.now(),
         });
       } catch (e) {
