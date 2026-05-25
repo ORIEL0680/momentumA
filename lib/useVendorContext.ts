@@ -18,9 +18,32 @@ import type { VendorLandingData } from "./types";
  * because navigating between vendor pages needs it without a re-fetch.
  */
 
+/** R114 — surface the vendor's application status separately from
+ *  `isVendor`. A user who submitted /vendors/join but hasn't been
+ *  approved yet has `isVendor: false` (no vendor_landings row) but
+ *  `applicationStatus: "pending"` — useful so the dashboard can show
+ *  a "waiting for review" screen instead of a "no profile" empty
+ *  state. */
+export type VendorApplicationStatus =
+  | "none"
+  | "pending"
+  | "approved"
+  | "rejected";
+
+export interface VendorApplicationInfo {
+  status: VendorApplicationStatus;
+  businessName?: string;
+  category?: string;
+  submittedAt?: string;
+  rejectionReason?: string;
+}
+
 interface VendorContextValue {
   isVendor: boolean;
   vendorLanding: VendorLandingData | null;
+  /** Most recent vendor_applications row that matches this user's email,
+   *  or `{ status: "none" }` when they never applied. */
+  application: VendorApplicationInfo;
   /** True once we've made the first server check (vs. just the cache). */
   hasPaidTier: boolean;
   isLoading: boolean;
@@ -91,6 +114,9 @@ export function useVendorContext(): VendorContextValue {
   // tiers unlock advanced dashboard features (TODO: gate behind real
   // payments once Stripe is wired in).
   const [hasPaidTier, setHasPaidTier] = useState<boolean>(false);
+  const [application, setApplication] = useState<VendorApplicationInfo>({
+    status: "none",
+  });
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -118,11 +144,32 @@ export function useVendorContext(): VendorContextValue {
           return;
         }
 
-        const { data } = (await supabase
-          .from("vendor_landings")
-          .select("*")
-          .eq("owner_user_id", session.user.id)
-          .maybeSingle()) as { data: VendorLandingData | null };
+        // R114 — fetch both in parallel: the landing (source of truth
+        // for "approved vendor"), and the most recent application row
+        // matching this user's email (lets us show "pending review" UI
+        // for applicants who haven't been approved yet). RLS gates the
+        // applications query to rows where email = the user's JWT email.
+        const [landingRes, appRes] = await Promise.all([
+          supabase
+            .from("vendor_landings")
+            .select("*")
+            .eq("owner_user_id", session.user.id)
+            .maybeSingle(),
+          supabase
+            .from("vendor_applications")
+            .select("status, business_name, category, created_at, rejection_reason")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+        const data = landingRes.data as VendorLandingData | null;
+        const appRow = appRes.data as {
+          status?: string;
+          business_name?: string;
+          category?: string;
+          created_at?: string;
+          rejection_reason?: string;
+        } | null;
 
         if (cancelled) return;
         const found = !!data;
@@ -132,6 +179,24 @@ export function useVendorContext(): VendorContextValue {
           !!data &&
             (data.price_range === "premium" || data.price_range === "luxury"),
         );
+        // Map the row → typed application status. If no row exists,
+        // the user never applied; default to "none".
+        if (appRow && appRow.status) {
+          const s = appRow.status;
+          const status: VendorApplicationStatus =
+            s === "approved" || s === "pending" || s === "rejected"
+              ? s
+              : "none";
+          setApplication({
+            status,
+            businessName: appRow.business_name,
+            category: appRow.category,
+            submittedAt: appRow.created_at,
+            rejectionReason: appRow.rejection_reason,
+          });
+        } else {
+          setApplication({ status: "none" });
+        }
         writeCache({
           isVendor: found,
           vendorSlug: data?.slug ?? null,
@@ -150,5 +215,5 @@ export function useVendorContext(): VendorContextValue {
     };
   }, []);
 
-  return { isVendor, vendorLanding, hasPaidTier, isLoading };
+  return { isVendor, vendorLanding, application, hasPaidTier, isLoading };
 }

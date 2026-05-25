@@ -110,8 +110,13 @@ function computeCompleteness(landing: VendorLandingData): {
 
 export default function VendorDashboardPage() {
   const router = useRouter();
-  const { isVendor, vendorLanding, hasPaidTier, isLoading: ctxLoading } =
-    useVendorContext();
+  const {
+    isVendor,
+    vendorLanding,
+    application,
+    hasPaidTier,
+    isLoading: ctxLoading,
+  } = useVendorContext();
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -298,45 +303,71 @@ export default function VendorDashboardPage() {
   }
 
   if (!isVendor) {
+    // Not authenticated → ask to sign in.
+    if (isAuthenticated === false) {
+      return (
+        <main className="min-h-screen flex items-center justify-center px-5">
+          <div className="card p-8 text-center max-w-md">
+            <Sparkles size={32} className="mx-auto text-[--accent]" aria-hidden />
+            <h1 className="mt-4 text-xl font-bold">כניסה לדשבורד הספק</h1>
+            <p
+              className="mt-3 text-sm"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              התחבר עם החשבון שלך כדי לראות לידים, ביקורות, ואנליטיקס.
+              אם עוד אין לך פרופיל — תוכל להקים אותו אחרי ההתחברות.
+            </p>
+            <Link
+              href="/signup?role=vendor&returnTo=/vendors/dashboard"
+              className="btn-gold mt-5 inline-flex items-center gap-2"
+            >
+              <ArrowUpRight size={14} aria-hidden /> התחבר / הירשם
+            </Link>
+          </div>
+        </main>
+      );
+    }
+
+    // R114 — pending application: the user submitted /vendors/join and
+    // is waiting on admin approval. Show a premium "under review"
+    // screen instead of the generic "create profile" CTA.
+    if (application.status === "pending") {
+      return <ApplicationPendingScreen application={application} />;
+    }
+
+    // Rejected: tell them why + give a path to reapply.
+    if (application.status === "rejected") {
+      return <ApplicationRejectedScreen application={application} />;
+    }
+
+    // No application at all — surface BOTH paths so the user picks:
+    // (1) the formal application (admin-approved, listed in catalog)
+    // (2) the vendor-studio quick path (instant landing, paid tier).
     return (
       <main className="min-h-screen flex items-center justify-center px-5">
         <div className="card p-8 text-center max-w-md">
           <Sparkles size={32} className="mx-auto text-[--accent]" aria-hidden />
-          {isAuthenticated === false ? (
-            <>
-              <h1 className="mt-4 text-xl font-bold">כניסה לדשבורד הספק</h1>
-              <p
-                className="mt-3 text-sm"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                התחבר עם החשבון שלך כדי לראות לידים, ביקורות, ואנליטיקס.
-                אם עוד אין לך פרופיל — תוכל להקים אותו אחרי ההתחברות.
-              </p>
-              <Link
-                href="/signup?returnTo=/vendors/dashboard"
-                className="btn-gold mt-5 inline-flex items-center gap-2"
-              >
-                <ArrowUpRight size={14} aria-hidden /> התחבר / הירשם
-              </Link>
-            </>
-          ) : (
-            <>
-              <h1 className="mt-4 text-xl font-bold">עוד לא יצרת פרופיל ספק</h1>
-              <p
-                className="mt-3 text-sm"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                כדי לראות לידים, ביקורות, ואנליטיקס — ראשית עלייך להקים דף
-                נחיתה ב-Vendor Studio.
-              </p>
-              <Link
-                href="/dashboard/vendor-studio"
-                className="btn-gold mt-5 inline-flex items-center gap-2"
-              >
-                <ArrowUpRight size={14} aria-hidden /> צור פרופיל
-              </Link>
-            </>
-          )}
+          <h1 className="mt-4 text-xl font-bold">ברוך/ה הבא/ה ל-Momentum לספקים</h1>
+          <p
+            className="mt-3 text-sm"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            כדי להתחיל לקבל לידים, מלא את טופס ההרשמה כספק — לוקח 3 דקות.
+            לאחר אישור הצוות, הפרופיל שלך יופיע בקטלוג ותוכל לקבל הודעות
+            מזוגות.
+          </p>
+          <Link
+            href="/vendors/join"
+            className="btn-gold mt-5 inline-flex items-center gap-2"
+          >
+            <ArrowUpRight size={14} aria-hidden /> מילוי טופס ספק
+          </Link>
+          <div
+            className="mt-4 text-xs"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            כבר מילאת? תוודא/י שאתה/את מחובר/ת עם אותו מייל שמילאת בטופס.
+          </div>
         </div>
       </main>
     );
@@ -643,6 +674,295 @@ export default function VendorDashboardPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * R114 — premium "your application is being reviewed" screen.
+ *
+ * Shown to a vendor who submitted /vendors/join but doesn't yet have
+ * a vendor_landings row (admin hasn't approved). Before this screen
+ * existed, these users landed on a generic "no vendor profile" CTA
+ * that re-prompted them to create one — confusing because they'd
+ * already done the work.
+ *
+ * Layout: gradient glass card with the application's business name +
+ * category + submission time, a clear "what happens next" timeline,
+ * a support contact link, and a refresh button for the impatient.
+ */
+function ApplicationPendingScreen({
+  application,
+}: {
+  application: {
+    businessName?: string;
+    category?: string;
+    submittedAt?: string;
+  };
+}) {
+  const submittedFmt = application.submittedAt
+    ? new Date(application.submittedAt).toLocaleDateString("he-IL", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <main className="min-h-screen flex items-center justify-center px-5 py-12 relative overflow-hidden">
+      <div
+        aria-hidden
+        className="absolute -top-32 -end-32 w-[480px] h-[480px] rounded-full pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(212,176,104,0.22), transparent 70%)",
+          filter: "blur(60px)",
+        }}
+      />
+      <div className="w-full max-w-lg relative z-10">
+        <div className="flex justify-center mb-6">
+          <Logo size={28} />
+        </div>
+        <div
+          className="card glass-strong p-7 rounded-3xl"
+          style={{ border: "1px solid var(--border-gold)" }}
+        >
+          {/* Icon + headline */}
+          <div className="flex flex-col items-center text-center">
+            <div
+              className="w-16 h-16 rounded-2xl inline-flex items-center justify-center"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(244,222,169,0.18), rgba(168,136,74,0.06))",
+                border: "1px solid var(--border-gold)",
+                color: "var(--accent)",
+              }}
+            >
+              <Clock size={28} aria-hidden />
+            </div>
+            <h1 className="mt-5 text-2xl font-extrabold gradient-gold leading-tight">
+              הבקשה שלך בבדיקה
+            </h1>
+            <p
+              className="mt-2 text-sm leading-relaxed max-w-sm"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              קיבלנו את ההרשמה שלך כספק ב-Momentum. הצוות שלנו עובר עליה כעת —
+              בדרך כלל הבדיקה אורכת <strong>1-3 ימי עסקים</strong>.
+            </p>
+          </div>
+
+          {/* Application summary */}
+          {(application.businessName || application.category || submittedFmt) && (
+            <div
+              className="mt-6 rounded-2xl p-4"
+              style={{
+                background:
+                  "color-mix(in srgb, var(--gold-100) 5%, var(--input-bg))",
+                border: "1px solid var(--border-gold)",
+              }}
+            >
+              <div
+                className="text-[10px] uppercase tracking-widest mb-2"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                פרטי הבקשה
+              </div>
+              <dl className="space-y-1.5 text-sm">
+                {application.businessName && (
+                  <div className="flex justify-between gap-3">
+                    <dt style={{ color: "var(--foreground-muted)" }}>שם העסק</dt>
+                    <dd className="font-semibold truncate">
+                      {application.businessName}
+                    </dd>
+                  </div>
+                )}
+                {application.category && (
+                  <div className="flex justify-between gap-3">
+                    <dt style={{ color: "var(--foreground-muted)" }}>קטגוריה</dt>
+                    <dd className="font-semibold">{application.category}</dd>
+                  </div>
+                )}
+                {submittedFmt && (
+                  <div className="flex justify-between gap-3">
+                    <dt style={{ color: "var(--foreground-muted)" }}>הוגש</dt>
+                    <dd className="font-semibold ltr-num">{submittedFmt}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+
+          {/* Timeline */}
+          <ol className="mt-6 space-y-3">
+            <TimelineStep
+              done
+              title="הבקשה נשלחה"
+              body="קיבלנו את כל הפרטים שלך"
+            />
+            <TimelineStep
+              active
+              title="הצוות שלנו בודק"
+              body="אנחנו מאמתים את העסק ואת דוגמת העבודה"
+            />
+            <TimelineStep
+              title="מייל אישור והפעלה"
+              body="ברגע שיש אישור, נשלח לך מייל והדשבורד יופעל אוטומטית"
+            />
+          </ol>
+
+          {/* Refresh + support */}
+          <div className="mt-7 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="action-btn"
+              style={{ minHeight: 48 }}
+            >
+              <Loader2 size={14} aria-hidden />
+              בדיקה מחדש
+            </button>
+            <a
+              href="mailto:support@moomentum.events"
+              className="action-btn primary"
+              style={{ minHeight: 48 }}
+            >
+              <Inbox size={14} aria-hidden />
+              צור קשר עם הצוות
+            </a>
+          </div>
+        </div>
+        <div
+          className="mt-5 text-center text-xs"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          מקבל הודעות מ-noreply@moomentum.events? הוסף לרשימת הלבנה כדי לא
+          לפספס את אישור ההפעלה.
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function ApplicationRejectedScreen({
+  application,
+}: {
+  application: { businessName?: string; rejectionReason?: string };
+}) {
+  return (
+    <main className="min-h-screen flex items-center justify-center px-5 py-12">
+      <div className="w-full max-w-lg">
+        <div className="flex justify-center mb-6">
+          <Logo size={28} />
+        </div>
+        <div
+          className="card glass-strong p-7 rounded-3xl"
+          style={{ border: "1px solid rgba(248,113,113,0.30)" }}
+        >
+          <div className="flex flex-col items-center text-center">
+            <div
+              className="w-16 h-16 rounded-2xl inline-flex items-center justify-center"
+              style={{
+                background: "rgba(248,113,113,0.10)",
+                border: "1px solid rgba(248,113,113,0.30)",
+                color: "rgb(252,165,165)",
+              }}
+            >
+              <AlertCircle size={28} aria-hidden />
+            </div>
+            <h1 className="mt-5 text-2xl font-bold leading-tight">
+              הבקשה נדחתה
+            </h1>
+            {application.businessName && (
+              <p
+                className="mt-1 text-sm"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                {application.businessName}
+              </p>
+            )}
+          </div>
+
+          {application.rejectionReason && (
+            <div
+              className="mt-5 rounded-2xl p-4 text-sm leading-relaxed"
+              style={{
+                background: "rgba(248,113,113,0.06)",
+                border: "1px solid rgba(248,113,113,0.20)",
+                color: "var(--foreground-soft)",
+              }}
+            >
+              <div
+                className="text-[10px] uppercase tracking-widest mb-1.5"
+                style={{ color: "rgb(252,165,165)" }}
+              >
+                הסיבה
+              </div>
+              {application.rejectionReason}
+            </div>
+          )}
+
+          <div className="mt-6 grid grid-cols-2 gap-2">
+            <a
+              href="mailto:support@moomentum.events"
+              className="action-btn"
+              style={{ minHeight: 48 }}
+            >
+              צור קשר
+            </a>
+            <Link
+              href="/vendors/join"
+              className="action-btn primary"
+              style={{ minHeight: 48 }}
+            >
+              הגש בקשה חדשה
+            </Link>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function TimelineStep({
+  title,
+  body,
+  done,
+  active,
+}: {
+  title: string;
+  body: string;
+  done?: boolean;
+  active?: boolean;
+}) {
+  const dot = done ? (
+    <CheckCircle2 size={16} className="text-emerald-400" aria-hidden />
+  ) : active ? (
+    <Loader2
+      size={16}
+      className="animate-spin text-[--accent]"
+      aria-hidden
+    />
+  ) : (
+    <Clock size={16} style={{ color: "var(--foreground-muted)" }} aria-hidden />
+  );
+  return (
+    <li className="flex items-start gap-3">
+      <div className="mt-0.5 shrink-0">{dot}</div>
+      <div className="flex-1 min-w-0">
+        <div
+          className="text-sm font-semibold leading-snug"
+          style={{ color: active || done ? "var(--foreground)" : "var(--foreground-muted)" }}
+        >
+          {title}
+        </div>
+        <div
+          className="text-xs mt-0.5 leading-relaxed"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          {body}
+        </div>
+      </div>
+    </li>
   );
 }
 
