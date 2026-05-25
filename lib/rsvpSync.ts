@@ -192,14 +192,29 @@ async function wireSupabaseRealtime() {
   };
   // Save the channel reference BEFORE .subscribe() so a fast re-subscribe
   // doesn't double-create. Setting it null again happens in teardown.
+  //
+  // R109c — give the channel a unique name per browser session. Supabase
+  // realtime tolerates multiple subscribers to the same name, but a
+  // stale channel from a previous mount (HMR, route swap) can occasionally
+  // hijack future events when the name is shared. Unique-per-session
+  // names side-step the issue entirely.
+  const channelName = `rsvps:${Math.random().toString(36).slice(2, 10)}`;
   supabaseChannel = supabase
-    .channel("rsvps")
+    .channel(channelName)
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "rsvps" },
       (payload: { new?: RsvpRow }) => {
+        // R109c — visible log so the host can see in DevTools that the
+        // event landed BEFORE we apply any business logic. If this line
+        // doesn't print after a guest tap, the issue is on the
+        // subscription side (RLS / publication / channel filter).
+        console.log("[momentum/rsvpSync] ◀ postgres_changes received:", payload);
         const row = payload.new;
-        if (!row || !row.guest_id || !row.event_id || !row.status) return;
+        if (!row || !row.guest_id || !row.event_id || !row.status) {
+          console.warn("[momentum/rsvpSync] payload missing required fields", row);
+          return;
+        }
         if (!isFinalStatus(row.status)) {
           trackEvent("rsvp_unknown_status", { status: String(row.status), source: "supabase" });
           return;
@@ -226,7 +241,25 @@ async function wireSupabaseRealtime() {
         handlers.forEach((h) => h(update));
       },
     );
-  supabaseChannel.subscribe();
+  // R109c — surface subscribe() status. Without this callback the
+  // dashboard can't tell whether realtime came online or silently
+  // refused (RLS, publication missing, network).
+  supabaseChannel.subscribe((status, err) => {
+    if (status === "SUBSCRIBED") {
+      console.log(`[momentum/rsvpSync] ✓ realtime subscribed on "${channelName}"`);
+    } else if (status === "CHANNEL_ERROR") {
+      console.error(
+        `[momentum/rsvpSync] ✗ realtime CHANNEL_ERROR — likely the rsvps table is not in the supabase_realtime publication, OR anon SELECT is blocked by RLS.`,
+        err,
+      );
+    } else if (status === "TIMED_OUT") {
+      console.error("[momentum/rsvpSync] ✗ realtime TIMED_OUT — supabase realtime is down or the project URL is wrong", err);
+    } else if (status === "CLOSED") {
+      console.log(`[momentum/rsvpSync] realtime channel "${channelName}" closed`);
+    } else {
+      console.log(`[momentum/rsvpSync] realtime status: ${status}`);
+    }
+  });
 }
 
 async function teardownSupabaseRealtime() {
