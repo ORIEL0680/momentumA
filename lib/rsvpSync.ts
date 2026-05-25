@@ -259,7 +259,23 @@ async function pushToSupabase(update: RsvpUpdate): Promise<boolean> {
         { onConflict: "guest_id" },
       );
     if (error) {
-      console.error("[momentum/rsvpSync] supabase upsert failed:", error);
+      // R109 — diagnostic so the host can see why their dashboard isn't
+      // updating in realtime. Most common cause: the rsvps migration
+      // hasn't been applied to the Supabase project. Surfacing the
+      // Postgres error code makes "relation does not exist" (42P01)
+      // immediately obvious vs. a generic RLS denial (42501).
+      console.error(
+        `[momentum/rsvpSync] supabase upsert failed [${error.code ?? "?"}]: ${error.message}`,
+        error.details ? `· ${error.details}` : "",
+        error.hint ? `· hint: ${error.hint}` : "",
+      );
+      if (error.code === "42P01") {
+        console.error(
+          "[momentum/rsvpSync] The `rsvps` table is missing. Apply " +
+            "supabase/migrations/2026-05-25-rsvps.sql in your Supabase " +
+            "SQL Editor and try again.",
+        );
+      }
       return false;
     }
     return true;
