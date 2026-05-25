@@ -12,9 +12,16 @@
 -- column today; matching by email is the only available bridge.
 -- Multiple landings per email are rare (one per user); if it ever
 -- happens, the most-recently-updated one wins.
+--
+-- R118 follow-up — `drop function` first. Postgres rejects
+-- `create or replace` when the column list of the returning row
+-- type changes (we're adding hero_photo_path), with 42P13. Drop +
+-- recreate is the supported migration path.
 -- ─────────────────────────────────────────────────────────────────────
 
-create or replace function list_approved_vendors()
+drop function if exists list_approved_vendors();
+
+create function list_approved_vendors()
 returns table (
   id uuid,
   business_name text,
