@@ -15,6 +15,7 @@ import { TransparencySection } from "@/components/cfo/TransparencySection";
 import { CalculatorsHub } from "@/components/calculators/CalculatorsHub";
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import {
   BUDGET_CATEGORY_LABELS,
   type BudgetCategory,
@@ -51,6 +52,8 @@ export default function BudgetPage() {
   const router = useRouter();
   const { state, hydrated } = useAppState();
   const { user, hydrated: userHydrated } = useUser();
+  // R114 — vendors don't track event budgets.
+  useVendorRedirect();
   const [showAdd, setShowAdd] = useState(false);
   const [activeTab, setActiveTab] = useState<BudgetTab>("budget");
 

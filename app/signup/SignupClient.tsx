@@ -52,7 +52,22 @@ function SignupPageInner() {
   // returnTo lets manager-invite (and any future deep-link) bring the user
   // back to where they were *before* signup interrupted them. Defaults to
   // /start for fresh signups.
-  const returnTo = searchParams.get("returnTo") || "/start";
+  // R114 — role pre-selection. The signup page now asks "what kind of
+  // user are you?" upfront — wedding hosts vs. event vendors land on
+  // very different parts of the app. Read from URL (so deep-links
+  // like /signup?role=vendor are honored) + state (so the segmented
+  // control here can flip it on the fly).
+  const initialRole: "host" | "vendor" =
+    searchParams.get("role") === "vendor" ? "vendor" : "host";
+  const [signupRole, setSignupRole] = useState<"host" | "vendor">(initialRole);
+
+  // Effective returnTo priority: explicit URL ?returnTo wins (used by
+  // manager invites + future deep links), otherwise pick the right
+  // landing per role — vendors go straight to the application form,
+  // hosts to the existing /start onboarding.
+  const explicitReturnTo = searchParams.get("returnTo");
+  const returnTo =
+    explicitReturnTo ?? (signupRole === "vendor" ? "/vendors/join" : "/start");
   const [step, setStep] = useState<Step>("choose");
   const [method, setMethod] = useState<SignupMethod | null>(null);
   const [identifier, setIdentifier] = useState("");
@@ -326,6 +341,22 @@ function SignupPageInner() {
                 }}
               />
 
+              {/* R114 — role chooser (host vs. vendor). Only in signup
+                  mode; returning users already have a role baked into
+                  their profile. Two big cards instead of a tiny
+                  segmented control because the choice is foundational
+                  and we want the user to feel they're making a
+                  meaningful decision. */}
+              {authMode === "signup" && (
+                <RoleChooser
+                  role={signupRole}
+                  onChange={(r) => {
+                    setSignupRole(r);
+                    setError(null);
+                  }}
+                />
+              )}
+
               {/* Consent box — only required for fresh signups. Returning
                   users already agreed; rendering it on /signup?mode=signin
                   was needlessly hostile. */}
@@ -521,6 +552,111 @@ function AuthModeTabs({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * R114 — primary fork at signup: "I'm planning an event" vs "I'm an
+ * event vendor". Two large gold-bordered cards instead of a tiny
+ * segmented pair because the choice routes the user into completely
+ * different parts of the app — wedding host onboarding vs. the
+ * vendor application form — and we want them to feel the weight
+ * before they pick.
+ *
+ * Visual: the active card lifts slightly with a gold gradient fill;
+ * the inactive sits flat with a thin border. Each card has an icon,
+ * a one-line headline, and a tiny "what you get" subtitle. Mobile
+ * stays grid-cols-2 (no stacking) — keeping both options visible
+ * side-by-side is the whole point.
+ */
+function RoleChooser({
+  role,
+  onChange,
+}: {
+  role: "host" | "vendor";
+  onChange: (r: "host" | "vendor") => void;
+}) {
+  const options = [
+    {
+      id: "host" as const,
+      emoji: "💛",
+      title: "אני מתכנן/ת אירוע",
+      subtitle: "חתונה · בר/בת מצווה · ברית · יום הולדת",
+    },
+    {
+      id: "vendor" as const,
+      emoji: "💼",
+      title: "אני ספק/ית שירות",
+      subtitle: "צלם · אולם · מוזיקה · עיצוב · יותר",
+    },
+  ];
+
+  return (
+    <div className="mb-5 fade-up">
+      <div
+        className="text-[11px] uppercase tracking-widest mb-2 px-1"
+        style={{ color: "var(--foreground-muted)" }}
+      >
+        הצטרפות בתור
+      </div>
+      <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="הצטרפות בתור">
+        {options.map((opt) => {
+          const active = role === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => onChange(opt.id)}
+              className="rounded-2xl p-3.5 text-start transition relative overflow-hidden"
+              style={{
+                background: active
+                  ? "linear-gradient(150deg, rgba(244,222,169,0.18), rgba(168,136,74,0.06))"
+                  : "var(--input-bg)",
+                border: active
+                  ? "1.5px solid var(--accent)"
+                  : "1px solid var(--border)",
+                boxShadow: active
+                  ? "0 8px 20px -10px var(--accent-glow)"
+                  : "none",
+                transform: active ? "translateY(-1px)" : "none",
+              }}
+            >
+              <div className="text-xl leading-none mb-1.5" aria-hidden>
+                {opt.emoji}
+              </div>
+              <div
+                className="text-sm font-bold leading-tight"
+                style={{ color: active ? "var(--accent)" : "var(--foreground)" }}
+              >
+                {opt.title}
+              </div>
+              <div
+                className="text-[11px] mt-1 leading-relaxed"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                {opt.subtitle}
+              </div>
+              {active && (
+                <span
+                  aria-hidden
+                  className="absolute top-2 end-2 w-4 h-4 rounded-full inline-flex items-center justify-center"
+                  style={{
+                    background: "var(--accent)",
+                    color: "var(--gold-button-text, #1a1310)",
+                    fontSize: 10,
+                    fontWeight: 800,
+                  }}
+                >
+                  ✓
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { DashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { InstallPWA } from "@/components/InstallPWA";
 import { useAppState } from "@/lib/store";
 import { subscribeRsvpUpdates } from "@/lib/rsvpSync";
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import { useUser } from "@/lib/user";
 import { getJourneyForState, getProgress } from "@/lib/journey";
 import { type AppState } from "@/lib/types";
@@ -64,6 +65,10 @@ function DashboardInner() {
   const initialWelcome = searchParams.get("welcome") === "1";
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const showWelcome = initialWelcome && !welcomeDismissed;
+
+  // R114 — vendors shouldn't see the host dashboard. Bounce them to
+  // their own dashboard before any host-side content renders.
+  useVendorRedirect();
 
   useEffect(() => {
     if (userHydrated && !user) {

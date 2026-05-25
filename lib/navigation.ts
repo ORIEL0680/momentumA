@@ -57,6 +57,22 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/balance", label: "מאזן" },
 ] as const;
 
+/**
+ * R114 — vendor-side desktop top-bar pill row. Replaces HEADER_NAV
+ * entirely for users with a vendor_landings row. Hosts' "guests /
+ * budget / seating" surfaces don't apply to vendors, and showing them
+ * confuses brand-new vendors who can't tell whether they're in the
+ * right app. This nav keeps them inside the vendor area.
+ */
+export const VENDOR_HEADER_NAV: readonly HeaderNavItem[] = [
+  { href: "/vendors/dashboard", label: "דשבורד" },
+  { href: "/vendors/dashboard/leads", label: "לידים" },
+  { href: "/vendors/dashboard/inbox", label: "הודעות" },
+  { href: "/vendors/dashboard/analytics", label: "אנליטיקס" },
+  { href: "/vendors/my", label: "הדף שלי" },
+  { href: "/vendors", label: "הקטלוג" },
+] as const;
+
 export interface MoreMenuItem {
   href: string;
   label: string;

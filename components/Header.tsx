@@ -35,7 +35,7 @@ import { useVendorContext } from "@/lib/useVendorContext";
 import { useChatUnread } from "@/lib/useChatUnread";
 import { eventSlots, useEventSlots } from "@/lib/eventSlots";
 import { setupCloudSync } from "@/lib/sync";
-import { HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
+import { HEADER_NAV, VENDOR_HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
 import { useAppState } from "@/lib/store";
 import { useNow, daysUntil } from "@/lib/useNow";
 
@@ -117,6 +117,13 @@ export function Header() {
 
   // Landing-mode variant: when on "/" with no signed-in user.
   const isLanding = pathname === "/" && hydrated && !user;
+
+  // R114 — vendor-aware top nav. Vendors get a completely different
+  // primary nav (dashboard / leads / inbox / analytics / my page /
+  // catalog) instead of the host's "guests / budget / seating" set,
+  // which doesn't apply to them. Stays as HEADER_NAV for everyone
+  // else (anon visitors, hosts, admins).
+  const effectiveNav = isVendor ? VENDOR_HEADER_NAV : HEADER_NAV;
 
   // Boot the cloud sync writer + event-slot snapshot listener exactly
   // once, just like the previous Header did. These run as side effects
@@ -328,7 +335,7 @@ export function Header() {
           style={{ borderTop: "1px solid color-mix(in srgb, var(--border-gold) 50%, transparent)" }}
         >
           <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
-            {HEADER_NAV.map((n) => {
+            {effectiveNav.map((n) => {
               const active =
                 pathname === n.href || pathname.startsWith(`${n.href}/`);
               return <NavPill key={n.href} href={n.href} label={n.label} active={active} />;
@@ -427,7 +434,7 @@ export function Header() {
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
             aria-label="ניווט ראשי"
           >
-            {HEADER_NAV.map((n) => {
+            {effectiveNav.map((n) => {
               const active =
                 pathname === n.href || pathname.startsWith(`${n.href}/`);
               return (

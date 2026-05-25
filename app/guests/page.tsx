@@ -10,6 +10,7 @@ import { useAppState, actions, mintMissingRsvpTokens } from "@/lib/store";
 import { formatEventDate } from "@/lib/format";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useUser } from "@/lib/user";
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import { buildHostInvitationWhatsappLink } from "@/lib/invitation";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { normalizeIsraeliPhone } from "@/lib/phone";
@@ -86,6 +87,8 @@ function GuestsPageInner() {
   const router = useRouter();
   const { state, hydrated } = useAppState();
   const { user, hydrated: userHydrated } = useUser();
+  // R114 — vendors get bounced to their own dashboard, not host pages.
+  useVendorRedirect();
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [showBulkMomentum, setShowBulkMomentum] = useState(false);

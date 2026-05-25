@@ -11,6 +11,7 @@ import { SeatingSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Avatar } from "@/components/Avatar";
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import type { Guest, SeatingTable } from "@/lib/types";
 import { smartArrangement, type TableExplanation } from "@/lib/seatingAlgorithm";
 import {
@@ -51,6 +52,8 @@ export default function SeatingPage() {
   const router = useRouter();
   const { state, hydrated } = useAppState();
   const { user, hydrated: userHydrated } = useUser();
+  // R114 — vendors don't seat wedding guests.
+  useVendorRedirect();
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<SeatingTable | null>(null);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);

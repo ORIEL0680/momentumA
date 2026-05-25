@@ -23,6 +23,7 @@ const VoiceCapture = dynamic(
 );
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import type { Guest } from "@/lib/types";
 import { EVENT_TYPE_LABELS } from "@/lib/types";
 import {
@@ -47,6 +48,8 @@ export default function BalancePage() {
   const router = useRouter();
   const { state, hydrated } = useAppState();
   const { user, hydrated: userHydrated } = useUser();
+  // R114 — vendors don't track wedding envelope balances.
+  useVendorRedirect();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterMode>("all");
   const [sortByGiven, setSortByGiven] = useState(false);

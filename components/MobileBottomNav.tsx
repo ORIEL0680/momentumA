@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { NAV_ITEMS } from "@/lib/navigation";
+import { useVendorContext } from "@/lib/useVendorContext";
 
 /**
  * Mobile-only bottom navigation. Sticky to the viewport bottom, gold accent
@@ -30,10 +31,16 @@ const HIDDEN_PREFIXES = [
 
 export function MobileBottomNav() {
   const pathname = usePathname() ?? "/";
+  const { isVendor } = useVendorContext();
   // Exact-match the home page, prefix-match the outbound list.
   if (pathname === "/" || HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return null;
   }
+  // R114 — hide the host-side bottom nav entirely for vendors. The
+  // vendor area uses the desktop pill row in the Header; a mobile
+  // tab bar pointing to /guests / /seating / /event-day from a
+  // vendor's phone is just dead links.
+  if (isVendor) return null;
 
   return (
     <nav
