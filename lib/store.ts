@@ -263,6 +263,16 @@ export const actions = {
       : buildDefaultChecklist(event.type, event.date);
     writeState({ ...s, event: eventWithKey, checklist });
   },
+  /** R80 — patch a subset of the active event's fields without
+   *  touching the rest. Use this for layout/cosmetic updates (e.g.
+   *  the seating canvas writing the new dance-floor position to
+   *  `venueLayout`) where re-running `setEvent` would needlessly
+   *  re-seed the checklist + signing key. No-op if there's no event. */
+  patchEvent(patch: Partial<EventInfo>) {
+    const s = readState();
+    if (!s.event) return;
+    writeState({ ...s, event: { ...s.event, ...patch } });
+  },
   /** Update the due date on a single checklist item — used by the inline date picker. */
   setChecklistDueDate(id: string, dueDate: string | undefined) {
     const s = readState();

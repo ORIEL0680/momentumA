@@ -1,21 +1,12 @@
 "use client";
 
 /**
- * R80 — Parquet wood-floor pattern for the seating architect canvas.
+ * R80 + R81 — Canvas background.
  *
- * Renders as <defs> + two full-canvas rects (the pattern + a vignette
- * gradient). Imported once inside the root <svg>; consumers don't
- * need to know the implementation details.
- *
- * The pattern is a 80×40 tile with two staggered "plank" rectangles
- * and thin dark seams. At the canvas's default 1200×800 viewBox this
- * produces ~15 × 20 = 300 visible planks — dense enough to read as
- * "real" wood without being noisy.
- *
- * Performance: the pattern is GPU-rasterized once and tiled; cost is
- * a single draw call regardless of plank count. The gold-glow filter
- * (used by full tables) lives here too so consumers can reference it
- * via `filter="url(#goldGlow)"` without re-declaring.
+ * R80 shipped a brown wood-parquet pattern. R81 swaps it for a pure
+ * gold-on-black look: deep black floor, faint gold grid (every 60u),
+ * radial vignette darkening the corners. Same `defs` interface
+ * (`#goldGlow` filter is still defined here for table fills).
  */
 export function ParquetBackground({
   width,
@@ -27,48 +18,63 @@ export function ParquetBackground({
   return (
     <>
       <defs>
+        {/* Subtle gold grid — small, dim, just enough to read distance. */}
         <pattern
-          id="parquet"
-          x="0"
-          y="0"
-          width={80}
-          height={40}
+          id="floor-grid"
+          x={0}
+          y={0}
+          width={60}
+          height={60}
           patternUnits="userSpaceOnUse"
         >
-          {/* base plank tone */}
-          <rect width={80} height={40} fill="#3A2818" />
-          {/* lighter staggered half */}
-          <rect x={0} y={0} width={40} height={40} fill="#4A3220" opacity={0.6} />
-          {/* dark seams */}
+          <rect width={60} height={60} fill="transparent" />
           <line
-            x1={40}
+            x1={0}
             y1={0}
-            x2={40}
-            y2={40}
-            stroke="#2A1F15"
+            x2={60}
+            y2={0}
+            stroke="#D4B068"
+            strokeOpacity={0.06}
             strokeWidth={0.5}
           />
           <line
             x1={0}
-            y1={20}
-            x2={80}
-            y2={20}
-            stroke="#2A1F15"
+            y1={0}
+            x2={0}
+            y2={60}
+            stroke="#D4B068"
+            strokeOpacity={0.06}
             strokeWidth={0.5}
           />
         </pattern>
 
-        {/* Soft radial vignette darkens the edges so the eye centers
-            on the dance floor + tables. */}
+        {/* Floor tone — near-black with the faintest gold warmth. */}
+        <linearGradient id="floor-tone" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#0F0D0A" />
+          <stop offset="100%" stopColor="#08070A" />
+        </linearGradient>
+
+        {/* Vignette — darker at the edges so the eye centers on the dance floor. */}
         <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
-          <stop offset="60%" stopColor="black" stopOpacity={0} />
-          <stop offset="100%" stopColor="black" stopOpacity={0.4} />
+          <stop offset="55%" stopColor="black" stopOpacity={0} />
+          <stop offset="100%" stopColor="black" stopOpacity={0.55} />
         </radialGradient>
 
-        {/* Reusable glow filter for "full" tables and dance-floor accents. */}
-        <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
+        {/* Glow filter reused by full tables + dance floor accents. */}
+        <filter id="goldGlow" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="3" result="blur" />
-          <feFlood floodColor="#F4DEA9" floodOpacity="0.5" />
+          <feFlood floodColor="#F4DEA9" floodOpacity="0.55" />
+          <feComposite in2="blur" operator="in" />
+          <feMerge>
+            <feMergeNode />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        {/* Softer glow for selection halos — quieter than goldGlow. */}
+        <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.4" result="blur" />
+          <feFlood floodColor="#F4DEA9" floodOpacity="0.35" />
           <feComposite in2="blur" operator="in" />
           <feMerge>
             <feMergeNode />
@@ -77,7 +83,8 @@ export function ParquetBackground({
         </filter>
       </defs>
 
-      <rect x={0} y={0} width={width} height={height} fill="url(#parquet)" />
+      <rect x={0} y={0} width={width} height={height} fill="url(#floor-tone)" />
+      <rect x={0} y={0} width={width} height={height} fill="url(#floor-grid)" />
       <rect x={0} y={0} width={width} height={height} fill="url(#vignette)" />
     </>
   );

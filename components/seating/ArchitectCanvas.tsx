@@ -1,34 +1,22 @@
 "use client";
 
 /**
- * R80 — Seating Architect canvas.
+ * R80 + R81 — Seating Architect canvas.
  *
- * The big-bang 2D top-down floor plan: parquet wood floor, venue
- * zones (dance floor / stage / bar / entrance), draggable tables.
- * Designed to feel like Apple Pencil on iPad Pro — every interaction
- * is direct, smooth, and reversible.
+ * 2D top-down floor plan with draggable tables AND draggable venue
+ * zones (dance floor / stage / bar / entrance) in edit mode. R81
+ * fixes the R80 drag bugs (pointer capture on the wrong element +
+ * transform collision with framer's animate), repaints the canvas
+ * in pure gold/black, and adds the "ערוך אולם" toggle.
  *
- * Architecture:
- *   • <svg> sized to the venue viewBox (1200×800 by default).
- *   • A CSS transform (`scale(zoom)`) wraps the viewport so the host
- *     can zoom 50–200%. Pan is automatic via overflow-x/y on the
- *     wrapper at zoom > 1.
- *   • TableElement handles its own drag (pointer events → SVG-unit
- *     deltas → snap → onMove callback). The canvas just stores the
- *     selected-table id and renders the details sheet.
- *   • Autosave: every position write is mirrored to the store
- *     immediately (so the UI is consistent), then a debounced
- *     500ms toast confirms the persistence.
- *   • Undo: a 20-deep stack of {tableId, prevX, prevY} entries. Cmd/
- *     Ctrl-Z pops the latest and replays it through `actions.updateTable`.
- *   • New tables are placed at the canvas center; the first drag
- *     stamps them into the host's preferred grid slot.
- *
- * The canvas is intentionally stateless about the store — it reads
- * tables + guests + assignments as props and writes mutations
- * through `actions.*`. That keeps it testable without a Provider and
- * lets the parent page render alternate "ghost" canvases (e.g. for
- * the smart-arrangement preview) without re-implementing the visuals.
+ * Architecture (unchanged from R80):
+ *   • <svg> sized to a 1200×800 viewBox.
+ *   • CSS-scaled wrapper for zoom (50–200%).
+ *   • TableElement / VenueZones each handle their own pointer-event
+ *     drag. The canvas just collects positions + autosaves.
+ *   • Autosave: every move is committed immediately to the store; a
+ *     1.2s toast confirms.
+ *   • Undo stack: 20-deep state-driven, Cmd/Ctrl-Z replays.
  */
 
 import {
@@ -40,6 +28,7 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Pencil, Check } from "lucide-react";
 import { actions } from "@/lib/store";
 import type { Guest, SeatingTable, VenueLayout } from "@/lib/types";
 import { ParquetBackground } from "./ParquetBackground";
@@ -57,15 +46,13 @@ const UNDO_DEPTH = 20;
 interface Props {
   tables: SeatingTable[];
   guests: Guest[];
-  /** guestId → tableId. */
   seatAssignments: Record<string, string>;
-  /** Optional venue layout override; falls back to canvas defaults. */
   layout?: VenueLayout;
-  /** Opens the parent's "new table" modal. */
   onAddTable: () => void;
 }
 
 interface UndoEntry {
+  kind: "table";
   tableId: string;
   prevX: number;
   prevY: number;
@@ -79,32 +66,23 @@ export function ArchitectCanvas({
   onAddTable,
 }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  // Undo stack lives in state (not a ref) so the toolbar's `canUndo` flag
-  // re-renders correctly. Mutations push/pop with the functional setter
-  // form, so concurrent moves don't clobber each other.
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const toastTimerRef = useRef<number | null>(null);
 
-  // ─── Auto-seed positions for tables created before R80 ───────────────
-  // A table without positionX/Y would render at the canvas center on top
-  // of every other unmigrated table. On first paint we lay them out via
-  // the auto-arrange algorithm so the host sees a clean grid even if
-  // they never click "איפוס מיקום".
-  // We only do this for tables genuinely missing the field; tables the
-  // host has already moved keep their positions.
+  // ─── Auto-seed positions for tables created before R80 ───────────
+  // Tables without positionX/Y would all render at the canvas center
+  // and stack on top of each other. Auto-arrange seeds them once on
+  // first paint; tables the host has already moved keep their slot.
   useEffect(() => {
     const missing = tables.filter(
       (t) => t.positionX === undefined || t.positionY === undefined,
     );
     if (missing.length === 0) return;
-    // Build a "what the layout looks like after seeding" map. We pass
-    // ALL tables (so the algorithm picks distinct slots), then only
-    // commit the entries that were actually missing.
     const positions = autoArrangeTables(tables, layout);
     for (const t of missing) {
       const p = positions.get(t.id);
@@ -112,13 +90,10 @@ export function ArchitectCanvas({
         actions.updateTable(t.id, { positionX: p.x, positionY: p.y });
       }
     }
-    // Intentionally not adding `tables` to deps — we want this to fire
-    // ONLY when the list of "missing" tables changes; depending on the
-    // full tables array would cause an update→re-effect loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tables.length, layout]);
 
-  // ─── Live "seated count" per table (drives chair fill + full glow) ───
+  // ─── Live "seated count" per table ───────────────────────────────
   const seatedByTable = useMemo(() => {
     const map = new Map<string, Guest[]>();
     for (const g of guests) {
@@ -147,7 +122,7 @@ export function ArchitectCanvas({
     [guests, seatAssignments],
   );
 
-  // ─── Toast helper ──────────────────────────────────────────────────
+  // ─── Toast ────────────────────────────────────────────────────────
   const flashToast = useCallback((msg: string) => {
     if (toastTimerRef.current !== null) {
       window.clearTimeout(toastTimerRef.current);
@@ -166,14 +141,17 @@ export function ArchitectCanvas({
     };
   }, []);
 
-  // ─── Move handler shared by drag + keyboard nudges ─────────────────
+  // ─── Table move + undo ───────────────────────────────────────────
   const moveTable = useCallback(
     (table: SeatingTable, x: number, y: number) => {
       const prevX = table.positionX ?? CANVAS_W / 2;
       const prevY = table.positionY ?? CANVAS_H / 2;
       if (prevX === x && prevY === y) return;
       setUndoStack((s) => {
-        const next = [...s, { tableId: table.id, prevX, prevY }];
+        const next: UndoEntry[] = [
+          ...s,
+          { kind: "table", tableId: table.id, prevX, prevY },
+        ];
         return next.length > UNDO_DEPTH ? next.slice(-UNDO_DEPTH) : next;
       });
       actions.updateTable(table.id, { positionX: x, positionY: y });
@@ -182,7 +160,6 @@ export function ArchitectCanvas({
     [flashToast],
   );
 
-  // ─── Undo (Cmd/Ctrl + Z) ───────────────────────────────────────────
   const undo = useCallback(() => {
     setUndoStack((s) => {
       if (s.length === 0) return s;
@@ -196,36 +173,16 @@ export function ArchitectCanvas({
     });
   }, [flashToast]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        undo();
-      } else if (e.key === "Escape" && selectedTableId) {
-        setSelectedTableId(null);
-      } else if (e.key === "+" || e.key === "=") {
-        // Zoom shortcuts (no modifier — common in design tools).
-        if (e.target === document.body) {
-          e.preventDefault();
-          setZoom((z) =>
-            Math.min(ZOOM_LIMITS.max, Number((z + ZOOM_LIMITS.step).toFixed(2))),
-          );
-        }
-      } else if (e.key === "-" || e.key === "_") {
-        if (e.target === document.body) {
-          e.preventDefault();
-          setZoom((z) =>
-            Math.max(ZOOM_LIMITS.min, Number((z - ZOOM_LIMITS.step).toFixed(2))),
-          );
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, selectedTableId]);
+  // ─── Layout change (zone drag) ───────────────────────────────────
+  const handleLayoutChange = useCallback(
+    (next: VenueLayout) => {
+      actions.patchEvent({ venueLayout: next });
+      flashToast("✓ נשמר");
+    },
+    [flashToast],
+  );
 
-  // ─── Reset positions ───────────────────────────────────────────────
+  // ─── Reset positions ─────────────────────────────────────────────
   const resetPositions = useCallback(() => {
     if (tables.length === 0) return;
     if (
@@ -242,7 +199,12 @@ export function ArchitectCanvas({
       if (!p) continue;
       const prevX = t.positionX ?? CANVAS_W / 2;
       const prevY = t.positionY ?? CANVAS_H / 2;
-      newEntries.push({ tableId: t.id, prevX, prevY });
+      newEntries.push({
+        kind: "table",
+        tableId: t.id,
+        prevX,
+        prevY,
+      });
       actions.updateTable(t.id, { positionX: p.x, positionY: p.y });
     }
     setUndoStack((s) => {
@@ -252,10 +214,46 @@ export function ArchitectCanvas({
     flashToast(`✓ סודרו ${tables.length} שולחנות`);
   }, [tables, layout, flashToast]);
 
-  // ─── Canvas click → deselect ───────────────────────────────────────
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (isInput) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+      } else if (e.key === "Escape" && selectedTableId) {
+        setSelectedTableId(null);
+      } else if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setZoom((z) =>
+          Math.min(
+            ZOOM_LIMITS.max,
+            Number((z + ZOOM_LIMITS.step).toFixed(2)),
+          ),
+        );
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        setZoom((z) =>
+          Math.max(
+            ZOOM_LIMITS.min,
+            Number((z - ZOOM_LIMITS.step).toFixed(2)),
+          ),
+        );
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, selectedTableId]);
+
+  // ─── Canvas background click → deselect ──────────────────────────
   const onCanvasClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
-    // Only the wrapper background should clear the selection — not
-    // clicks that bubbled from a table.
     if (e.target === e.currentTarget) {
       setSelectedTableId(null);
     }
@@ -263,7 +261,9 @@ export function ArchitectCanvas({
 
   const selectedTable = useMemo(
     () =>
-      selectedTableId ? tables.find((t) => t.id === selectedTableId) ?? null : null,
+      selectedTableId
+        ? tables.find((t) => t.id === selectedTableId) ?? null
+        : null,
     [selectedTableId, tables],
   );
   const selectedDisplayNumber = useMemo(() => {
@@ -274,7 +274,7 @@ export function ArchitectCanvas({
 
   return (
     <div className="architect-root">
-      {/* Toolbar — sticky above the canvas */}
+      {/* Toolbar row */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <CanvasToolbar
           zoom={zoom}
@@ -284,33 +284,59 @@ export function ArchitectCanvas({
           canUndo={undoStack.length > 0}
           onUndo={undo}
         />
-        <div
-          className="text-xs"
-          style={{ color: "var(--foreground-muted)" }}
-        >
-          💡 גרור שולחן · קליק לבחירה · Cmd/Ctrl+Z לביטול · חיצים להזזה עדינה
+        <div className="flex items-center gap-2 flex-wrap">
+          <motion.button
+            type="button"
+            onClick={() => setEditMode((v) => !v)}
+            aria-pressed={editMode}
+            whileTap={{ scale: 0.96 }}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition"
+            style={
+              editMode
+                ? {
+                    background:
+                      "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                    color: "var(--gold-button-text)",
+                  }
+                : {
+                    background: "rgba(20,14,8,0.6)",
+                    border: "1px solid var(--border-gold)",
+                    color: "var(--accent)",
+                  }
+            }
+          >
+            {editMode ? <Check size={13} /> : <Pencil size={13} />}
+            {editMode ? "סיים עריכה" : "ערוך אולם"}
+          </motion.button>
+          <span
+            className="hidden lg:block text-xs"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            {editMode
+              ? "💎 גרור את הרחבה / בר / במה / כניסה לפי האולם האמיתי"
+              : "💡 גרור שולחן · לחץ לבחירה · Cmd/Ctrl+Z לביטול"}
+          </span>
         </div>
       </div>
 
       <div
-        ref={viewportRef}
         className="architect-viewport relative w-full rounded-3xl overflow-auto"
         style={{
           border: "1px solid var(--border-gold)",
-          background: "#1A1108",
+          background: "#08070A",
+          boxShadow:
+            "0 24px 48px -20px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(212,176,104,0.08)",
           maxHeight: "min(78vh, 720px)",
         }}
         onClick={onCanvasClick}
       >
-        {/* The SVG canvas. CSS scale handles zoom; width/height respond
-            to the viewport so the canvas fills available space at 100%. */}
         <div
           style={{
             width: `${CANVAS_W * zoom}px`,
             height: `${CANVAS_H * zoom}px`,
             maxWidth: zoom === 1 ? "100%" : undefined,
             margin: zoom === 1 ? "0 auto" : undefined,
-            transition: "width 200ms ease, height 200ms ease",
+            transition: "width 220ms ease, height 220ms ease",
           }}
         >
           <svg
@@ -321,11 +347,16 @@ export function ArchitectCanvas({
             height="100%"
             role="application"
             aria-label="תכנון רחבת האירוע"
+            style={{ display: "block" }}
           >
             <ParquetBackground width={CANVAS_W} height={CANVAS_H} />
-            <VenueZones layout={layout} />
+            <VenueZones
+              layout={layout}
+              editMode={editMode}
+              canvasRef={svgRef}
+              onLayoutChange={handleLayoutChange}
+            />
 
-            {/* Tables — rendered last so they sit above the venue layer. */}
             {tables.map((t, idx) => (
               <TableElement
                 key={t.id}
@@ -341,36 +372,37 @@ export function ArchitectCanvas({
           </svg>
         </div>
 
-        {/* Empty hint when no tables yet */}
         {tables.length === 0 && (
           <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            style={{ color: "var(--foreground-muted)" }}
+            style={{ color: "var(--foreground-soft)" }}
           >
             <div className="text-center max-w-sm px-4">
               <div className="text-5xl mb-3" aria-hidden>
                 🪑
               </div>
-              <div className="text-sm font-semibold mb-1.5">
+              <div className="text-sm font-bold mb-1.5">
                 האולם עוד ריק
               </div>
-              <div className="text-xs">
-                לחץ &quot;+ שולחן&quot; כדי להתחיל
+              <div
+                className="text-xs"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                לחץ &quot;+ שולחן&quot; בסרגל למעלה כדי להתחיל
               </div>
             </div>
           </div>
         )}
 
-        {/* Toast */}
         <AnimatePresence>
           {toast && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
-              className="absolute bottom-4 start-4 rounded-full px-4 py-2 text-xs font-semibold ltr-num"
+              className="absolute bottom-4 start-4 rounded-full px-4 py-2 text-xs font-semibold"
               style={{
-                background: "rgba(20,14,8,0.92)",
+                background: "rgba(8,7,10,0.92)",
                 color: "var(--accent)",
                 border: "1px solid var(--border-gold)",
                 backdropFilter: "blur(8px)",
@@ -382,7 +414,6 @@ export function ArchitectCanvas({
         </AnimatePresence>
       </div>
 
-      {/* Details sheet — slides in from the side / bottom on mobile */}
       <AnimatePresence>
         {selectedTable && (
           <div

@@ -1,35 +1,32 @@
 "use client";
 
 /**
- * R80 — Interactive table element on the seating architect canvas.
+ * R80 + R81 — Draggable table on the architect canvas.
  *
- * Each table is an SVG <g> that the host can:
- *   • drag to reposition (pointer events, snap-to-20px grid)
- *   • click to select (opens TableDetailsSheet)
+ * Why a custom pointer-events drag instead of framer-motion's drag?
+ *   • Framer's `drag` prop manipulates the element's `transform` style
+ *     with pixel offsets. On an SVG inside a CSS-scaled viewport that
+ *     produces drift — we want SVG-unit deltas (1 viewBox unit =
+ *     boundingRect.width / 1200 px), not pixel deltas.
+ *   • We also want to apply translate AND scale at the same time. SVG
+ *     `<g>` can have only ONE transform attribute, and framer's
+ *     `animate={{ scale }}` rewrites it. R80 saw drift + jumping
+ *     during drag because of this collision.
  *
- * Size is proportional to capacity (a 6-seat table is visibly smaller
- * than a 12-seat one). Chairs are rendered as small circles arranged
- * around the table perimeter — occupied chairs share the table's
- * accent color, empty ones are pale.
+ * R81 fix: nest two `<g>`s.
+ *   • Outer `<g transform="translate(x,y)">` owns position (static
+ *     attribute, framer doesn't touch it).
+ *   • Inner `<motion.g animate={{ scale }}>` owns the scale lift.
+ *   • Pointer events live on the inner motion.g; pointer capture
+ *     uses `e.currentTarget` (stable across re-renders of children
+ *     like the candle / chairs).
  *
- * State visuals:
- *   • full (filled === capacity) → gold ring + glow filter + green
- *     checkmark badge.
- *   • empty (filled === 0) → dashed border, dimmed.
- *   • selected → dashed gold halo ring.
- *
- * Drag is implemented with native pointer events (not framer-motion's
- * drag) because SVG transform attributes don't play well with frame's
- * pixel-offset deltas — we want to translate the *SVG* by *SVG units*
- * (1:1 with the viewBox), not by screen pixels. The math is simple:
- * delta-in-pixels × (viewBox-width / canvas-rendered-width) = delta-
- * in-SVG-units. A "snap" pass rounds to the nearest 20-unit grid step
- * so tables align without manual fiddling.
- *
- * Accessibility: each table is keyboard-focusable. Arrow keys nudge
- * the table by 20 units (one grid step); space/enter opens the
- * details sheet. role="button" + aria-label keeps screen readers
- * oriented.
+ * Palette switched to pure gold + black:
+ *   • Table top: deep black (#0E0B07), inner radial sheen, gold ring.
+ *   • Chairs: gold-on-black, occupied chairs filled, empty hollow.
+ *   • Labels: gold gradient text on table top.
+ *   • Empty-table treatment: dashed gold border at 35% opacity.
+ *   • Full-table treatment: bright gold ring + softGlow filter + 💚 badge.
  */
 
 import { useMemo, useRef, useState } from "react";
@@ -39,23 +36,15 @@ import type { SeatingTable } from "@/lib/types";
 const CANVAS_W = 1200;
 const CANVAS_H = 800;
 const SNAP = 20;
-/** Minimum gap from canvas edge so chairs + labels don't clip. */
 const EDGE_PAD = 80;
 
 interface Props {
   table: SeatingTable;
   filledCount: number;
-  /** Number printed inside the table (falls back to `table.number` or "?"). */
   displayNumber: number;
   selected: boolean;
   onSelect: () => void;
-  /** Called with the snapped SVG-unit position after the host releases
-   *  the pointer. Caller is responsible for writing it through the
-   *  store + autosave debounce. */
   onMove: (positionX: number, positionY: number) => void;
-  /** SVG element ref of the canvas root — used to convert client pixels
-   *  to SVG units during drag. Passed down so we don't re-query the DOM
-   *  on every pointer move. */
   canvasRef: React.RefObject<SVGSVGElement | null>;
 }
 
@@ -68,12 +57,13 @@ export function TableElement({
   onMove,
   canvasRef,
 }: Props) {
-  // Anchor: where the table sits BEFORE the current drag started. We
-  // keep this stable through the drag so the math is "anchor + delta"
-  // (jitter-free) instead of "previous frame + tiny delta" (drifts).
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(
     null,
   );
+  // `isDragging` mirrors the start ref's `moved` flag so render can read
+  // it (refs aren't allowed in render under react-hooks/refs rule).
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHover, setIsHover] = useState(false);
   const dragStartRef = useRef<{
     pointerId: number;
     clientX: number;
@@ -81,6 +71,7 @@ export function TableElement({
     originX: number;
     originY: number;
     scale: number;
+    moved: boolean;
   } | null>(null);
 
   const baseX = table.positionX ?? CANVAS_W / 2;
@@ -89,9 +80,7 @@ export function TableElement({
   const currentY = dragPos?.y ?? baseY;
 
   const capacity = Math.max(1, table.capacity);
-  // Radius grows with capacity. 6→r:51, 8→r:58, 10→r:65, 12→r:72.
   const radius = useMemo(() => 30 + capacity * 3.5, [capacity]);
-  // Rect tables: width grows with capacity (chairs split between two long sides).
   const rectW = useMemo(() => 80 + capacity * 8, [capacity]);
   const rectH = 60;
   const isRect = table.shape === "rect";
@@ -100,64 +89,48 @@ export function TableElement({
   const isEmpty = filledCount === 0;
   const filledRatio = Math.min(1, filledCount / capacity);
   const tableColor = table.color || "#D4B068";
-  const ring = isFull ? "#F4DEA9" : isEmpty ? "#6A5F4A" : tableColor;
-  const dashed = isEmpty ? "4 4" : undefined;
+  const ring = isFull ? "#F4DEA9" : isEmpty ? "rgba(212,176,104,0.35)" : tableColor;
 
-  // Chairs around the perimeter. For round tables we distribute evenly
-  // around the circle; for rect tables we split between the long
-  // (top + bottom) sides.
   const chairs = useMemo(() => {
     if (isRect) {
       const perSide = Math.ceil(capacity / 2);
-      const top = Array.from({ length: perSide }, (_, i) => {
-        const cx = -rectW / 2 + ((i + 0.5) / perSide) * rectW;
-        return { x: cx, y: -rectH / 2 - 10 };
-      });
-      const bottom = Array.from(
-        { length: capacity - perSide },
-        (_, i) => {
-          const slots = capacity - perSide;
-          const cx = -rectW / 2 + ((i + 0.5) / slots) * rectW;
-          return { x: cx, y: rectH / 2 + 10 };
-        },
-      );
+      const top = Array.from({ length: perSide }, (_, i) => ({
+        x: -rectW / 2 + ((i + 0.5) / perSide) * rectW,
+        y: -rectH / 2 - 11,
+      }));
+      const bottomSlots = capacity - perSide;
+      const bottom = Array.from({ length: bottomSlots }, (_, i) => ({
+        x: -rectW / 2 + ((i + 0.5) / bottomSlots) * rectW,
+        y: rectH / 2 + 11,
+      }));
       return [...top, ...bottom];
     }
     return Array.from({ length: capacity }, (_, i) => {
       const angle = (i / capacity) * 2 * Math.PI - Math.PI / 2;
       return {
-        x: Math.cos(angle) * (radius + 10),
-        y: Math.sin(angle) * (radius + 10),
+        x: Math.cos(angle) * (radius + 12),
+        y: Math.sin(angle) * (radius + 12),
       };
     });
   }, [capacity, radius, isRect, rectW, rectH]);
 
   const label = table.label || table.name || `שולחן ${displayNumber}`;
-  const labelOffsetY = isRect ? -rectH / 2 - 22 : -radius - 18;
-
-  /** Convert a pointer-pixel delta into SVG-unit delta using the
-   *  rendered scale of the canvas. */
-  const pixelsToSvgUnits = (dx: number, dy: number, scale: number) => ({
-    x: dx / scale,
-    y: dy / scale,
-  });
+  const labelOffsetY = isRect ? -rectH / 2 - 24 : -radius - 22;
 
   const computeScale = () => {
     const el = canvasRef.current;
     if (!el) return 1;
     const rect = el.getBoundingClientRect();
-    // 1 svg unit = rect.width / viewBoxWidth screen pixels.
     return rect.width > 0 ? rect.width / CANVAS_W : 1;
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGGElement>) => {
-    // Ignore right-clicks and middle-clicks — only primary drag.
     if (e.button !== 0) return;
     e.stopPropagation();
-    // Capture the pointer so we keep receiving move events even when
-    // the cursor wanders outside the <g> element (e.g. over chairs of
-    // another table).
-    (e.target as Element).setPointerCapture(e.pointerId);
+    // R81 — capture on currentTarget (the motion.g root), not e.target.
+    // e.target can be the inner candle/chair/etc, which mounts and unmounts
+    // as framer re-renders during the drag — losing the capture mid-flight.
+    e.currentTarget.setPointerCapture(e.pointerId);
     dragStartRef.current = {
       pointerId: e.pointerId,
       clientX: e.clientX,
@@ -165,6 +138,7 @@ export function TableElement({
       originX: baseX,
       originY: baseY,
       scale: computeScale(),
+      moved: false,
     };
     setDragPos({ x: baseX, y: baseY });
   };
@@ -174,17 +148,17 @@ export function TableElement({
     if (!start || start.pointerId !== e.pointerId) return;
     const dx = e.clientX - start.clientX;
     const dy = e.clientY - start.clientY;
-    const { x: svgDx, y: svgDy } = pixelsToSvgUnits(dx, dy, start.scale);
-    const newX = clamp(
-      start.originX + svgDx,
-      EDGE_PAD,
-      CANVAS_W - EDGE_PAD,
-    );
-    const newY = clamp(
-      start.originY + svgDy,
-      EDGE_PAD,
-      CANVAS_H - EDGE_PAD,
-    );
+    // 4px dead-zone before we count a drag — prevents a click from
+    // triggering accidental nudges when the user just wanted to select.
+    if (!start.moved && Math.hypot(dx, dy) < 4) return;
+    if (!start.moved) {
+      start.moved = true;
+      setIsDragging(true);
+    }
+    const svgDx = dx / start.scale;
+    const svgDy = dy / start.scale;
+    const newX = clamp(start.originX + svgDx, EDGE_PAD, CANVAS_W - EDGE_PAD);
+    const newY = clamp(start.originY + svgDy, EDGE_PAD, CANVAS_H - EDGE_PAD);
     setDragPos({ x: newX, y: newY });
   };
 
@@ -192,19 +166,28 @@ export function TableElement({
     const start = dragStartRef.current;
     if (!start || start.pointerId !== e.pointerId) return;
     dragStartRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released by the runtime */
+      }
+    }
+    const wasMoved = start.moved;
+    setIsDragging(false);
+    if (!wasMoved) {
+      setDragPos(null);
+      onSelect();
+      return;
+    }
     if (dragPos) {
       const snapped = {
         x: Math.round(dragPos.x / SNAP) * SNAP,
         y: Math.round(dragPos.y / SNAP) * SNAP,
       };
       setDragPos(null);
-      // No-op when the drop equals the original — saves a wasted store
-      // write + autosave call when the host taps the table without moving it.
       if (snapped.x !== start.originX || snapped.y !== start.originY) {
         onMove(snapped.x, snapped.y);
-      } else {
-        // Tap (no movement) → treat as a select.
-        onSelect();
       }
     }
   };
@@ -228,204 +211,244 @@ export function TableElement({
     );
   };
 
-  const isDragging = dragPos !== null;
-
+  // R81 — outer translate is a plain attribute (stable). Inner motion.g
+  // only animates scale, so framer-motion's transform rewrite can't
+  // wipe the position. See module-level comment.
   return (
-    <motion.g
-      role="button"
-      tabIndex={0}
-      aria-label={`${label} — ${filledCount} מתוך ${capacity} מקומות. גרור להזזה, אנטר לפרטים.`}
-      transform={`translate(${currentX}, ${currentY})`}
-      style={{
-        cursor: isDragging ? "grabbing" : "grab",
-        outline: "none",
-        touchAction: "none",
-      }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={finishDrag}
-      onPointerCancel={finishDrag}
-      onKeyDown={handleKeyDown}
-      whileHover={{ scale: 1.04 }}
-      animate={{ scale: isDragging ? 1.08 : 1 }}
-      transition={{ type: "spring", stiffness: 320, damping: 24 }}
-    >
-      {/* Shadow ellipse under the table — darker while dragging. */}
-      <ellipse
-        cx={0}
-        cy={(isRect ? rectH / 2 : radius) + 4}
-        rx={(isRect ? rectW / 2 : radius) * 0.9}
-        ry={6}
-        fill="black"
-        opacity={isDragging ? 0.32 : 0.18}
-      />
-
-      {/* The table top */}
-      {isRect ? (
-        <rect
-          x={-rectW / 2}
-          y={-rectH / 2}
-          width={rectW}
-          height={rectH}
-          rx={10}
-          fill="#F8F4ED"
-          stroke={ring}
-          strokeWidth={isFull ? 3 : 2}
-          strokeDasharray={dashed}
-          filter={isFull ? "url(#goldGlow)" : undefined}
-          opacity={isEmpty ? 0.7 : 1}
-        />
-      ) : (
-        <circle
-          cx={0}
-          cy={0}
-          r={radius}
-          fill="#F8F4ED"
-          stroke={ring}
-          strokeWidth={isFull ? 3 : 2}
-          strokeDasharray={dashed}
-          filter={isFull ? "url(#goldGlow)" : undefined}
-          opacity={isEmpty ? 0.7 : 1}
-        />
-      )}
-
-      {/* Chairs around the perimeter */}
-      {chairs.map((c, i) => {
-        const occupied = i < filledCount;
-        return (
-          <circle
-            key={i}
-            cx={c.x}
-            cy={c.y}
-            r={6}
-            fill={occupied ? tableColor : "#FFFEFB"}
-            stroke="#2A1F15"
-            strokeWidth={1}
-          />
-        );
-      })}
-
-      {/* Pulsing candle at center */}
-      <motion.circle
-        cx={0}
-        cy={0}
-        r={4}
-        fill="#FF8C42"
-        animate={{ opacity: [0.7, 1, 0.7], scale: [1, 1.15, 1] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-      />
-
-      {/* Display label above the table */}
-      <text
-        x={0}
-        y={labelOffsetY}
-        textAnchor="middle"
-        fontSize={14}
-        fontWeight={700}
-        fill="#1A1410"
-        style={{ pointerEvents: "none", userSelect: "none" }}
-      >
-        {label}
-      </text>
-
-      {/* Big number under the candle */}
-      <text
-        x={0}
-        y={(isRect ? 4 : 18)}
-        textAnchor="middle"
-        fontSize={isRect ? 18 : 22}
-        fontWeight={800}
-        fill={isFull ? "#A8884A" : "#80745A"}
-        style={{ pointerEvents: "none", userSelect: "none" }}
-      >
-        {filledCount}/{capacity}
-      </text>
-
-      {/* Big table number above the count (small, ltr) */}
-      <text
-        x={0}
-        y={(isRect ? -8 : 0)}
-        textAnchor="middle"
-        fontSize={10}
-        fontWeight={700}
-        fill="#80745A"
-        opacity={0.85}
+    <g transform={`translate(${currentX}, ${currentY})`}>
+      <motion.g
+        role="button"
+        tabIndex={0}
+        aria-label={`${label} — ${filledCount} מתוך ${capacity} מקומות`}
         style={{
-          pointerEvents: "none",
-          userSelect: "none",
-          letterSpacing: "0.1em",
+          cursor: isDragging ? "grabbing" : "grab",
+          outline: "none",
+          touchAction: "none",
         }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onPointerEnter={() => setIsHover(true)}
+        onPointerLeave={() => setIsHover(false)}
+        onKeyDown={handleKeyDown}
+        animate={{
+          scale: isDragging ? 1.08 : isHover && !isDragging ? 1.04 : 1,
+        }}
+        transition={{ type: "spring", stiffness: 360, damping: 26 }}
       >
-        #{displayNumber}
-      </text>
+        {/* Shadow under the table — heavier during drag. */}
+        <ellipse
+          cx={0}
+          cy={(isRect ? rectH / 2 : radius) + 6}
+          rx={(isRect ? rectW / 2 : radius) * 0.9}
+          ry={6}
+          fill="black"
+          opacity={isDragging ? 0.45 : 0.28}
+        />
 
-      {/* "Full" badge — small green check at the top-right */}
-      {isFull && (
-        <motion.g
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 380, damping: 18 }}
-        >
-          <circle
-            cx={(isRect ? rectW / 2 : radius) - 6}
-            cy={-(isRect ? rectH / 2 : radius) + 6}
-            r={10}
-            fill="#4ade80"
-          />
-          <path
-            d={`M ${(isRect ? rectW / 2 : radius) - 10} ${-(isRect ? rectH / 2 : radius) + 6} l 3 3 l 7 -6`}
-            stroke="white"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </motion.g>
-      )}
-
-      {/* Selection ring (dashed) */}
-      {selected && (
-        isRect ? (
+        {/* Table top */}
+        {isRect ? (
           <rect
-            x={-rectW / 2 - 12}
-            y={-rectH / 2 - 12}
-            width={rectW + 24}
-            height={rectH + 24}
-            rx={16}
-            fill="none"
-            stroke="#F4DEA9"
-            strokeWidth={2}
-            strokeDasharray="6 4"
+            x={-rectW / 2}
+            y={-rectH / 2}
+            width={rectW}
+            height={rectH}
+            rx={12}
+            fill="#0E0B07"
+            stroke={ring}
+            strokeWidth={isFull ? 2.5 : isEmpty ? 1.5 : 2}
+            strokeDasharray={isEmpty ? "5 4" : undefined}
+            filter={isFull ? "url(#goldGlow)" : undefined}
           />
         ) : (
           <circle
             cx={0}
             cy={0}
-            r={radius + 12}
-            fill="none"
-            stroke="#F4DEA9"
-            strokeWidth={2}
-            strokeDasharray="6 4"
+            r={radius}
+            fill="#0E0B07"
+            stroke={ring}
+            strokeWidth={isFull ? 2.5 : isEmpty ? 1.5 : 2}
+            strokeDasharray={isEmpty ? "5 4" : undefined}
+            filter={isFull ? "url(#goldGlow)" : undefined}
           />
-        )
-      )}
+        )}
 
-      {/* Coverage strip (only for partial fills) */}
-      {!isFull && !isEmpty && (
-        <rect
-          x={isRect ? -rectW / 2 + 8 : -radius * 0.6}
-          y={isRect ? rectH / 2 - 6 : radius - 8}
-          width={(isRect ? rectW - 16 : radius * 1.2) * filledRatio}
-          height={3}
-          rx={1.5}
-          fill={tableColor}
-          opacity={0.7}
+        {/* Inner gold sheen for full tables — subtle radial glow inside. */}
+        {isFull && !isRect && (
+          <circle
+            cx={0}
+            cy={0}
+            r={radius - 6}
+            fill="url(#table-sheen)"
+            opacity={0.4}
+            style={{ pointerEvents: "none" }}
+          />
+        )}
+
+        {/* Chairs */}
+        {chairs.map((c, i) => {
+          const occupied = i < filledCount;
+          return (
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={6}
+              fill={occupied ? tableColor : "#0A0A0F"}
+              stroke={occupied ? "#1A1410" : tableColor}
+              strokeWidth={occupied ? 1 : 1.2}
+              opacity={occupied ? 1 : 0.7}
+            />
+          );
+        })}
+
+        {/* Candle */}
+        <motion.circle
+          cx={0}
+          cy={0}
+          r={3.5}
+          fill="#FFB169"
+          animate={{ opacity: [0.65, 1, 0.65], scale: [1, 1.18, 1] }}
+          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          style={{ pointerEvents: "none" }}
         />
-      )}
-    </motion.g>
+
+        {/* Label — gold gradient, above the table */}
+        <text
+          x={0}
+          y={labelOffsetY}
+          textAnchor="middle"
+          fontSize={14}
+          fontWeight={700}
+          fill="url(#label-gold)"
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {truncate(label, 22)}
+        </text>
+
+        {/* Capacity counter */}
+        <text
+          x={0}
+          y={isRect ? 6 : 20}
+          textAnchor="middle"
+          fontSize={isRect ? 17 : 21}
+          fontWeight={800}
+          fill={isFull ? "#F4DEA9" : isEmpty ? "rgba(212,176,104,0.5)" : "#D4B068"}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {filledCount}/{capacity}
+        </text>
+
+        {/* Table number — small monospace-ish tag */}
+        <text
+          x={0}
+          y={isRect ? -8 : -2}
+          textAnchor="middle"
+          fontSize={9.5}
+          fontWeight={700}
+          fill="#A8884A"
+          opacity={0.95}
+          style={{
+            pointerEvents: "none",
+            userSelect: "none",
+            letterSpacing: "0.12em",
+          }}
+        >
+          #{displayNumber}
+        </text>
+
+        {/* "Full" check badge */}
+        {isFull && (
+          <motion.g
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 380, damping: 18 }}
+            style={{ pointerEvents: "none" }}
+          >
+            <circle
+              cx={(isRect ? rectW / 2 : radius) - 6}
+              cy={-(isRect ? rectH / 2 : radius) + 6}
+              r={10}
+              fill="#34D399"
+              stroke="#0A0A0F"
+              strokeWidth={1.5}
+            />
+            <path
+              d={`M ${(isRect ? rectW / 2 : radius) - 10} ${-(isRect ? rectH / 2 : radius) + 6} l 3 3 l 7 -6`}
+              stroke="white"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+          </motion.g>
+        )}
+
+        {/* Selection halo */}
+        {selected &&
+          (isRect ? (
+            <rect
+              x={-rectW / 2 - 12}
+              y={-rectH / 2 - 12}
+              width={rectW + 24}
+              height={rectH + 24}
+              rx={16}
+              fill="none"
+              stroke="#F4DEA9"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              filter="url(#softGlow)"
+            />
+          ) : (
+            <circle
+              cx={0}
+              cy={0}
+              r={radius + 12}
+              fill="none"
+              stroke="#F4DEA9"
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              filter="url(#softGlow)"
+            />
+          ))}
+
+        {/* Coverage strip for partial fills */}
+        {!isFull && !isEmpty && (
+          <rect
+            x={isRect ? -rectW / 2 + 8 : -radius * 0.55}
+            y={isRect ? rectH / 2 - 5 : radius - 7}
+            width={(isRect ? rectW - 16 : radius * 1.1) * filledRatio}
+            height={3}
+            rx={1.5}
+            fill={tableColor}
+            opacity={0.75}
+          />
+        )}
+      </motion.g>
+
+      {/* Shared gradients used by table fills — declared once per
+          instance so each table can use #table-sheen + #label-gold via
+          fill="url(...)". They're inert to interactions. */}
+      <defs>
+        <radialGradient id="table-sheen" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stopColor="#F4DEA9" stopOpacity={0.6} />
+          <stop offset="60%" stopColor="#A8884A" stopOpacity={0.18} />
+          <stop offset="100%" stopColor="#A8884A" stopOpacity={0} />
+        </radialGradient>
+        <linearGradient id="label-gold" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#F4DEA9" />
+          <stop offset="100%" stopColor="#D4B068" />
+        </linearGradient>
+      </defs>
+    </g>
   );
 }
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
