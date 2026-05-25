@@ -17,6 +17,7 @@ import {
   Settings,
   Shield,
   Sun,
+  Trash2,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -25,6 +26,7 @@ import { Avatar } from "./Avatar";
 import { ChatBell } from "./chat/ChatBell";
 import { EventSwitcher } from "./EventSwitcher";
 import { UpgradePlanModal } from "./UpgradePlanModal";
+import { DeleteEventModal } from "./DeleteEventModal";
 import { useTheme } from "@/lib/theme";
 import { useUser, userActions } from "@/lib/user";
 import { useIsAdmin } from "@/lib/useIsAdmin";
@@ -608,6 +610,7 @@ function AvatarMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -755,7 +758,24 @@ function AvatarMenu({
             />
           </div>
 
+          {/* R102 — destructive zone: "delete event & start over" sits
+              above the sign-out, both styled in soft-red so the user
+              recognizes the section. Clicking opens the type-to-confirm
+              modal; the menu itself just closes. */}
           <div style={{ borderTop: "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setShowDelete(true);
+              }}
+              role="menuitem"
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm transition hover:bg-[var(--secondary-button-bg)]"
+              style={{ color: "rgb(252,165,165)" }}
+            >
+              <Trash2 size={15} aria-hidden />
+              <span className="flex-1 text-start">מחק אירוע והתחל מחדש</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -764,7 +784,10 @@ function AvatarMenu({
               }}
               role="menuitem"
               className="w-full flex items-center gap-2.5 px-4 py-3 text-sm transition hover:bg-[var(--secondary-button-bg)]"
-              style={{ color: "rgb(252,165,165)" }}
+              style={{
+                color: "rgb(252,165,165)",
+                borderTop: "1px solid var(--border)",
+              }}
             >
               <LogOut size={15} aria-hidden />
               <span>התנתק</span>
@@ -775,6 +798,9 @@ function AvatarMenu({
 
       {showUpgrade && (
         <UpgradePlanModal onClose={() => setShowUpgrade(false)} />
+      )}
+      {showDelete && (
+        <DeleteEventModal onClose={() => setShowDelete(false)} />
       )}
     </div>
   );
