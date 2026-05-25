@@ -278,6 +278,12 @@ async function pushToSupabase(update: RsvpUpdate): Promise<boolean> {
       }
       return false;
     }
+    // R109 — explicit success log so a host watching DevTools after
+    // applying the migration sees the upsert went through (instead of
+    // wondering if the silent return-true path actually ran).
+    console.log(
+      `[momentum/rsvpSync] ✓ RSVP saved to cloud — ${update.guestId} → ${update.status} (${update.attendingCount})`,
+    );
     return true;
   } catch (e) {
     console.error("[momentum/rsvpSync] supabase upsert threw:", e);
