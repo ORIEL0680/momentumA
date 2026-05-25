@@ -25,4 +25,26 @@ export function validateEnv(): void {
   if (!url.startsWith("https://")) {
     console.warn("[env] ⚠️ NEXT_PUBLIC_SITE_URL should use https://:", url);
   }
+
+  // R100 — Twilio WhatsApp credentials. Optional feature, so missing
+  // values are a warning, not an error: the WhatsApp send route returns
+  // 503 "not_configured" rather than 500, and the app keeps working
+  // (wa.me share links are the fallback path).
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioFrom = process.env.TWILIO_WHATSAPP_FROM;
+  const anyTwilio = twilioSid || twilioToken || twilioFrom;
+  const allTwilio = twilioSid && twilioToken && twilioFrom;
+  if (anyTwilio && !allTwilio) {
+    console.warn(
+      "[env] ⚠️ Partial Twilio WhatsApp config — set all three of " +
+        "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM (or none).",
+    );
+  }
+  if (allTwilio && !twilioFrom?.startsWith("+")) {
+    console.warn(
+      "[env] ⚠️ TWILIO_WHATSAPP_FROM should be in E.164 form (e.g. +972533625007):",
+      twilioFrom,
+    );
+  }
 }
