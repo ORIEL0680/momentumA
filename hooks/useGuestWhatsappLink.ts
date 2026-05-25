@@ -36,6 +36,10 @@ type CacheKey = string;
 interface BuiltLink {
   whatsappUrl: string;
   rsvpUrl: string;
+  /** Raw message body — what a sender would see, extracted from the
+   *  wa.me URL's `text` param. Used by R78 to send the same body via
+   *  Momentum's direct WhatsApp API instead of opening wa.me. */
+  messageText: string;
 }
 const linkCache = new Map<CacheKey, Promise<BuiltLink>>();
 
@@ -63,7 +67,16 @@ async function buildLink(origin: string, event: EventInfo, guest: Guest): Promis
     event,
     guest,
   );
-  return { whatsappUrl: url, rsvpUrl };
+  // Extract the raw message body from the wa.me URL's `text` param.
+  // The builder already URL-encoded it; we decode for direct API use.
+  let messageText = "";
+  try {
+    const u = new URL(url);
+    messageText = decodeURIComponent(u.searchParams.get("text") ?? "");
+  } catch {
+    /* malformed — leave empty; the caller can fall back to wa.me */
+  }
+  return { whatsappUrl: url, rsvpUrl, messageText };
 }
 
 /**
@@ -101,6 +114,9 @@ export interface UseGuestWhatsappLinkResult {
   whatsappUrl: string;
   /** Bare RSVP URL the host can copy-paste, or "" until ready. */
   rsvpUrl: string;
+  /** Raw decoded invitation body (the same text inside wa.me's `?text=`),
+   *  or "" until ready. Used by the R78 "send via Momentum" path. */
+  messageText: string;
   /** True once both URLs are resolved. */
   ready: boolean;
   /** Bind to the GuestCard root. Kept for callers that already attach a ref;
@@ -116,6 +132,7 @@ export function useGuestWhatsappLink(
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState("");
   const [rsvpUrl, setRsvpUrl] = useState("");
+  const [messageText, setMessageText] = useState("");
 
   // Build the link as soon as event + guest are available — no viewport
   // gate. The cache + microtask defer keep this cheap; previously gating
@@ -145,6 +162,7 @@ export function useGuestWhatsappLink(
         if (cancelled) return;
         setWhatsappUrl(built.whatsappUrl);
         setRsvpUrl(built.rsvpUrl);
+        setMessageText(built.messageText);
       },
       () => {
         // Drop a poisoned cache entry so a future render can retry.
@@ -159,6 +177,7 @@ export function useGuestWhatsappLink(
   return {
     whatsappUrl,
     rsvpUrl,
+    messageText,
     ready: !!whatsappUrl && !!rsvpUrl,
     cardRef,
   };

@@ -19,6 +19,7 @@ import { useGuestWhatsappLink, prewarmGuestWhatsappLinks } from "@/hooks/useGues
 import { trackEvent, trackFirstOnce } from "@/lib/analytics";
 import { subscribeRsvpUpdates, type RsvpUpdate } from "@/lib/rsvpSync";
 import { showToast } from "@/components/Toast";
+import { sendWhatsAppMessage } from "@/lib/whatsapp-send-client";
 import { fireConfettiOnce } from "@/lib/confetti";
 import { GuestsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Avatar } from "@/components/Avatar";
@@ -50,6 +51,7 @@ import {
   BookUser,
   Download,
   RefreshCw,
+  Sparkles,
   X,
 } from "lucide-react";
 
@@ -794,7 +796,12 @@ function GuestRow({
   // path used elsewhere; intentionally referenced below to avoid an
   // unused-import lint.)
   void buildHostInvitationWhatsappLink;
-  const { whatsappUrl, rsvpUrl, cardRef } = useGuestWhatsappLink(origin, event, guest);
+  const { whatsappUrl, rsvpUrl, messageText, cardRef } = useGuestWhatsappLink(origin, event, guest);
+  // R78 — "send via Momentum" inline send state. The wa.me path stays
+  // primary; this is the alternate route that goes through our Twilio
+  // WhatsApp API (no user redirect). Only succeeds for guests already
+  // in the 24h customer-service window until templates are approved.
+  const [sendingViaMomentum, setSendingViaMomentum] = useState(false);
 
   const statusUI = (() => {
     switch (guest.status) {
@@ -836,6 +843,41 @@ function GuestRow({
     try {
       await navigator.clipboard.writeText(rsvpUrl);
     } catch {}
+  };
+
+  // R78 — send the invitation directly from Momentum's WhatsApp number,
+  // bypassing wa.me. Reuses the same `messageText` the wa.me URL holds
+  // so the content is identical. Falls back gracefully on every error:
+  //   - 24h-window/template-required → suggest the wa.me path
+  //   - not_configured / network → toast the hint, keep wa.me available
+  // Marks the guest as invited on success (same as wa.me).
+  const onSendViaMomentum = async () => {
+    if (!guest.phone) {
+      showToast("הוסף מספר טלפון לאורח כדי לשלוח", "error");
+      return;
+    }
+    if (!messageText) {
+      showToast("מכין את ההודעה, נסה שוב בעוד רגע", "info");
+      return;
+    }
+    setSendingViaMomentum(true);
+    try {
+      const result = await sendWhatsAppMessage({
+        phone: guest.phone,
+        message: messageText,
+      });
+      if (result.ok) {
+        showToast(`✓ נשלח ל-${guest.name} דרך Momentum`, "success");
+        actions.markInvited(guest.id);
+      } else {
+        showToast(
+          result.hebrewHint ?? "השליחה נכשלה — נסה דרך וואטסאפ",
+          "error",
+        );
+      }
+    } finally {
+      setSendingViaMomentum(false);
+    }
   };
 
   return (
@@ -968,6 +1010,42 @@ function GuestRow({
           >
             <ArrowRight size={16} /> תצוגה מקדימה (איך האורח רואה)
           </a>
+
+          {/* R78 — direct send via Momentum's WhatsApp Business number.
+              Subject to WhatsApp's 24h window rule: works for guests who
+              already messaged the business; first-touch requires an
+              approved Content Template (TODO once templates are live). */}
+          <button
+            type="button"
+            onClick={onSendViaMomentum}
+            disabled={!guest.phone || !messageText || sendingViaMomentum}
+            aria-busy={sendingViaMomentum}
+            title={
+              !guest.phone
+                ? "הוסף מספר טלפון לאורח"
+                : !messageText
+                  ? "מכין את ההודעה..."
+                  : sendingViaMomentum
+                    ? "שולח..."
+                    : "שלח ישירות מ-Momentum (לא דורש פתיחת וואטסאפ)"
+            }
+            className="sm:col-span-2 rounded-2xl p-3 text-sm text-start flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(244,222,169,0.15), rgba(168,136,74,0.08))",
+              border: "1px solid var(--border-gold)",
+              color: "var(--accent)",
+            }}
+          >
+            {sendingViaMomentum ? (
+              <RefreshCw size={16} className="animate-spin" />
+            ) : (
+              <Sparkles size={16} />
+            )}
+            {sendingViaMomentum
+              ? "שולח..."
+              : "שלח ישירות מ-Momentum ✨ (חדש)"}
+          </button>
 
           <div className="sm:col-span-2 flex flex-wrap gap-2">
             <button
