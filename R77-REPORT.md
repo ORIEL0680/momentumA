@@ -120,5 +120,38 @@ R77-1 פתח את ה-flow של signin. עכשיו אפשר לחבר את ה-What
 
 ה-endpoint `/api/whatsapp/send` מוגן ב:
 - ✅ Bearer token (Supabase access token)
-- ✅ Rate limit 30 הודעות / משתמש / שעה
-- ⚠️ העמוד `/test/whatsapp` חשוף לכל משתמש מחובר — לפני שיש משתמשים זרים, כדאי להסיר אותו או להגביל ל-admin בלבד (טל בלבד).
+- ✅ Rate limit 500 הודעות / משתמש / שעה (R105 bumped from 30 — wedding-scale bulk needs the headroom)
+- ✅ `/test/whatsapp` הוסר מהפרודקשן (R103)
+
+---
+
+## 🧾 R77 follow-up — 2026-05-25 (אחרי R102)
+
+נעשתה סריקה נוספת ידנית + 3 סוכני סריקה אוטומטיים:
+
+| בדיקה | תוצאה |
+|---|---|
+| `tsc --noEmit` | ✅ 0 errors |
+| `eslint app components lib hooks` | ✅ 0 errors, 1 pre-existing warning (TanStack Virtual incompatibility) |
+| `npm run build` | ✅ All 47 routes register |
+| Hardcoded `momentum-psi-ten.vercel.app` | ✅ 0 מופעים |
+| Typo "וואצפ" | ✅ 0 מופעים |
+| Anchor links שבורים בלanding | ✅ 0 — `#showcase` היחיד וקיים |
+| Footer links 404 | ✅ 0 — `/terms`, `/privacy`, `/onboarding` קיימים |
+| Logo כפול בהדר | ✅ אחד בלבד |
+| Countdown כפול ב-dashboard | ✅ אחד בלבד (IntimateHero) |
+| `state.event` null crash ב-dashboard | ✅ guard ב-line 97 |
+
+### תוקנו בקומיטים שלא-R77 שבאו אחריו (כי הם השפיעו על אותו אזור)
+- **R98** — 14 קבצים: tap targets, inputMode, autoComplete, contrast, body scroll lock
+- **R99** — budget NaN/crash + 9 tap targets
+- **R102** — Delete event & start over menu entry
+- **R103** — הסרת `/test/whatsapp` מפרודקשן (השלים את ההערה האבטחתית למעלה)
+- **R104** — RSVP reminder template helper
+- **R105** — bulk send via Momentum מודאל + raise rate limit ל-500/hr
+- **R106** — הדו"ח הזה
+
+**Final tally**:
+- Critical/High fixed in R77 cycle: 2 (R77-1 signin block, R77-2 hooks rule)
+- Critical/High fixed in adjacent follow-ups: 4 (budget NaN ×2, /test exposure, rate limit cap)
+- Open issues: 0
