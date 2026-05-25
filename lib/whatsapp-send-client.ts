@@ -48,22 +48,33 @@ const HINTS: Record<WhatsAppSendError, string> = {
   network: "אין חיבור לאינטרנט",
 };
 
+interface SendArgs {
+  phone: string;
+  /** Free-form body — only delivered if recipient is inside the 24h window. */
+  message?: string;
+  /** Approved Content SID (e.g. "HX...") — required for first contact. */
+  templateSid?: string;
+  /** Positional template variables, keyed "1", "2", ... — e.g.
+   *  { "1": "דנה", "2": "טל וענת", ... } */
+  variables?: Record<string, string>;
+}
+
 /**
- * Send a free-form WhatsApp message to a phone via Momentum's number.
- * Only succeeds when the recipient sent us a message in the last 24h
- * (the WhatsApp Business "customer-service window"). For first contact
- * with a guest, prefer `sendWhatsAppTemplateRequest` once templates are
- * approved in Twilio.
+ * Send a WhatsApp message to a phone via Momentum's number. Pass either
+ * `message` (free-form, works only inside the 24h customer-service
+ * window) or `templateSid + variables` (any time, required for first
+ * contact).
+ *
+ * For the "send invitation" flow the right pattern is:
+ *   1) Try templateSid → works for new guests.
+ *   2) If template is rejected or not configured → try free-form.
+ *   3) If both fail → caller falls back to wa.me.
  *
  * Returns a typed result; never throws.
  */
-export async function sendWhatsAppMessage({
-  phone,
-  message,
-}: {
-  phone: string;
-  message: string;
-}): Promise<WhatsAppSendResult> {
+export async function sendWhatsAppMessage(
+  args: SendArgs,
+): Promise<WhatsAppSendResult> {
   const supabase = getSupabase();
   if (!supabase) {
     return {
@@ -90,7 +101,12 @@ export async function sendWhatsAppMessage({
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ phone, message }),
+      body: JSON.stringify({
+        phone: args.phone,
+        ...(args.templateSid
+          ? { templateSid: args.templateSid, variables: args.variables }
+          : { message: args.message }),
+      }),
     });
     const body = (await res.json().catch(() => ({}))) as Partial<{
       ok: boolean;

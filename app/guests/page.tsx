@@ -20,6 +20,11 @@ import { trackEvent, trackFirstOnce } from "@/lib/analytics";
 import { subscribeRsvpUpdates, type RsvpUpdate } from "@/lib/rsvpSync";
 import { showToast } from "@/components/Toast";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send-client";
+import {
+  GUEST_INVITATION_TEMPLATE_SID,
+  buildGuestInvitationVariables,
+  hasGuestInvitationTemplate,
+} from "@/lib/whatsapp-templates";
 import { fireConfettiOnce } from "@/lib/confetti";
 import { GuestsSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Avatar } from "@/components/Avatar";
@@ -845,12 +850,15 @@ function GuestRow({
     } catch {}
   };
 
-  // R78 — send the invitation directly from Momentum's WhatsApp number,
-  // bypassing wa.me. Reuses the same `messageText` the wa.me URL holds
-  // so the content is identical. Falls back gracefully on every error:
-  //   - 24h-window/template-required → suggest the wa.me path
-  //   - not_configured / network → toast the hint, keep wa.me available
-  // Marks the guest as invited on success (same as wa.me).
+  // R78/R79 — send the invitation directly from Momentum's WhatsApp
+  // number, bypassing wa.me. Picks the right WhatsApp Business strategy:
+  //   1. First contact (never invited)  → approved Content Template,
+  //      so the message goes through regardless of any 24h window.
+  //   2. Already invited / responded     → free-form text body, which
+  //      succeeds only inside the 24h customer-service window.
+  //   3. Template missing or API fails   → fall back to the wa.me path
+  //      so the user is never blocked.
+  // Marks the guest as invited on a successful API send.
   const onSendViaMomentum = async () => {
     if (!guest.phone) {
       showToast("הוסף מספר טלפון לאורח כדי לשלוח", "error");
@@ -860,15 +868,58 @@ function GuestRow({
       showToast("מכין את ההודעה, נסה שוב בעוד רגע", "info");
       return;
     }
+
     setSendingViaMomentum(true);
     try {
+      const isFirstContact = !guest.invitedAt;
+      const templateAvailable = hasGuestInvitationTemplate();
+
+      // Strategy 1: template path for first contact (preferred).
+      if (isFirstContact && templateAvailable) {
+        const hostNames = event.partnerName
+          ? `${event.hostName} ו${event.partnerName}`
+          : event.hostName;
+        const venue = [event.synagogue, event.city]
+          .filter(Boolean)
+          .join(" · ");
+        const result = await sendWhatsAppMessage({
+          phone: guest.phone,
+          templateSid: GUEST_INVITATION_TEMPLATE_SID,
+          variables: buildGuestInvitationVariables({
+            guestName: guest.name,
+            hostNames,
+            date: formatEventDate(event.date),
+            venue: venue || "פרטים בלינק",
+            rsvpUrl,
+          }),
+        });
+        if (result.ok) {
+          showToast(`✓ נשלחה הזמנה ל-${guest.name} מ-Momentum`, "success");
+          actions.markInvited(guest.id);
+          return;
+        }
+        // Template failed — fall through to free-form attempt, which
+        // might succeed if the guest happens to be inside the 24h
+        // window (e.g. they messaged us once before).
+      }
+
+      // Strategy 2: free-form body (works inside the 24h window).
       const result = await sendWhatsAppMessage({
         phone: guest.phone,
         message: messageText,
       });
       if (result.ok) {
-        showToast(`✓ נשלח ל-${guest.name} דרך Momentum`, "success");
+        showToast(`✓ נשלח ל-${guest.name} מ-Momentum`, "success");
         actions.markInvited(guest.id);
+        return;
+      }
+
+      // Strategy 3: graceful fallback — surface the right hint.
+      if (result.error === "outside_24h_window" && !templateAvailable) {
+        showToast(
+          "תבנית הזמנה לא מוגדרת עדיין — שלח דרך וואטסאפ הירוק למטה",
+          "info",
+        );
       } else {
         showToast(
           result.hebrewHint ?? "השליחה נכשלה — נסה דרך וואטסאפ",
