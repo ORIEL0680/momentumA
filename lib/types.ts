@@ -268,6 +268,22 @@ export interface EventInfo {
   guardianConsent?: {
     acceptedAt: string;
   };
+  /** R80 — venue floor plan the seating architect canvas reads. Optional;
+   *  when omitted, the canvas falls back to its hardcoded defaults (1200×800
+   *  with the dance floor centered + the four standard zones). */
+  venueLayout?: VenueLayout;
+}
+
+/** R80 — coordinates inside the seating canvas viewBox. Origin is top-left
+ *  of the venue rectangle. All values in SVG units (1 unit ≈ 1cm on
+ *  screen at 100% zoom; the default canvas is 1200×800 ≈ 15m × 10m). */
+export interface VenueLayout {
+  width: number;
+  height: number;
+  danceFloor?: { x: number; y: number; w: number; h: number };
+  bar?: { x: number; y: number; w: number; h: number };
+  stage?: { x: number; y: number; w: number; h: number };
+  entrance?: { x: number; y: number; w?: number; h?: number };
 }
 
 /** Event types that celebrate a minor and therefore require guardian consent. */
@@ -324,6 +340,19 @@ export interface SeatingTable {
    * guests with the same circle — the auto-arrangement does the rest.
    */
   circle?: string;
+  // R80 — Seating Architect canvas fields. Tables created before R80
+  // have these undefined; the canvas auto-fills `positionX/Y` to a
+  // sensible grid slot on first paint and writes the value back on
+  // first drag. Cosmetic fields (color/shape/label) stay optional.
+  /** SVG-coordinate position of the table center on the venue canvas. */
+  positionX?: number;
+  positionY?: number;
+  /** Outer ring color the canvas paints this table with. */
+  color?: string;
+  /** Table shape — round (default) or rect (rectangular banquet table). */
+  shape?: "round" | "rect";
+  /** Optional override of the displayed name; falls back to `name`/`number`. */
+  label?: string;
 }
 
 export interface VendorMessage {
