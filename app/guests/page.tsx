@@ -353,16 +353,12 @@ function GuestsPageInner() {
                 className="btn-secondary inline-flex items-center gap-2 disabled:opacity-50"
                 title={
                   contactsSupported
-                    ? "ייבוא מאנשי הקשר של הטלפון"
-                    : "הדבק רשימה מ-WhatsApp, אקסל, או כל מקום"
+                    ? "ייבוא ישירות מאנשי הקשר של הטלפון"
+                    : "ייבוא מאנשי קשר — הדבק רשימה מ-WhatsApp / אקסל / iPhone"
                 }
               >
                 <BookUser size={18} />
-                {importBusy
-                  ? "מייבא..."
-                  : contactsSupported
-                    ? "ייבוא מאנשי קשר"
-                    : "ייבוא רשימה"}
+                {importBusy ? "מייבא..." : "ייבוא מאנשי קשר"}
               </button>
               {stats.expressEligible > 0 && (
                 <button
@@ -374,37 +370,58 @@ function GuestsPageInner() {
                   <span className="ltr-num">{stats.expressEligible}</span>)
                 </button>
               )}
+              {/* R108 — bulk-send actions. The gold "via Momentum" button
+                  is ALWAYS visible (disabled when no candidates) so the
+                  feature stays discoverable; the wa.me bulk only renders
+                  when there are pending guests with a phone, since it
+                  has no useful disabled state. */}
               {state.guests.some((g) => g.status === "pending" && g.phone) && (
-                <>
-                  <button
-                    onClick={() => setShowBulk(true)}
-                    className="btn-secondary inline-flex items-center gap-2"
-                    title="פתח שליחה מרוכזת לכל מי שעוד לא נשלח לו"
-                  >
-                    <Send size={18} />
-                    📤 שלח לכל מי שלא נשלח לו
-                  </button>
-                  {/* R105 — bulk send via Momentum's Business WhatsApp,
-                      one click, no per-guest wa.me window. */}
+                <button
+                  onClick={() => setShowBulk(true)}
+                  className="btn-secondary inline-flex items-center gap-2"
+                  title="פתח שליחה מרוכזת לכל מי שעוד לא נשלח לו"
+                >
+                  <Send size={18} />
+                  📤 שלח לכל מי שלא נשלח לו
+                </button>
+              )}
+              {(() => {
+                const candidatesCount = state.guests.filter(
+                  (g) => g.status === "pending" && g.phone,
+                ).length;
+                const canSend = candidatesCount > 0;
+                return (
                   <button
                     type="button"
-                    onClick={() => setShowBulkMomentum(true)}
-                    className="inline-flex items-center gap-2 rounded-full px-5 transition hover:translate-y-[-1px]"
+                    onClick={() => canSend && setShowBulkMomentum(true)}
+                    disabled={!canSend}
+                    className="inline-flex items-center gap-2 rounded-full px-5 transition hover:translate-y-[-1px] disabled:hover:translate-y-0"
                     style={{
                       background:
                         "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
                       color: "var(--gold-button-text)",
                       fontWeight: 700,
                       minHeight: 48,
-                      boxShadow: "0 6px 20px -6px var(--accent-glow)",
+                      boxShadow: canSend
+                        ? "0 6px 20px -6px var(--accent-glow)"
+                        : "none",
+                      opacity: canSend ? 1 : 0.45,
+                      cursor: canSend ? "pointer" : "not-allowed",
                     }}
-                    title="שלח את כל ההזמנות ישירות מהמספר העסקי של Momentum"
+                    title={
+                      canSend
+                        ? `שלח ${candidatesCount} הזמנות ישירות מהמספר העסקי של Momentum`
+                        : "אין עדיין אורחים עם טלפון שטרם הוזמנו"
+                    }
                   >
                     <Sparkles size={18} />
-                    שלח לכולם דרך Momentum ✨
+                    שלח לכולם באמצעות Momentum
+                    {canSend && (
+                      <span className="ltr-num">({candidatesCount})</span>
+                    )}
                   </button>
-                </>
-              )}
+                );
+              })()}
               <button onClick={() => setShowAdd(true)} className="btn-gold inline-flex items-center gap-2">
                 <UserPlus size={18} />
                 מוזמן חדש
