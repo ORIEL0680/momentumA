@@ -61,13 +61,10 @@ function SignupPageInner() {
     searchParams.get("role") === "vendor" ? "vendor" : "host";
   const [signupRole, setSignupRole] = useState<"host" | "vendor">(initialRole);
 
-  // Effective returnTo priority: explicit URL ?returnTo wins (used by
-  // manager invites + future deep links), otherwise pick the right
-  // landing per role — vendors go straight to the application form,
-  // hosts to the existing /start onboarding.
+  // Explicit ?returnTo overrides everything (used by manager invites
+  // and future deep links). The role-aware default is computed below
+  // once authMode is known — see `returnTo`.
   const explicitReturnTo = searchParams.get("returnTo");
-  const returnTo =
-    explicitReturnTo ?? (signupRole === "vendor" ? "/vendors/join" : "/start");
   const [step, setStep] = useState<Step>("choose");
   const [method, setMethod] = useState<SignupMethod | null>(null);
   const [identifier, setIdentifier] = useState("");
@@ -99,6 +96,23 @@ function SignupPageInner() {
   const initialAuthMode: AuthMode =
     searchParams.get("mode") === "signin" ? "signin" : "signup";
   const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
+
+  // R118 — role-aware post-auth routing.
+  //   signup + host    → /start  (host onboarding)
+  //   signup + vendor  → /vendors/join  (application form)
+  //   signin + host    → /start  (existing host onboarding picks them up)
+  //   signin + vendor  → /vendors/dashboard  (returning vendor lands on
+  //                     their own dashboard; no need to fill the
+  //                     application form again)
+  // Explicit ?returnTo URL parameter wins over all of these so manager
+  // invites + other deep links still work.
+  const returnTo =
+    explicitReturnTo ??
+    (signupRole === "vendor"
+      ? authMode === "signin"
+        ? "/vendors/dashboard"
+        : "/vendors/join"
+      : "/start");
 
   /** Returns true if consent is given. Otherwise sets the error AND
    *  fires the attention pulse, and returns false so callers bail.

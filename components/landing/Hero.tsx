@@ -106,6 +106,58 @@ export function Hero() {
           </a>
         </div>
 
+        {/* R118 — sub-CTA row for the two existing-user paths. Sits
+            below the hero buttons in a smaller, calmer style so it
+            never competes with the primary "התחילו בחינם" CTA. Two
+            elegantly-bordered pills: regular sign-in (couples app) +
+            vendor sign-in (vendor dashboard). Mobile-first: the pair
+            wraps vertically + centers on small screens. */}
+        <div
+          className="mt-5 flex flex-wrap items-center justify-center gap-2 fade-up"
+          style={{ animationDelay: "0.2s" }}
+        >
+          <span
+            className="text-xs"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            כבר רשומים?
+          </span>
+          <Link
+            href="/signup?mode=signin"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition hover:translate-y-[-1px]"
+            style={{
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
+              minHeight: 38,
+              background: "var(--surface-2)",
+            }}
+          >
+            כניסה לזוגות
+          </Link>
+          <span
+            className="text-xs"
+            style={{ color: "var(--foreground-muted)" }}
+            aria-hidden
+          >
+            ·
+          </span>
+          <Link
+            href="/signup?mode=signin&role=vendor"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition hover:translate-y-[-1px]"
+            style={{
+              border: "1px solid var(--border-gold)",
+              color: "var(--accent)",
+              minHeight: 38,
+              background:
+                "color-mix(in srgb, var(--gold-100) 8%, transparent)",
+              boxShadow: "0 4px 14px -8px var(--accent-glow)",
+            }}
+          >
+            כניסה כספק
+            <ArrowLeft size={14} aria-hidden />
+          </Link>
+        </div>
+
         {/* Social proof — number is hardcoded for now (dynamic later). */}
         <div
           className="mt-6 inline-flex items-center gap-3 text-xs fade-up"

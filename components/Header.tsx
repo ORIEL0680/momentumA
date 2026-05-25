@@ -294,8 +294,30 @@ export function Header() {
               />
             </>
           ) : (
-            // Landing / anon CTA pair — kept consistent across screen sizes.
+            // R118 — anonymous CTA cluster now has THREE actions:
+            //   1. "כניסה כספק" (vendor login)  → /signup?mode=signin&role=vendor
+            //      Hidden on mobile to keep the header compact; vendor
+            //      visitors find it on the landing hero or via the
+            //      "כבר רשום? כניסה" toggle inside /signup itself.
+            //   2. "כניסה" (host login)          → /signup?mode=signin
+            //   3. "התחל בחינם" (host signup)     → /signup
+            // The host signup stays the loudest action — Momentum is
+            // primarily a host product; the vendor side is a smaller,
+            // gated funnel.
             <div className="flex items-center gap-2">
+              <Link
+                href="/signup?mode=signin&role=vendor"
+                className="hidden sm:inline-flex text-xs items-center gap-1 rounded-full px-3 transition"
+                style={{
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                  minHeight: 34,
+                  background:
+                    "color-mix(in srgb, var(--gold-100) 6%, transparent)",
+                }}
+              >
+                כניסה כספק
+              </Link>
               <Link
                 href="/signup?mode=signin"
                 className="btn-secondary text-sm py-1.5 px-3 sm:px-4"
