@@ -213,8 +213,12 @@ export function BulkSendViaMomentumModal({
   };
 
   return (
+    // R112 — the OUTER overlay gets overflow-y-auto so on short screens
+    // (mobile landscape, small laptops) the user can scroll the whole
+    // modal into view if it's taller than the viewport. Inner card
+    // becomes a flex column with max-h capped at the viewport.
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
       onClick={phase === "sending" ? undefined : onClose}
       role="dialog"
@@ -222,13 +226,16 @@ export function BulkSendViaMomentumModal({
       aria-labelledby="bulk-send-title"
     >
       <div
-        className="card glass-strong w-full max-w-lg scale-in overflow-hidden"
+        className="card glass-strong w-full max-w-lg scale-in flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
-        style={{ border: "1px solid var(--border-gold)" }}
+        style={{
+          border: "1px solid var(--border-gold)",
+          maxHeight: "calc(100vh - 2rem)",
+        }}
       >
         {/* Header */}
         <div
-          className="px-6 pt-6 pb-4 flex items-start justify-between gap-3"
+          className="px-6 pt-6 pb-4 flex items-start justify-between gap-3 shrink-0"
           style={{
             background:
               "linear-gradient(180deg, rgba(212,176,104,0.08), transparent)",
@@ -264,8 +271,10 @@ export function BulkSendViaMomentumModal({
           )}
         </div>
 
-        {/* Body — varies by phase */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Body — varies by phase. flex-1 + overflow-y-auto = the body
+            scrolls within the modal when the failure list grows past
+            the viewport. shrink-0 on header/footer keeps them pinned. */}
+        <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
           {phase === "confirm" && (
             <>
               <div
@@ -381,7 +390,7 @@ export function BulkSendViaMomentumModal({
 
         {/* Footer */}
         <div
-          className="px-6 py-4 grid grid-cols-2 gap-2"
+          className="px-6 py-4 grid grid-cols-2 gap-2 shrink-0"
           style={{
             borderTop: "1px solid var(--border)",
             background: "var(--surface-2)",

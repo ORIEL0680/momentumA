@@ -30,8 +30,12 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
+    // R112 — overflow-y-auto on overlay so short screens can scroll
+    // the whole modal into view. UpgradePlanModal is short enough that
+    // an inner scroll isn't usually needed, but the my-auto + max-h
+    // pair makes "tall content under small viewport" safe anyway.
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
       onClick={onClose}
       role="dialog"
       aria-modal
@@ -40,7 +44,11 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
       <div
         className="card glass-strong w-full max-w-md p-6 my-auto"
         onClick={(e) => e.stopPropagation()}
-        style={{ border: "1px solid var(--border-gold)" }}
+        style={{
+          border: "1px solid var(--border-gold)",
+          maxHeight: "calc(100vh - 2rem)",
+          overflowY: "auto",
+        }}
       >
         <div className="flex items-start justify-between gap-3">
           <div>

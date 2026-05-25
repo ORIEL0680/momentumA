@@ -81,8 +81,12 @@ export function DeleteEventModal({ onClose }: Props) {
   };
 
   return (
+    // R112 — overflow-y-auto on the overlay + flex column with max-h on
+    // the card means: short screens can scroll the whole modal into
+    // view, tall content scrolls inside the card. Without this the
+    // bottom buttons + confirm input disappeared on mobile.
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
       role="dialog"
@@ -90,16 +94,17 @@ export function DeleteEventModal({ onClose }: Props) {
       aria-labelledby="delete-event-title"
     >
       <div
-        className="card glass-strong w-full max-w-md scale-in overflow-hidden"
+        className="card glass-strong w-full max-w-md scale-in flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
         style={{
           border: "1px solid rgba(248,113,113,0.35)",
           boxShadow: "0 24px 80px -20px rgba(248,113,113,0.25)",
+          maxHeight: "calc(100vh - 2rem)",
         }}
       >
         {/* Top banner — red wash with warning icon */}
         <div
-          className="relative px-6 pt-6 pb-5"
+          className="relative px-6 pt-6 pb-5 shrink-0"
           style={{
             background:
               "linear-gradient(180deg, rgba(248,113,113,0.10), rgba(248,113,113,0.02))",
@@ -144,8 +149,9 @@ export function DeleteEventModal({ onClose }: Props) {
           </div>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Body — flex-1 + scroll so long event summaries or long
+            translated checklist text don't push the footer off-screen. */}
+        <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
           {/* Event summary card — so the user sees exactly what's about to vanish */}
           {event && <EventSummary event={event} />}
 
@@ -207,7 +213,7 @@ export function DeleteEventModal({ onClose }: Props) {
 
         {/* Footer */}
         <div
-          className="px-6 py-4 grid grid-cols-2 gap-2"
+          className="px-6 py-4 grid grid-cols-2 gap-2 shrink-0"
           style={{
             borderTop: "1px solid var(--border)",
             background: "var(--surface-2)",
