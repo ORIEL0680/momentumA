@@ -76,18 +76,6 @@ function SignupPageInner() {
   // button "did nothing" is obvious instead of a quiet error line.
   const [consentPulse, setConsentPulse] = useState(false);
 
-  /** Returns true if consent is given. Otherwise sets the error AND
-   *  fires the attention pulse, and returns false so callers bail. */
-  const requireConsent = (): boolean => {
-    if (consented) return true;
-    setError("יש לאשר את תנאי השימוש ומדיניות הפרטיות כדי להמשיך.");
-    setConsentPulse(false);
-    // Re-arm on the next frame so re-clicks restart the animation.
-    window.requestAnimationFrame(() => setConsentPulse(true));
-    window.setTimeout(() => setConsentPulse(false), 1850);
-    return false;
-  };
-
   // R71 (R60) — page-level authMode. Synced with `?mode=` so we don't
   // duplicate it in state on every render. The email sub-mode below
   // mirrors this on entry but stays independently switchable inside the
@@ -96,6 +84,25 @@ function SignupPageInner() {
   const initialAuthMode: AuthMode =
     searchParams.get("mode") === "signin" ? "signin" : "signup";
   const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
+
+  /** Returns true if consent is given. Otherwise sets the error AND
+   *  fires the attention pulse, and returns false so callers bail.
+   *
+   *  R77-1: signin mode never requires fresh consent — returning users
+   *  already agreed when they signed up. Without this, the Google /
+   *  Apple / phone-OTP / email-login buttons all silently failed on
+   *  /signup?mode=signin because the consent box was hidden but the
+   *  underlying gate still fired. */
+  const requireConsent = (): boolean => {
+    if (authMode === "signin") return true;
+    if (consented) return true;
+    setError("יש לאשר את תנאי השימוש ומדיניות הפרטיות כדי להמשיך.");
+    setConsentPulse(false);
+    // Re-arm on the next frame so re-clicks restart the animation.
+    window.requestAnimationFrame(() => setConsentPulse(true));
+    window.setTimeout(() => setConsentPulse(false), 1850);
+    return false;
+  };
 
   // Email/password state — kept local to the SignupPage so the user can
   // switch back and forth between modes without losing what they typed.
