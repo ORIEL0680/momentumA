@@ -118,11 +118,9 @@ function AdminHomeInner() {
                 chart={stats.series.users_7d}
                 href="/admin/users"
               />
-              <StatCard
-                label="ספקים מאושרים"
-                value={stats.vendors.approved}
-                href="/admin/vendors/applications"
-              />
+              {/* R115 — vendor StatCard hidden. User opted out of the
+                  admin vendor approval workflow; new applications now
+                  auto-approve. Re-enable here if manual review returns. */}
               <StatCard
                 label="אירועים השבוע"
                 value={stats.events.new_this_week}
@@ -140,7 +138,6 @@ function AdminHomeInner() {
             <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
               <div className="space-y-6">
                 <UrgentActions
-                  pendingVendors={stats.vendors.pending}
                   errors={stats.errors_last_24h}
                 />
                 <UpcomingEvents events={stats.upcoming_events} />
@@ -181,18 +178,14 @@ function SystemHealthBadge({ errors }: { errors: number }) {
 }
 
 function UrgentActions({
-  pendingVendors,
   errors,
 }: {
-  pendingVendors: number;
   errors: number;
 }) {
   const actions = [
-    pendingVendors > 0 && {
-      icon: Store,
-      label: `${pendingVendors} בקשות ספק ממתינות לאישור`,
-      href: "/admin/vendors/applications",
-    },
+    // R115 — vendor approval urgent action removed. Vendor signups no
+    // longer queue for admin review; the row is auto-promoted on
+    // submit, so there's nothing actionable here.
     errors > 0 && {
       icon: Bug,
       label: `${errors} שגיאות ב-24 השעות האחרונות`,

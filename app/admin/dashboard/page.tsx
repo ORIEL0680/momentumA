@@ -16,7 +16,6 @@ import {
   TrendingUp,
   ShieldCheck,
   Clock,
-  ArrowUpRight,
   ArrowLeft,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
@@ -411,15 +410,8 @@ export default function AdminDashboardPage() {
                 value={stats.vendors.paid_tier || "—"}
               />
             </div>
-            {stats.vendors.pending > 0 && (
-              <Link
-                href="/admin/vendors"
-                className="btn-gold mt-5 text-sm inline-flex items-center gap-2 px-4 py-2 w-full justify-center"
-              >
-                <ArrowUpRight size={14} aria-hidden /> אשר{" "}
-                <span className="ltr-num">{stats.vendors.pending}</span> בקשות ממתינות
-              </Link>
-            )}
+            {/* R115 — "approve N pending applications" CTA hidden. Manual
+                approval is off; vendor applications auto-promote on submit. */}
           </section>
 
           <section className="card p-6">
