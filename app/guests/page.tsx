@@ -212,6 +212,21 @@ function GuestsPageInner() {
   // previous `>= 99` check on guest-count missed those leaps because it
   // didn't account for headcount per row.
   const lastConfirmedHeadsRef = useRef<number>(0);
+  // R110 — read latest state through refs so the subscription effect
+  // can mount ONCE and stay alive for the page's lifetime. The old
+  // `[state.guests, state.event]` deps tore down + re-subscribed on
+  // every guest change — which, combined with the cleanup in
+  // subscribeRsvpUpdates that drops the Supabase channel when the
+  // last subscriber leaves, would briefly orphan the realtime channel
+  // every time a guest row mutated. Net effect: events arriving during
+  // that microsecond window were lost.
+  const guestsRef = useRef(state.guests);
+  const eventRef = useRef(state.event);
+  useEffect(() => {
+    guestsRef.current = state.guests;
+    eventRef.current = state.event;
+  }, [state.guests, state.event]);
+
   useEffect(() => {
     const off = subscribeRsvpUpdates((u: RsvpUpdate) => {
       if (u.source === "self") {
@@ -219,7 +234,7 @@ function GuestsPageInner() {
         // clicks "אישר" themselves, but skip the toast.
         setRecentlyChanged({ id: u.guestId, at: Date.now() });
       } else {
-        const guest = state.guests.find((g) => g.id === u.guestId);
+        const guest = guestsRef.current.find((g) => g.id === u.guestId);
         const name = guest?.name ?? "אורח";
         const label =
           u.status === "confirmed"
@@ -237,17 +252,18 @@ function GuestsPageInner() {
       // catches "one big RSVP just pushed us past 100" cases. The
       // localStorage flag inside fireConfettiOnce keeps reloads from
       // re-firing.
-      const heads = state.guests
+      const heads = guestsRef.current
         .filter((g) => g.status === "confirmed")
         .reduce((sum, g) => sum + (g.attendingCount ?? 1), 0);
       const prev = lastConfirmedHeadsRef.current;
       lastConfirmedHeadsRef.current = heads;
-      if (prev < 100 && heads >= 100 && state.event) {
-        fireConfettiOnce(`100-confirmed-${state.event.id}`, 1500);
+      const eventNow = eventRef.current;
+      if (prev < 100 && heads >= 100 && eventNow) {
+        fireConfettiOnce(`100-confirmed-${eventNow.id}`, 1500);
       }
     });
     return off;
-  }, [state.guests, state.event]);
+  }, []);
 
   const filtered = useMemo(() => {
     return state.guests.filter((g) => {

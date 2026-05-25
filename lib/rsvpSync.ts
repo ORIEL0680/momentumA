@@ -87,12 +87,18 @@ export function subscribeRsvpUpdates(handler: Handler): () => void {
   handlers.add(handler);
   // If Supabase is on, lazily wire postgres_changes once.
   void wireSupabaseRealtime();
+  // R110 — kick off the initial sync + polling fallback. These are
+  // idempotent (only run once per page lifecycle), so a re-subscribe
+  // from a React re-render doesn't spam Supabase.
+  void initialFetchRsvps();
+  startPollingFallback();
   return () => {
     handlers.delete(handler);
     if (handlers.size === 0) {
       // Last subscriber gone — drop the Supabase channel so a future
       // re-subscribe starts fresh instead of stacking another one.
       void teardownSupabaseRealtime();
+      stopPollingFallback();
     }
   };
 }
@@ -271,6 +277,148 @@ async function teardownSupabaseRealtime() {
   } finally {
     supabaseChannel = null;
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// R110 — Initial fetch + polling fallback.
+//
+// Even with realtime working perfectly, two failure modes break the
+// dashboard:
+//   1. The dashboard mounts AFTER a guest already responded — realtime
+//      only delivers FUTURE changes, so the existing row never lands.
+//   2. realtime silently misses an event (project sleeping, network
+//      blip, channel was created before the publication included the
+//      table — which was the very bug behind R109).
+//
+// initialFetchRsvps() does a one-time SELECT * from rsvps on first
+// subscribe, then dispatches every row through the same handler path
+// realtime uses. startPollingFallback() repeats that every 10s in case
+// realtime missed something. Both no-op when SUPABASE_ENABLED is false.
+// ──────────────────────────────────────────────────────────────────────
+
+let initialFetchInFlight = false;
+let lastSyncedAt: string | null = null;
+
+async function initialFetchRsvps(): Promise<void> {
+  if (initialFetchInFlight) return;
+  if (!SUPABASE_ENABLED) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+  initialFetchInFlight = true;
+  try {
+    const { data, error } = await supabase
+      .from("rsvps")
+      .select("event_id, guest_id, status, attending_count, notes, responded_at, updated_at")
+      .order("updated_at", { ascending: true });
+    if (error) {
+      console.error(
+        `[momentum/rsvpSync] initial fetch failed [${error.code ?? "?"}]: ${error.message}`,
+        error.hint ? `· hint: ${error.hint}` : "",
+      );
+      return;
+    }
+    if (!data) return;
+    console.log(`[momentum/rsvpSync] initial fetch: ${data.length} rsvp row(s)`);
+    for (const row of data) {
+      applyRowFromCloud(row);
+    }
+    if (data.length > 0) {
+      const last = data[data.length - 1];
+      lastSyncedAt =
+        typeof last.updated_at === "string" ? last.updated_at : null;
+    }
+  } catch (e) {
+    console.error("[momentum/rsvpSync] initial fetch threw:", e);
+  } finally {
+    initialFetchInFlight = false;
+  }
+}
+
+let pollTimer: number | null = null;
+const POLL_INTERVAL_MS = 10_000;
+
+function startPollingFallback(): void {
+  if (typeof window === "undefined") return;
+  if (pollTimer !== null) return; // already running
+  if (!SUPABASE_ENABLED) return;
+  pollTimer = window.setInterval(() => {
+    void pollOnce();
+  }, POLL_INTERVAL_MS);
+}
+
+function stopPollingFallback(): void {
+  if (pollTimer === null) return;
+  window.clearInterval(pollTimer);
+  pollTimer = null;
+}
+
+async function pollOnce(): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const supabase = getSupabase();
+  if (!supabase) return;
+  try {
+    let query = supabase
+      .from("rsvps")
+      .select("event_id, guest_id, status, attending_count, notes, responded_at, updated_at")
+      .order("updated_at", { ascending: true });
+    if (lastSyncedAt) {
+      // Only pull rows newer than the last one we've seen. Even with
+      // realtime delivering most events live, the poll covers the
+      // gaps without re-sending the entire table every 10s.
+      query = query.gt("updated_at", lastSyncedAt);
+    }
+    const { data, error } = await query;
+    if (error) {
+      // Quiet on the recurring path so the console isn't spammed every
+      // 10s when the table's missing. The initial fetch already
+      // surfaced the actionable error once.
+      return;
+    }
+    if (!data || data.length === 0) return;
+    console.log(`[momentum/rsvpSync] poll: ${data.length} new rsvp row(s)`);
+    for (const row of data) {
+      applyRowFromCloud(row);
+    }
+    const last = data[data.length - 1];
+    if (typeof last.updated_at === "string") {
+      lastSyncedAt = last.updated_at;
+    }
+  } catch {
+    /* network blip — try again next interval */
+  }
+}
+
+/** Apply a single Supabase rsvps row through the same handler path the
+ *  realtime channel uses. Idempotent — calling with the same row twice
+ *  just rewrites the local store with the same values. */
+function applyRowFromCloud(row: {
+  event_id?: string;
+  guest_id?: string;
+  status?: string;
+  attending_count?: number;
+  notes?: string | null;
+  responded_at?: string;
+}): void {
+  if (!row.guest_id || !row.event_id || !row.status) return;
+  if (!isFinalStatus(row.status)) return;
+  const finalStatus: "confirmed" | "declined" | "maybe" = row.status;
+  const update: RsvpUpdate = {
+    eventId: row.event_id,
+    guestId: row.guest_id,
+    status: finalStatus,
+    attendingCount:
+      typeof row.attending_count === "number"
+        ? row.attending_count
+        : finalStatus === "declined"
+          ? 0
+          : 1,
+    notes: row.notes ?? undefined,
+    respondedAt: row.responded_at ?? new Date().toISOString(),
+    source: "supabase",
+  };
+  actions.setRsvp(update.guestId, finalStatus, update.attendingCount);
+  if (update.notes) actions.updateGuest(update.guestId, { notes: update.notes });
+  handlers.forEach((h) => h(update));
 }
 
 async function pushToSupabase(update: RsvpUpdate): Promise<boolean> {

@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { DashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { InstallPWA } from "@/components/InstallPWA";
 import { useAppState } from "@/lib/store";
+import { subscribeRsvpUpdates } from "@/lib/rsvpSync";
 import { useUser } from "@/lib/user";
 import { getJourneyForState, getProgress } from "@/lib/journey";
 import { type AppState } from "@/lib/types";
@@ -90,6 +91,21 @@ function DashboardInner() {
     router.prefetch("/guests");
     router.prefetch("/budget");
   }, [router]);
+
+  // R110 — subscribe to RSVP updates while sitting on the dashboard
+  // too, not just on /guests. The handler itself doesn't need to do
+  // anything visible — rsvpSync writes to the local store via
+  // actions.setRsvp, which triggers useAppState to re-render the
+  // stats strip + hero counts. Subscribing here also kicks off the
+  // one-time initial fetch + 10s polling fallback (see
+  // subscribeRsvpUpdates → R110 in lib/rsvpSync.ts), so a host who
+  // sits on /dashboard while guests respond still gets live numbers.
+  useEffect(() => {
+    const off = subscribeRsvpUpdates(() => {
+      /* state is already updated via actions.setRsvp inside rsvpSync */
+    });
+    return off;
+  }, []);
 
   // R41 — the big animated stat cards were replaced by the slim
   // StatsStrip (plain numbers), so the per-stat useCountUp hooks are
