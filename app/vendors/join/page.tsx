@@ -11,13 +11,20 @@ import {
   AlertTriangle,
   Mail,
 } from "lucide-react";
-import { VENDOR_CATEGORIES, type VendorCategory } from "@/lib/vendorApplication";
+import {
+  VENDOR_CATEGORIES,
+  PRICE_RANGE_LABELS,
+  type VendorCategory,
+  type VendorPriceRange,
+} from "@/lib/vendorApplication";
 import { showToast } from "@/components/Toast";
 import { track } from "@/lib/analytics";
 
-/** Map of API error code → which step in the wizard owns the bad field.
- *  Used to jump the user back to the right step so they can fix it. */
-const FIELD_TO_STEP: Record<string, 1 | 2 | 3> = {
+/** R119 — 4-step wizard. Map of API error code → which step in the
+ *  wizard owns the bad field. Used to jump the user back to the
+ *  right step so they can fix it. */
+type WizardStep = 1 | 2 | 3 | 4;
+const FIELD_TO_STEP: Record<string, WizardStep> = {
   business_name: 1,
   contact_name: 1,
   category: 1,
@@ -31,6 +38,11 @@ const FIELD_TO_STEP: Record<string, 1 | 2 | 3> = {
   about: 3,
   instagram: 3,
   facebook: 3,
+  tagline: 4,
+  price_range: 4,
+  service_areas: 4,
+  languages: 4,
+  specialty: 4,
 };
 
 interface FormData {
@@ -48,6 +60,13 @@ interface FormData {
   business_id: string;
   /** stored as string so the input controls are simple; converted to number on submit */
   years_in_field: string;
+  // R119 — premium catalog fields (step 4).
+  tagline: string;
+  price_range: VendorPriceRange | "";
+  /** Comma-separated free text; split + normalized on submit. */
+  service_areas: string;
+  languages: string;
+  specialty: string;
 }
 
 const EMPTY_FORM: FormData = {
@@ -64,15 +83,20 @@ const EMPTY_FORM: FormData = {
   sample_work_url: "",
   business_id: "",
   years_in_field: "",
+  tagline: "",
+  price_range: "",
+  service_areas: "",
+  languages: "",
+  specialty: "",
 };
 
 export default function VendorJoinPage() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  // R18 §G — 3-step wizard. Splitting the 13-field wall into bite-size
-  // steps roughly tripled completion in the brief's intent.
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // R18 §G — multi-step wizard. R119 added a 4th step for premium
+  // catalog fields (price tier / tagline / service areas / etc).
+  const [step, setStep] = useState<WizardStep>(1);
   // R80 (R65) — persistent inline error banner with the API's specific
   // message, instead of relying only on the toast (which disappears
   // after a couple of seconds and is easy to miss while typing).
@@ -83,22 +107,30 @@ export default function VendorJoinPage() {
 
   // Per-step required fields — the "Next" button stays disabled until
   // the current step's mandatory fields are filled.
-  const stepValid = (s: 1 | 2 | 3): boolean => {
+  const stepValid = (s: WizardStep): boolean => {
     if (s === 1)
       return !!form.business_name && !!form.contact_name && !!form.category;
     if (s === 2) return !!form.phone && !!form.email;
-    return (
-      !!form.business_id && !!form.years_in_field && !!form.sample_work_url
-    );
+    if (s === 3)
+      return (
+        !!form.business_id && !!form.years_in_field && !!form.sample_work_url
+      );
+    // Step 4 is the premium-fields step; nothing strictly required —
+    // every field improves the listing but the application still
+    // submits without them. We don't gate "Next" on step 4 since 4
+    // IS the last step (handled by handleSubmit instead).
+    return true;
   };
+  const TOTAL_STEPS: WizardStep = 4;
   const goNext = () => {
     if (!stepValid(step)) {
       showToast("יש למלא את שדות החובה בשלב זה", "error");
       return;
     }
-    setStep((s) => (s < 3 ? ((s + 1) as 1 | 2 | 3) : s));
+    setStep((s) => (s < TOTAL_STEPS ? ((s + 1) as WizardStep) : s));
   };
-  const goPrev = () => setStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s));
+  const goPrev = () =>
+    setStep((s) => (s > 1 ? ((s - 1) as WizardStep) : s));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +160,20 @@ export default function VendorJoinPage() {
         body: JSON.stringify({
           ...form,
           years_in_field: Number(form.years_in_field),
+          // R119 — split the comma-typed UI inputs into arrays here so
+          // the server gets the shape it expects. Empty string → empty
+          // array; the server's normalizeArray() handles dedup + caps.
+          service_areas: form.service_areas
+            .split(/[,،\n]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+          languages: form.languages
+            .split(/[,،\n]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+          // price_range arrives as "" when unselected; convert to undefined
+          // so the server's enum check doesn't see "" and reject.
+          price_range: form.price_range || undefined,
         }),
       });
       // R80 (R65) — defend against the (rare) case where the server
@@ -250,13 +296,21 @@ export default function VendorJoinPage() {
         {/* R18 §G — progress bar */}
         <div className="mt-6">
           <div className="flex items-center justify-between text-xs mb-1.5" style={{ color: "var(--foreground-soft)" }}>
-            <span>שלב <span className="ltr-num">{step}</span> מתוך <span className="ltr-num">3</span></span>
-            <span>{step === 1 ? "פרטי העסק" : step === 2 ? "יצירת קשר" : "פרופיל"}</span>
+            <span>שלב <span className="ltr-num">{step}</span> מתוך <span className="ltr-num">{TOTAL_STEPS}</span></span>
+            <span>
+              {step === 1
+                ? "פרטי העסק"
+                : step === 2
+                  ? "יצירת קשר"
+                  : step === 3
+                    ? "פרופיל ואימות"
+                    : "פרטי השירות"}
+            </span>
           </div>
           <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--input-bg)" }}>
             <div
               className="h-full transition-all duration-300"
-              style={{ width: `${(step / 3) * 100}%`, background: "linear-gradient(90deg, var(--gold-100), var(--accent), var(--gold-500))" }}
+              style={{ width: `${(step / TOTAL_STEPS) * 100}%`, background: "linear-gradient(90deg, var(--gold-100), var(--accent), var(--gold-500))" }}
             />
           </div>
         </div>
@@ -289,6 +343,103 @@ export default function VendorJoinPage() {
                 <Field label="אינסטגרם" value={form.instagram} onChange={(v) => set("instagram", v)} placeholder="@username" />
                 <Field label="פייסבוק" value={form.facebook} onChange={(v) => set("facebook", v)} placeholder="username" />
               </div>
+            </Section>
+          )}
+
+          {/* R119 — step 4: premium catalog fields. None required, all
+              boost discoverability + the perceived quality of the
+              listing. Pricing tier, tagline, service areas, languages,
+              specialty. */}
+          {step === 4 && (
+            <Section title="פרטי השירות">
+              <div
+                className="rounded-2xl p-3 text-xs leading-relaxed mb-2"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--gold-100) 6%, transparent)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--foreground-soft)",
+                }}
+              >
+                💡 השלב הזה לא חובה — אבל ספקים שממלאים אותו מקבלים פי 3 פניות
+                מהקטלוג. כל שדה משפר את הדירוג שלך מול חיפושים של זוגות.
+              </div>
+
+              <Field
+                label="סלוגן קצר"
+                value={form.tagline}
+                onChange={(v) => set("tagline", v)}
+                placeholder='לדוגמה: "צילום שמספר את הסיפור שלכם"'
+              />
+
+              {/* Price tier as 4-pill segmented control */}
+              <div>
+                <span
+                  className="text-xs block mb-1.5"
+                  style={{ color: "var(--foreground-soft)" }}
+                >
+                  טווח מחיר
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {(Object.keys(PRICE_RANGE_LABELS) as VendorPriceRange[]).map(
+                    (tier) => {
+                      const active = form.price_range === tier;
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() =>
+                            set(
+                              "price_range",
+                              active ? "" : tier,
+                            )
+                          }
+                          className="rounded-xl py-2.5 text-sm font-semibold transition"
+                          style={{
+                            background: active
+                              ? "linear-gradient(135deg, var(--gold-100), var(--gold-500))"
+                              : "var(--input-bg)",
+                            color: active
+                              ? "var(--gold-button-text, #1a1310)"
+                              : "var(--foreground-soft)",
+                            border: active
+                              ? "1px solid var(--accent)"
+                              : "1px solid var(--border)",
+                          }}
+                          aria-pressed={active}
+                        >
+                          {PRICE_RANGE_LABELS[tier]}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+                <div
+                  className="text-[11px] mt-1.5"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  פנימי בלבד — מוצג בצורה כללית כסימן ▲▲▲▲ בקטלוג.
+                </div>
+              </div>
+
+              <Field
+                label="אזורי שירות"
+                value={form.service_areas}
+                onChange={(v) => set("service_areas", v)}
+                placeholder="תל אביב, השרון, ירושלים..."
+              />
+              <Field
+                label="שפות שיחה"
+                value={form.languages}
+                onChange={(v) => set("languages", v)}
+                placeholder="עברית, אנגלית, רוסית..."
+              />
+              <Textarea
+                label="התמחות / סגנון"
+                value={form.specialty}
+                onChange={(v) => set("specialty", v)}
+                maxLength={1000}
+              />
             </Section>
           )}
 
@@ -332,8 +483,8 @@ export default function VendorJoinPage() {
             </div>
           )}
 
-          {/* R18 §G — wizard nav. Prev (steps 2/3), Next (steps 1/2),
-              Submit (step 3 only). */}
+          {/* R18 §G — wizard nav. Prev (steps 2+), Next (steps 1-3),
+              Submit (step 4 — the last). */}
           <div className="flex items-center gap-3 mt-2">
             {step > 1 && (
               <button
@@ -344,7 +495,7 @@ export default function VendorJoinPage() {
                 <ArrowLeft size={16} className="rotate-180" /> הקודם
               </button>
             )}
-            {step < 3 ? (
+            {step < TOTAL_STEPS ? (
               <button
                 type="button"
                 onClick={goNext}

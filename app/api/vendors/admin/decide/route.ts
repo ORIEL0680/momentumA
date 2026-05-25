@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
       .eq("id", applicationId)
       .eq("status", "pending")
       .select(
-        "id, email, contact_name, business_name, category, city, phone, website, instagram, facebook, about, years_in_field",
+        "id, email, contact_name, business_name, category, city, phone, website, instagram, facebook, about, years_in_field, tagline, price_range, service_areas, languages, specialty",
       );
 
     if (updateErr) {
@@ -171,6 +171,12 @@ export async function POST(req: NextRequest) {
         facebook?: string | null;
         about?: string | null;
         years_in_field?: number | null;
+        // R119 — premium fields wired through to vendor_landings.
+        tagline?: string | null;
+        price_range?: string | null;
+        service_areas?: string[] | null;
+        languages?: string[] | null;
+        specialty?: string | null;
       };
 
       // R116 — auto-create the vendor_landings row so the vendor's
@@ -235,6 +241,12 @@ export async function POST(req: NextRequest) {
                 facebook: row.facebook ?? null,
                 about_long: row.about ?? null,
                 years_experience: row.years_in_field ?? null,
+                // R119 — copy premium fields the applicant filled.
+                tagline: row.tagline ?? null,
+                price_range: row.price_range ?? null,
+                service_areas: row.service_areas ?? [],
+                languages: row.languages ?? [],
+                description: row.specialty ?? null,
                 landing_published: true,
               });
             if (landingErr) {

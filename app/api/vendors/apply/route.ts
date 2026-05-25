@@ -247,6 +247,27 @@ export async function POST(req: NextRequest) {
     // INSERT. The DB defaults + the tightened RLS policy now block that
     // server-side too, but we still strip at the application layer for
     // defense in depth and to keep the SQL diagnostics clean.
+    // R119 — sanitize the new premium fields. Schema accepts NULL for
+    // each, but we still bound the lengths + filter the enum so
+    // someone passing `price_range: "luxury<script>"` doesn't get
+    // stored verbatim and then rendered on the landing page.
+    const validPriceTiers = new Set(["budget", "mid", "premium", "luxury"]);
+    const priceRange =
+      body.price_range && validPriceTiers.has(body.price_range)
+        ? body.price_range
+        : null;
+    // Arrays come from a comma-split UI; trim each, drop empties,
+    // dedup case-insensitively, cap at 10 entries.
+    const normalizeArray = (arr?: string[]) =>
+      Array.from(
+        new Set(
+          (arr ?? [])
+            .map((s) => (typeof s === "string" ? s.trim() : ""))
+            .filter(Boolean)
+            .map((s) => s.slice(0, 80)),
+        ),
+      ).slice(0, 10);
+
     const insertPayload = {
       business_name: body.business_name.trim().slice(0, 200),
       contact_name: body.contact_name.trim().slice(0, 100),
@@ -261,6 +282,12 @@ export async function POST(req: NextRequest) {
       sample_work_url: body.sample_work_url.trim().slice(0, 500),
       business_id: body.business_id.trim().slice(0, 50),
       years_in_field: body.years_in_field,
+      // R119 — new premium fields.
+      tagline: body.tagline?.trim().slice(0, 140) ?? null,
+      price_range: priceRange,
+      service_areas: normalizeArray(body.service_areas),
+      languages: normalizeArray(body.languages),
+      specialty: body.specialty?.trim().slice(0, 1000) ?? null,
       ip_address: ip,
       user_agent: ua,
       // status='pending', phone_verified=false, reviewed_at=null,
