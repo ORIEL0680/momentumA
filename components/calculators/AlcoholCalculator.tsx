@@ -21,7 +21,6 @@ import {
 import {
   BOTTLE_CATALOG,
   catalogByBrand,
-  formatVolume,
   summarizeSelection,
   DRINK_CATEGORY_LABELS,
   type DrinkCategory,
@@ -251,16 +250,6 @@ export function AlcoholCalculator() {
         servings: 1,
         unit: "יחידה",
         qty: 1,
-        // R120 — sensible default per category so the picker can still
-        // show a volume badge on the custom row.
-        volumeLiters:
-          category === "wine"
-            ? 0.75
-            : category === "spirits"
-              ? 0.7
-              : category === "soft"
-                ? 1.5
-                : 0.33,
       },
     ]);
   };
@@ -776,79 +765,50 @@ export function AlcoholCalculator() {
                     {/* selected lines */}
                     {lines.length > 0 && (
                       <div className="space-y-2 mb-3">
-                        {lines.map((s) => {
-                          // R120 — selected rows show the volume as a small
-                          // gold pill next to the (editable) name. Total
-                          // liters at the row (qty × volume) helps the host
-                          // sanity-check "I really am bringing 90 liters of
-                          // beer" — easy to overlook when only servings show.
-                          const perBottle = s.volumeLiters ?? 0;
-                          const rowLiters = perBottle * s.qty;
-                          return (
-                            <div
-                              key={s.id}
-                              className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-xs rounded-xl p-2"
-                              style={{ background: "var(--input-bg)" }}
-                            >
-                              <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
-                                <input
-                                  value={s.name}
-                                  onChange={(e) =>
-                                    updateBottle(s.id, { name: e.target.value })
-                                  }
-                                  className="bg-transparent outline-none min-w-0 truncate flex-1"
-                                  style={{ color: "var(--foreground)" }}
-                                  aria-label="שם הבקבוק"
-                                />
-                                {perBottle > 0 && (
-                                  <span
-                                    className="ltr-num text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap"
-                                    style={{
-                                      background: "rgba(212,176,104,0.18)",
-                                      color: "var(--accent)",
-                                      border: "1px solid var(--border-gold)",
-                                    }}
-                                    title={`כמות בבקבוק · סה״כ ${formatVolume(rowLiters)}`}
-                                  >
-                                    {formatVolume(perBottle)}
-                                    {s.qty > 1 && (
-                                      <span style={{ color: "var(--foreground-muted)" }}>
-                                        {" "}· {formatVolume(rowLiters)}
-                                      </span>
-                                    )}
-                                  </span>
-                                )}
-                              </div>
+                        {lines.map((s) => (
+                          <div
+                            key={s.id}
+                            className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2 text-xs rounded-xl p-2"
+                            style={{ background: "var(--input-bg)" }}
+                          >
+                            <input
+                              value={s.name}
+                              onChange={(e) =>
+                                updateBottle(s.id, { name: e.target.value })
+                              }
+                              className="bg-transparent outline-none min-w-0 truncate"
+                              style={{ color: "var(--foreground)" }}
+                              aria-label="שם הבקבוק"
+                            />
+                            <NumberMini
+                              label="₪"
+                              value={s.price}
+                              onChange={(v) => updateBottle(s.id, { price: v })}
+                            />
+                            <NumberMini
+                              label="מנות"
+                              value={s.servings}
+                              onChange={(v) =>
+                                updateBottle(s.id, { servings: v })
+                              }
+                            />
+                            <div className="flex items-center gap-1">
                               <NumberMini
-                                label="₪"
-                                value={s.price}
-                                onChange={(v) => updateBottle(s.id, { price: v })}
+                                label="×"
+                                value={s.qty}
+                                onChange={(v) => updateBottle(s.id, { qty: v })}
                               />
-                              <NumberMini
-                                label="מנות"
-                                value={s.servings}
-                                onChange={(v) =>
-                                  updateBottle(s.id, { servings: v })
-                                }
-                              />
-                              <div className="flex items-center gap-1">
-                                <NumberMini
-                                  label="×"
-                                  value={s.qty}
-                                  onChange={(v) => updateBottle(s.id, { qty: v })}
-                                />
-                                <button
-                                  onClick={() => removeBottle(s.id)}
-                                  aria-label="הסר"
-                                  className="p-1.5 rounded-lg hover:bg-white/5"
-                                  style={{ color: "rgb(248,113,113)" }}
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
+                              <button
+                                onClick={() => removeBottle(s.id)}
+                                aria-label="הסר"
+                                className="p-1.5 rounded-lg hover:bg-white/5"
+                                style={{ color: "rgb(248,113,113)" }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     )}
 
@@ -875,32 +835,16 @@ export function AlcoholCalculator() {
                                 <button
                                   key={b.id}
                                   onClick={() => addBottleToSelection(b.id)}
-                                  className="text-[11px] px-2.5 py-1.5 rounded-full inline-flex items-center gap-1.5 transition hover:translate-y-[-1px]"
+                                  className="text-[11px] px-2.5 py-1.5 rounded-full inline-flex items-center gap-1 transition hover:translate-y-[-1px]"
                                   style={{
                                     background: "var(--surface-2)",
                                     border: "1px solid var(--border)",
                                     color: "var(--foreground-soft)",
                                   }}
-                                  title={`${b.name} · ${b.unit} · ${formatVolume(b.volumeLiters)}`}
+                                  title={`${b.name} · ${b.unit}`}
                                 >
                                   <Plus size={11} />
-                                  <span>{b.name}</span>
-                                  {/* R120 — explicit liter badge so the host
-                                      sees "30 ליטר" vs "330 מ״ל" at a glance,
-                                      without parsing the unit/name strings. */}
-                                  <span
-                                    className="ltr-num px-1.5 py-0.5 rounded-full"
-                                    style={{
-                                      background: "rgba(212,176,104,0.18)",
-                                      color: "var(--accent)",
-                                      border: "1px solid var(--border-gold)",
-                                    }}
-                                  >
-                                    {formatVolume(b.volumeLiters)}
-                                  </span>
-                                  <span style={{ color: "var(--foreground-muted)" }}>
-                                    · ₪{b.price}
-                                  </span>
+                                  {b.name} · ₪{b.price}
                                 </button>
                               ))}
                             </div>

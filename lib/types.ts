@@ -268,22 +268,6 @@ export interface EventInfo {
   guardianConsent?: {
     acceptedAt: string;
   };
-  /** R80 — venue floor plan the seating architect canvas reads. Optional;
-   *  when omitted, the canvas falls back to its hardcoded defaults (1200×800
-   *  with the dance floor centered + the four standard zones). */
-  venueLayout?: VenueLayout;
-}
-
-/** R80 — coordinates inside the seating canvas viewBox. Origin is top-left
- *  of the venue rectangle. All values in SVG units (1 unit ≈ 1cm on
- *  screen at 100% zoom; the default canvas is 1200×800 ≈ 15m × 10m). */
-export interface VenueLayout {
-  width: number;
-  height: number;
-  danceFloor?: { x: number; y: number; w: number; h: number };
-  bar?: { x: number; y: number; w: number; h: number };
-  stage?: { x: number; y: number; w: number; h: number };
-  entrance?: { x: number; y: number; w?: number; h?: number };
 }
 
 /** Event types that celebrate a minor and therefore require guardian consent. */
@@ -340,19 +324,6 @@ export interface SeatingTable {
    * guests with the same circle — the auto-arrangement does the rest.
    */
   circle?: string;
-  // R80 — Seating Architect canvas fields. Tables created before R80
-  // have these undefined; the canvas auto-fills `positionX/Y` to a
-  // sensible grid slot on first paint and writes the value back on
-  // first drag. Cosmetic fields (color/shape/label) stay optional.
-  /** SVG-coordinate position of the table center on the venue canvas. */
-  positionX?: number;
-  positionY?: number;
-  /** Outer ring color the canvas paints this table with. */
-  color?: string;
-  /** Table shape — round (default) or rect (rectangular banquet table). */
-  shape?: "round" | "rect";
-  /** Optional override of the displayed name; falls back to `name`/`number`. */
-  label?: string;
 }
 
 export interface VendorMessage {
@@ -378,41 +349,6 @@ export interface Blessing {
   /** Optional display name. Falls back to "אורח אנונימי". */
   fromName?: string;
   at: string;
-}
-
-/** R121 — A monetary gift a guest paid via credit card through the app
- *  (Stripe / Tranzila / Pelecard once payments are wired in). Until a
- *  real PSP integration ships, this is the data model the /gifts page
- *  reads — sample/manual rows surface during demo & rollout. Mirrors
- *  Blessing so the host can read the gift + the guest's note together.
- *
- *  The gift is stored separately from `Guest.envelopeAmount` (the cash
- *  envelope tracked on /balance) because the host needs to see both —
- *  some guests will pay online AND bring cash, and the receipt trail
- *  for credit-card gifts is a tax/accounting concern that envelopes
- *  are not. */
-export interface GiftPayment {
-  id: string;
-  /** Optional link to a Guest row when the gift is tied to a known
-   *  invitee. Free-text gifts (uncle who isn't in the RSVP list yet)
-   *  store `guestName` only. */
-  guestId?: string;
-  /** Display name shown in the list — required because guestId is
-   *  optional and we still want to print "מי שילם" on the card. */
-  guestName: string;
-  /** Amount in NIS. Integers only (Israeli credit-card receipts are in
-   *  whole shekels for gifts). */
-  amount: number;
-  /** Blessing/message the guest typed at checkout. Optional; capped at
-   *  500 chars on the input side. */
-  message?: string;
-  /** Last 4 digits of the card used — purely cosmetic on the receipt. */
-  cardLast4?: string;
-  /** ISO timestamp the payment cleared. */
-  paidAt: string;
-  /** Status from the PSP. "pending" rows appear greyed-out so the host
-   *  doesn't double-count an in-flight payment. */
-  status: "pending" | "paid" | "refunded";
 }
 
 /** Live-mode photo uploaded from a guest's phone. Stored as data: URL because we
@@ -517,9 +453,6 @@ export interface AppState {
   blessings: Blessing[];
   /** Photos uploaded in live mode. Same lifecycle as blessings. */
   livePhotos: LivePhoto[];
-  /** R121 — credit-card gifts the guests paid via the app's checkout
-   *  flow. Separate from `Guest.envelopeAmount` (cash). */
-  giftPayments: GiftPayment[];
 }
 
 // ───────────────────────── Momentum Live (R20) ───────────────────────────

@@ -55,7 +55,7 @@ export function generateAssistantReply(message: string, state: AppState): string
   if (/מעטפ|מתנ|כמה.*אורח|לרשום.*שיק/.test(text)) {
     const totalCost = state.budget.reduce((s, b) => s + (b.actual ?? b.estimated), 0) || event.budgetTotal;
     const env = calcEnvelope(event.type, totalCost, event.guestEstimate);
-    return `לפי החישוב, כל אורח צריך להביא בממוצע ₪${env.suggestedPerGuest.toLocaleString("he-IL")} כדי לכסות את עלות האירוע. הממוצע הארצי ב${eventLabel} הוא ₪${env.typical.toLocaleString("he-IL")} לאורח. בעמוד התקציב יש 3 תרחישים — ממוצע ארצי, כיסוי מלא, וכיסוי + ירח דבש — ועוד מחשבון מדויק לפי סוג מערכת יחסים.`;
+    return `לפי החישוב, זוג צריך להביא בממוצע ₪${env.suggestedPerGuest.toLocaleString("he-IL")} כדי לכסות את עלות האירוע. הממוצע הארצי ב${eventLabel} הוא ₪${env.typical.toLocaleString("he-IL")}. בעמוד התקציב יש 3 תרחישים — ממוצע ארצי, כיסוי מלא, וכיסוי + ירח דבש — ועוד מחשבון מדויק לפי סוג מערכת יחסים.`;
   }
 
   // Vendor / supplier questions

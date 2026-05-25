@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import type { AppState, EventInfo, Guest, BudgetItem, BudgetCategory, VendorType, ChecklistItem, ChecklistPhase, SeatingTable, VendorMessage, AssistantMessage, Blessing, LivePhoto, SavedVendor, GiftPayment } from "./types";
+import type { AppState, EventInfo, Guest, BudgetItem, BudgetCategory, VendorType, ChecklistItem, ChecklistPhase, SeatingTable, VendorMessage, AssistantMessage, Blessing, LivePhoto, SavedVendor } from "./types";
 import { VENDORS } from "./vendors";
 import { buildDefaultChecklist } from "./checklists";
 import { generateRsvpToken, generateSigningKey } from "./crypto";
@@ -23,7 +23,6 @@ const emptyState: AppState = {
   compareVendors: [],
   blessings: [],
   livePhotos: [],
-  giftPayments: [],
 };
 
 function readState(): AppState {
@@ -263,16 +262,6 @@ export const actions = {
       : buildDefaultChecklist(event.type, event.date);
     writeState({ ...s, event: eventWithKey, checklist });
   },
-  /** R80 — patch a subset of the active event's fields without
-   *  touching the rest. Use this for layout/cosmetic updates (e.g.
-   *  the seating canvas writing the new dance-floor position to
-   *  `venueLayout`) where re-running `setEvent` would needlessly
-   *  re-seed the checklist + signing key. No-op if there's no event. */
-  patchEvent(patch: Partial<EventInfo>) {
-    const s = readState();
-    if (!s.event) return;
-    writeState({ ...s, event: { ...s.event, ...patch } });
-  },
   /** Update the due date on a single checklist item — used by the inline date picker. */
   setChecklistDueDate(id: string, dueDate: string | undefined) {
     const s = readState();
@@ -447,35 +436,6 @@ export const actions = {
   removeLivePhoto(id: string) {
     const s = readState();
     writeState({ ...s, livePhotos: (s.livePhotos ?? []).filter((p) => p.id !== id) });
-  },
-
-  // ─────────────── R121 — credit-card gifts ───────────────
-  /** Append a credit-card gift payment. Used both by the (future) PSP
-   *  webhook handler and by manual entry on /gifts during demo mode. */
-  addGiftPayment(input: Omit<GiftPayment, "id" | "paidAt" | "status"> & {
-    paidAt?: string;
-    status?: GiftPayment["status"];
-  }) {
-    const s = readState();
-    const gift: GiftPayment = {
-      id: crypto.randomUUID(),
-      guestId: input.guestId,
-      guestName: input.guestName.trim().slice(0, 80),
-      amount: Math.max(0, Math.round(input.amount)),
-      message: input.message?.trim().slice(0, 500) || undefined,
-      cardLast4: input.cardLast4?.replace(/\D/g, "").slice(-4) || undefined,
-      paidAt: input.paidAt ?? new Date().toISOString(),
-      status: input.status ?? "paid",
-    };
-    writeState({ ...s, giftPayments: [...(s.giftPayments ?? []), gift] });
-    return gift;
-  },
-  removeGiftPayment(id: string) {
-    const s = readState();
-    writeState({
-      ...s,
-      giftPayments: (s.giftPayments ?? []).filter((g) => g.id !== id),
-    });
   },
 
   addGuest(guest: Omit<Guest, "id" | "status" | "attendingCount"> & {

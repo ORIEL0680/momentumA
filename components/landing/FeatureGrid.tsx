@@ -35,8 +35,8 @@ const FEATURES: Array<{ icon: LucideIcon; title: string; body: string }> = [
   },
   {
     icon: Calculator,
-    title: "תקציב חי + 3 מחשבונים",
-    body: "כמה אורח באמת עולה · אלכוהול לפי בקבוקים וליטרים · מעטפה לכיסוי האירוע",
+    title: "תקציב חי + 5 מחשבונים",
+    body: "כמה אורח באמת עולה · סימולטור ׳מה אם׳ · מעטפות · אלכוהול · AI להצעות מחיר",
   },
   {
     icon: Sparkles,

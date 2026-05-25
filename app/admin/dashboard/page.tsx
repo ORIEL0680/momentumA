@@ -304,7 +304,7 @@ export default function AdminDashboardPage() {
               >
                 Admin Dashboard
               </div>
-              <div className="font-bold text-sm">לוח הבקרה של טל חמו</div>
+              <div className="font-bold text-sm">לוח הבקרה של תל</div>
             </div>
           </div>
           <Link

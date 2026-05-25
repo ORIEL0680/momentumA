@@ -47,7 +47,6 @@ const emptyState: AppState = {
   compareVendors: [],
   blessings: [],
   livePhotos: [],
-  giftPayments: [],
 };
 
 function read<T>(key: string, fallback: T): T {

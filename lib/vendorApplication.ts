@@ -31,17 +31,6 @@ export const VENDOR_CATEGORIES = [
 
 export type VendorCategory = typeof VENDOR_CATEGORIES[number]["id"];
 
-/** R119 — price tier the vendor is targeting. Mirrors the same enum
- *  vendor_landings uses for the landing page's pricing badge. */
-export type VendorPriceRange = "budget" | "mid" | "premium" | "luxury";
-
-export const PRICE_RANGE_LABELS: Record<VendorPriceRange, string> = {
-  budget: "חסכוני",
-  mid: "ממוצע",
-  premium: "פרימיום",
-  luxury: "יוקרה",
-};
-
 export interface VendorApplicationInput {
   business_name: string;
   contact_name: string;
@@ -56,14 +45,6 @@ export interface VendorApplicationInput {
   sample_work_url: string;
   business_id: string;
   years_in_field: number;
-  /** R119 — premium catalog fields. All optional at the schema level so
-   *  partial applications still save; the UI nudges vendors to fill
-   *  them because they directly shape how their listing reads. */
-  tagline?: string;
-  price_range?: VendorPriceRange;
-  service_areas?: string[];
-  languages?: string[];
-  specialty?: string;
 }
 
 export interface VendorApplicationRecord extends VendorApplicationInput {
