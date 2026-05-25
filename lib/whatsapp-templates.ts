@@ -57,3 +57,32 @@ export function buildGuestInvitationVariables(
     "5": vars.rsvpUrl,
   };
 }
+
+export interface RsvpReminderVars {
+  /** Guest first name — {{1}} */
+  guestName: string;
+  /** Host names — {{2}} */
+  hostNames: string;
+  /** Days until the event ("3", "7", ...) — {{3}} */
+  daysUntil: string;
+  /** Bare RSVP URL — {{4}} */
+  rsvpUrl: string;
+}
+
+export function buildRsvpReminderVariables(
+  vars: RsvpReminderVars,
+): Record<string, string> {
+  return {
+    "1": vars.guestName,
+    "2": vars.hostNames,
+    "3": vars.daysUntil,
+    "4": vars.rsvpUrl,
+  };
+}
+
+/** True when the reminder template SID is set. Used by the (future)
+ *  reminder cron / bulk-action UI to decide whether the API path is
+ *  available, or to fall back to a manual nudge. */
+export function hasRsvpReminderTemplate(): boolean {
+  return RSVP_REMINDER_TEMPLATE_SID.startsWith("HX");
+}
