@@ -28,17 +28,23 @@ export default function WhatsAppTestPage() {
   );
   const [status, setStatus] = useState<Status>("idle");
   const [result, setResult] = useState<Result | null>(null);
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // Lazy initial — synchronous check so we don't setState-in-effect on
+  // the supabase-missing branch. The async auth check still happens in
+  // useEffect because supabase.auth.getUser() is genuinely async.
+  const [signedIn, setSignedIn] = useState<boolean | null>(() =>
+    getSupabase() ? null : false,
+  );
 
   useEffect(() => {
     const supabase = getSupabase();
-    if (!supabase) {
-      setSignedIn(false);
-      return;
-    }
+    if (!supabase) return; // already set to false via lazy init
+    let cancelled = false;
     supabase.auth.getUser().then(({ data }) => {
-      setSignedIn(!!data.user);
+      if (!cancelled) setSignedIn(!!data.user);
     });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const send = async () => {
