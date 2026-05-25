@@ -14,6 +14,7 @@ import { buildHostInvitationWhatsappLink } from "@/lib/invitation";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { normalizeIsraeliPhone } from "@/lib/phone";
 import { ExpressSendModal } from "@/components/guests/ExpressSendModal";
+import { BulkSendViaMomentumModal } from "@/components/guests/BulkSendViaMomentumModal";
 import { buildWhatsAppMessage } from "@/lib/rsvpLinks";
 import { useGuestWhatsappLink, prewarmGuestWhatsappLinks } from "@/hooks/useGuestWhatsappLink";
 import { trackEvent, trackFirstOnce } from "@/lib/analytics";
@@ -86,6 +87,7 @@ function GuestsPageInner() {
   const { user, hydrated: userHydrated } = useUser();
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [showBulkMomentum, setShowBulkMomentum] = useState(false);
   const [showExpress, setShowExpress] = useState(false);
   const [filter, setFilter] = useState<"all" | GuestStatus>("all");
   const [search, setSearch] = useState("");
@@ -373,14 +375,35 @@ function GuestsPageInner() {
                 </button>
               )}
               {state.guests.some((g) => g.status === "pending" && g.phone) && (
-                <button
-                  onClick={() => setShowBulk(true)}
-                  className="btn-secondary inline-flex items-center gap-2"
-                  title="פתח שליחה מרוכזת לכל מי שעוד לא נשלח לו"
-                >
-                  <Send size={18} />
-                  📤 שלח לכל מי שלא נשלח לו
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowBulk(true)}
+                    className="btn-secondary inline-flex items-center gap-2"
+                    title="פתח שליחה מרוכזת לכל מי שעוד לא נשלח לו"
+                  >
+                    <Send size={18} />
+                    📤 שלח לכל מי שלא נשלח לו
+                  </button>
+                  {/* R105 — bulk send via Momentum's Business WhatsApp,
+                      one click, no per-guest wa.me window. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkMomentum(true)}
+                    className="inline-flex items-center gap-2 rounded-full px-5 transition hover:translate-y-[-1px]"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                      color: "var(--gold-button-text)",
+                      fontWeight: 700,
+                      minHeight: 48,
+                      boxShadow: "0 6px 20px -6px var(--accent-glow)",
+                    }}
+                    title="שלח את כל ההזמנות ישירות מהמספר העסקי של Momentum"
+                  >
+                    <Sparkles size={18} />
+                    שלח לכולם דרך Momentum ✨
+                  </button>
+                </>
               )}
               <button onClick={() => setShowAdd(true)} className="btn-gold inline-flex items-center gap-2">
                 <UserPlus size={18} />
@@ -662,6 +685,16 @@ function GuestsPageInner() {
             event={state.event}
             guests={state.guests.filter((g) => g.status === "pending" && g.phone)}
             onClose={() => setShowBulk(false)}
+          />
+        )}
+        {showBulkMomentum && state.event && (
+          <BulkSendViaMomentumModal
+            origin={tryGetPublicOrigin()}
+            event={state.event}
+            candidates={state.guests.filter(
+              (g) => g.status === "pending" && g.phone,
+            )}
+            onClose={() => setShowBulkMomentum(false)}
           />
         )}
         <ExpressSendModal

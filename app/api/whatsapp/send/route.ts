@@ -109,7 +109,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limit ────────────────────────────────────────────────────
-  if (!rateLimit("whatsapp-send", user.id, 30, 60 * 60 * 1000)) {
+  // R105: 500/hr per user. Wedding-scale bulk sends (200-400 guests
+  // pushed in one batch) need headroom; abuse worst-case at $0.025/msg
+  // is ~$12.50/hr/attacker, which is fine. Twilio itself accepts
+  // 80 msg/sec so the bottleneck is now our DB/network, not this gate.
+  if (!rateLimit("whatsapp-send", user.id, 500, 60 * 60 * 1000)) {
     return NextResponse.json(
       { ok: false, error: "rate_limited" },
       { status: 429 },
