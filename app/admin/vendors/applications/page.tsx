@@ -19,6 +19,7 @@ import {
   Check,
   X,
   ExternalLink,
+  Wrench,
 } from "lucide-react";
 
 export default function AdminVendorApplicationsPage() {
@@ -43,6 +44,61 @@ function Inner() {
   );
   const [reason, setReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+
+  // R122 — admin can sweep every approved-but-landing-less vendor in
+  // one click. Repairs the "דפוס אומן" case (approved → no landing →
+  // dashboard shows nothing) caused by the pre-fix listUsers() page
+  // limit. Idempotent: vendors who already have landings are skipped.
+  const runBackfill = async () => {
+    if (
+      !confirm(
+        "לסרוק את כל הספקים שכבר אושרו ולוודא שלכולם יש דף נחיתה?\n\nתיקון אוטומטי לספקים תקועים. בטוח להריץ — לא יוצר כפילויות.",
+      )
+    ) {
+      return;
+    }
+    setBackfilling(true);
+    try {
+      const res = await fetch("/api/admin/vendors/backfill-landing", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        summary?: {
+          total: number;
+          created: number;
+          alreadyExists: number;
+          noAuthUser: number;
+          insertFailed: number;
+        };
+        error?: string;
+      };
+      if (!res.ok || !j.summary) {
+        showToast(j.error ?? "התיקון נכשל.", "error");
+        return;
+      }
+      const s = j.summary;
+      const parts: string[] = [];
+      if (s.created > 0) parts.push(`✓ ${s.created} ספקים תוקנו`);
+      if (s.alreadyExists > 0)
+        parts.push(`${s.alreadyExists} כבר היו תקינים`);
+      if (s.noAuthUser > 0)
+        parts.push(`${s.noAuthUser} עוד לא נרשמו`);
+      if (s.insertFailed > 0)
+        parts.push(`⚠ ${s.insertFailed} נכשלו (ראה logs)`);
+      showToast(parts.join(" · ") || "אין מה לתקן.", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("שגיאת רשת בתיקון.", "error");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   useEffect(() => {
     const c = new AbortController();
@@ -90,16 +146,37 @@ function Inner() {
         setError(j.error ?? "הפעולה נכשלה.");
         return;
       }
+      // R122 — surface the landing-creation outcome the decide route
+      // now returns. The admin sees exactly what happened ("created" /
+      // "no-auth-user" / "insert-failed") instead of the silent
+      // "approved but invisible" state that left דפוס אומן stuck.
+      const j = (await res.json().catch(() => ({}))) as {
+        landingStatus?:
+          | "created"
+          | "already-exists"
+          | "no-auth-user"
+          | "insert-failed"
+          | "exception";
+        landingError?: string | null;
+      };
       setApps((prev) => (prev ?? []).filter((a) => a.id !== id));
       setView(null);
       setRejecting(null);
       setReason("");
-      // R82 — direct toast feedback so the admin knows exactly what
-      // happened and where to look next. The approval-flow toast
-      // links to the catalog with `?refresh=1` so sessionStorage
-      // filters can't silently hide the just-approved vendor.
       if (decision === "approved") {
-        showToast("✓ אושר. הספק יופיע ב-/vendors מיד.", "success");
+        if (j.landingStatus === "created" || j.landingStatus === "already-exists") {
+          showToast("✓ אושר + הדף נוצר. הספק יראה את הדשבורד בכניסה הבאה.", "success");
+        } else if (j.landingStatus === "no-auth-user") {
+          showToast(
+            "אושר — אבל הספק עוד לא נרשם לאפליקציה. הדף ייווצר אוטומטית כשהוא יירשם.",
+            "success",
+          );
+        } else {
+          showToast(
+            "אושר — אך יצירת הדף נכשלה. הרץ \"תיקון ספקים תקועים\" למעלה.",
+            "error",
+          );
+        }
       } else {
         showToast("הבקשה נדחתה.", "success");
       }
@@ -131,19 +208,41 @@ function Inner() {
               {apps ? `${apps.length} ממתינות לאישור` : "טוען…"}
             </p>
           </div>
-          {/* R82 — quick jump to the catalog with filter-cache reset.
-              Saves an admin who just approved a vendor from chasing
-              filters when the new card doesn't appear. */}
-          <Link
-            href="/vendors?refresh=1"
-            className="text-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition hover:bg-[var(--secondary-button-bg)]"
-            style={{
-              border: "1px solid var(--border-gold)",
-              color: "var(--accent)",
-            }}
-          >
-            צפה בקטלוג <ExternalLink size={13} />
-          </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* R122 — repair stuck approvals. Surface the button next
+                to "view catalog" so an admin who notices a vendor
+                missing from the catalog has the fix one click away. */}
+            <button
+              type="button"
+              onClick={runBackfill}
+              disabled={backfilling}
+              className="text-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition disabled:opacity-50"
+              style={{
+                border: "1px solid var(--border-gold)",
+                color: "var(--accent)",
+                background: "rgba(212,176,104,0.08)",
+              }}
+              title="סרוק את כל המאושרים — ייצור דפי נחיתה לכל מי שתקוע"
+            >
+              {backfilling ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Wrench size={13} />
+              )}
+              תיקון ספקים תקועים
+            </button>
+            {/* R82 — quick jump to the catalog with filter-cache reset. */}
+            <Link
+              href="/vendors?refresh=1"
+              className="text-sm inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition hover:bg-[var(--secondary-button-bg)]"
+              style={{
+                border: "1px solid var(--border-gold)",
+                color: "var(--accent)",
+              }}
+            >
+              צפה בקטלוג <ExternalLink size={13} />
+            </Link>
+          </div>
         </div>
 
         {error && (

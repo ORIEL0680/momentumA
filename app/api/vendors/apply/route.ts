@@ -251,7 +251,14 @@ export async function POST(req: NextRequest) {
       business_name: body.business_name.trim().slice(0, 200),
       contact_name: body.contact_name.trim().slice(0, 100),
       phone: normalized.phone,
-      email: body.email.trim().slice(0, 254),
+      // R122 — lowercase the email at insert. Supabase auth.users already
+      // stores emails lowercased on signup, and the RLS policy lowercases
+      // both sides at compare time, so a vendor who typed "Foo@Bar.com"
+      // in the application form would otherwise be invisible to the
+      // approval flow's `vendor_applications.email = auth.users.email`
+      // lookup. Lowercase + trim here = exactly one canonical form
+      // everywhere the email is referenced downstream.
+      email: body.email.trim().toLowerCase().slice(0, 254),
       city: body.city?.trim().slice(0, 100) ?? null,
       category: body.category,
       about: body.about?.trim().slice(0, 1500) ?? null,

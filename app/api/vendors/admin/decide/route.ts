@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isFounderEmail } from "@/lib/constants";
 import { createServiceClient } from "@/lib/supabase/service";
+import { findAuthUserByEmail } from "@/lib/supabase/findAuthUserByEmail";
 import { sendVendorApprovalEmail } from "@/lib/vendorNotifications";
 
 export async function POST(req: NextRequest) {
@@ -189,16 +190,28 @@ export async function POST(req: NextRequest) {
       //      owner_user_id would be the right call, but onConflict
       //      needs a unique constraint on owner_user_id which we don't
       //      have today. Instead: skip insert if landing exists.
+      // R122 — landing creation tracker. We surface failures back to the
+      // admin in the response so they can retry (the application stays
+      // approved either way, but the admin sees "אושר — אבל הדף לא נוצר,
+      // נסה /backfill" instead of the silent half-state that left
+      // דפוס אומן stuck for days).
+      let landingStatus:
+        | "created"
+        | "already-exists"
+        | "no-auth-user"
+        | "insert-failed"
+        | "exception" = "no-auth-user";
+      let landingError: string | null = null;
       try {
-        // Look up auth user by email. Service-role bypasses RLS.
-        const { data: authList } = await adminClient.auth.admin.listUsers();
-        const authUser = authList?.users.find(
-          (u) => u.email && u.email.toLowerCase() === row.email.toLowerCase(),
-        );
+        // R122 — paginated email lookup (was capped at 50 users before,
+        // causing newly-onboarded vendors with auth.users index > 50 to
+        // be invisible to the approval flow).
+        const authUser = await findAuthUserByEmail(adminClient, row.email);
         if (!authUser) {
           console.warn(
             `[vendors-decide] approved ${row.id} but no auth user with email ${row.email} yet — landing not created`,
           );
+          landingStatus = "no-auth-user";
         } else {
           // Check for existing landing first (skip on re-approval).
           const { data: existing } = await adminClient
@@ -210,6 +223,7 @@ export async function POST(req: NextRequest) {
             console.log(
               `[vendors-decide] vendor_landings row already exists for ${authUser.id}; skipping insert`,
             );
+            landingStatus = "already-exists";
           } else {
             // Mint a URL-safe slug. lowercase + hyphens; the app id suffix
             // disambiguates collisions (two vendors named "Studio Aviv").
@@ -247,17 +261,23 @@ export async function POST(req: NextRequest) {
                   hint: landingErr.hint,
                 },
               );
+              landingStatus = "insert-failed";
+              landingError = landingErr.message;
             } else {
               console.log(
                 `[vendors-decide] created vendor_landings ${slug} for ${row.business_name}`,
               );
+              landingStatus = "created";
             }
           }
         }
-      } catch (landingErr) {
+      } catch (landingExc) {
         // The application row is approved regardless — landing creation
         // is best-effort. Don't surface as a 500 to the admin.
-        console.error("[vendors-decide] landing setup threw:", landingErr);
+        console.error("[vendors-decide] landing setup threw:", landingExc);
+        landingStatus = "exception";
+        landingError =
+          landingExc instanceof Error ? landingExc.message : "unknown";
       }
 
       try {
@@ -278,6 +298,15 @@ export async function POST(req: NextRequest) {
       } catch (mailErr) {
         console.error("[vendors-decide] welcome email failed:", mailErr);
       }
+
+      // R122 — surface the landing-creation outcome so the admin UI
+      // can show a clear "needs backfill" badge instead of the silent
+      // "approved but invisible" half-state.
+      return NextResponse.json({
+        success: true,
+        landingStatus,
+        landingError,
+      });
     }
 
     return NextResponse.json({ success: true });

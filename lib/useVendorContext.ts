@@ -147,8 +147,17 @@ export function useVendorContext(): VendorContextValue {
         // R114 — fetch both in parallel: the landing (source of truth
         // for "approved vendor"), and the most recent application row
         // matching this user's email (lets us show "pending review" UI
-        // for applicants who haven't been approved yet). RLS gates the
-        // applications query to rows where email = the user's JWT email.
+        // for applicants who haven't been approved yet).
+        //
+        // R122 — explicit `.ilike("email", ...)` filter is defense in
+        // depth: even though RLS already gates by email, an explicit
+        // filter (a) makes the query plan obvious, (b) fails closed
+        // if RLS ever misconfigures, (c) is case-insensitive so a
+        // legacy row inserted before the apply route normalized to
+        // lowercase still matches. The `??` falls back to literal
+        // "" so the chain still type-checks for an authenticated user
+        // (whose email is always set).
+        const userEmail = (session.user.email ?? "").trim().toLowerCase();
         const [landingRes, appRes] = await Promise.all([
           supabase
             .from("vendor_landings")
@@ -158,6 +167,7 @@ export function useVendorContext(): VendorContextValue {
           supabase
             .from("vendor_applications")
             .select("status, business_name, category, created_at, rejection_reason")
+            .ilike("email", userEmail)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),

@@ -386,7 +386,63 @@ export default function VendorDashboardPage() {
     );
   }
 
-  if (!vendorLanding || !metrics) return null;
+  // R122 — was `return null` (blank page). Now: if the vendor IS approved
+  // (vendorLanding loaded) but the metrics fetch is still pending, show a
+  // calm "loading dashboard" panel instead of a black screen. If after
+  // hydration the landing exists but metrics never returned, surface a
+  // retry CTA so the vendor has something actionable.
+  if (!vendorLanding) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-5">
+        <div className="card p-8 text-center max-w-md">
+          <AlertCircle size={32} className="mx-auto text-amber-400" aria-hidden />
+          <h1 className="mt-4 text-xl font-bold">הדשבורד עוד לא מוכן</h1>
+          <p
+            className="mt-3 text-sm leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            הבקשה שלך אושרה אבל דף הספק עוד לא נוצר ברקע. זה לרוב נגמר תוך
+            רגעים. אם זה ממשיך — צור קשר ונתקן ידנית.
+          </p>
+          <div className="mt-5 flex flex-col gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-gold inline-flex items-center justify-center gap-2"
+            >
+              נסה שוב
+            </button>
+            <a
+              href="mailto:talhemo132@gmail.com?subject=דשבורד%20ספק%20לא%20נטען"
+              className="text-xs"
+              style={{ color: "var(--accent)" }}
+            >
+              talhemo132@gmail.com
+            </a>
+          </div>
+        </div>
+      </main>
+    );
+  }
+  if (!metrics) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-5">
+        <div className="card p-8 text-center max-w-md">
+          <Loader2
+            size={26}
+            className="mx-auto animate-spin"
+            style={{ color: "var(--accent)" }}
+            aria-hidden
+          />
+          <p
+            className="mt-4 text-sm"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            טוען את הסטטיסטיקות של הדף שלך…
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   const completeness = computeCompleteness(vendorLanding);
 
