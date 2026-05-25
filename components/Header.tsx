@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
 import { ChatBell } from "./chat/ChatBell";
+import { NotificationsBell } from "./NotificationsBell";
 import { EventSwitcher } from "./EventSwitcher";
 import { UpgradePlanModal } from "./UpgradePlanModal";
 import { DeleteEventModal } from "./DeleteEventModal";
@@ -267,6 +268,7 @@ export function Header() {
         <div className="flex items-center gap-2 shrink-0">
           {hydrated && user ? (
             <>
+              <NotificationsBell />
               <ChatBell />
               {/* R88 (R70-2) — the mobile compact `Nי׳` countdown chip
                   was removed: it duplicated the center EventChip on

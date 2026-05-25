@@ -1,0 +1,178 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+
+/**
+ * R111 — host notifications inbox.
+ *
+ * A small in-browser store of timestamped events the host should know
+ * about: RSVP confirmations / declines, system messages, future
+ * additions (vendor replies, payment reminders). Rendered by the
+ * NotificationsBell in the Header.
+ *
+ * Storage: localStorage, capped at 50 entries (LRU — oldest dropped
+ * when the cap is hit). Per-tab sync via `storage` event so a host
+ * with two tabs sees the same unread count.
+ *
+ * NOT cross-device synced — these are advisory UI events, not source
+ * of truth. The /guests page remains the canonical answer to "who is
+ * confirmed". The inbox is a feed of "what just happened".
+ */
+
+const STORAGE_KEY = "momentum.notifications.v1";
+const MAX_ENTRIES = 50;
+
+export type NotificationKind =
+  | "rsvp_confirmed"
+  | "rsvp_declined"
+  | "rsvp_maybe"
+  | "system";
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body?: string;
+  /** ISO timestamp when the event happened. */
+  createdAt: string;
+  /** ISO timestamp when the host opened/marked it; absent = unread. */
+  readAt?: string;
+  /** Optional structured payload — guests page can use guestId to
+   *  scroll to / highlight the row. */
+  meta?: {
+    guestId?: string;
+    eventId?: string;
+    attendingCount?: number;
+  };
+}
+
+// ────────────────────────── Store ──────────────────────────
+
+let cache: AppNotification[] | null = null;
+const listeners = new Set<() => void>();
+
+function readStorage(): AppNotification[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    // Trust but verify — drop malformed entries instead of crashing.
+    return parsed.filter(
+      (n): n is AppNotification =>
+        !!n &&
+        typeof n === "object" &&
+        typeof (n as AppNotification).id === "string" &&
+        typeof (n as AppNotification).kind === "string" &&
+        typeof (n as AppNotification).createdAt === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeStorage(next: AppNotification[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* quota exceeded / private mode — best-effort */
+  }
+  cache = next;
+  listeners.forEach((l) => l());
+}
+
+function getAll(): AppNotification[] {
+  if (cache !== null) return cache;
+  cache = readStorage();
+  return cache;
+}
+
+/** Push a new notification onto the inbox. Deduped by id when an id
+ *  is passed (otherwise auto-generated). Newest-first ordering. */
+export function addNotification(
+  partial: Omit<AppNotification, "id" | "createdAt"> & {
+    id?: string;
+    createdAt?: string;
+  },
+): void {
+  const id = partial.id ?? crypto.randomUUID();
+  const createdAt = partial.createdAt ?? new Date().toISOString();
+  const next: AppNotification = {
+    id,
+    kind: partial.kind,
+    title: partial.title,
+    body: partial.body,
+    createdAt,
+    readAt: partial.readAt,
+    meta: partial.meta,
+  };
+  const existing = getAll();
+  // Replace duplicate-by-id if present (idempotent on retries).
+  const filtered = existing.filter((n) => n.id !== id);
+  const updated = [next, ...filtered].slice(0, MAX_ENTRIES);
+  writeStorage(updated);
+}
+
+export function markRead(id: string): void {
+  const now = new Date().toISOString();
+  writeStorage(
+    getAll().map((n) => (n.id === id && !n.readAt ? { ...n, readAt: now } : n)),
+  );
+}
+
+export function markAllRead(): void {
+  const now = new Date().toISOString();
+  writeStorage(getAll().map((n) => (n.readAt ? n : { ...n, readAt: now })));
+}
+
+export function clearAll(): void {
+  writeStorage([]);
+}
+
+// ─────────────── Cross-tab sync via storage event ────────────────
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key !== STORAGE_KEY) return;
+    // Force a re-read on next get().
+    cache = null;
+    listeners.forEach((l) => l());
+  });
+}
+
+// ─────────────────── React hook ───────────────────────
+
+/** useNotifications — subscribes to the store and returns the current
+ *  list + derived counts. Stable identity per render via
+ *  useSyncExternalStore so React doesn't tear.
+ *
+ *  `mounted` flips true on the SECOND render (after hydration), letting
+ *  the bell suppress the count badge during SSR/hydration mismatch
+ *  windows. Implemented via useSyncExternalStore's getServerSnapshot
+ *  to dodge the react-hooks/set-state-in-effect lint — we don't need
+ *  a separate useEffect because the snapshot already differs between
+ *  server (always false) and client (true after subscribe). */
+export function useNotifications() {
+  const items = useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => {
+        listeners.delete(cb);
+      };
+    },
+    () => getAll(),
+    () => [], // SSR snapshot — empty list
+  );
+
+  const mounted = useSyncExternalStore(
+    // No real subscription — the bool just flips on hydration.
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  const unreadCount = items.filter((n) => !n.readAt).length;
+
+  return { items, unreadCount, mounted };
+}

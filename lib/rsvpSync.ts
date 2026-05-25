@@ -42,8 +42,16 @@ export interface RsvpUpdate {
   notes?: string;
   /** ISO timestamp when the guest submitted. */
   respondedAt: string;
-  /** Where the update originated, for telemetry / dedup. */
-  source: "self" | "broadcast" | "supabase";
+  /**
+   * Where the update originated, for telemetry / dedup / UI gating:
+   *  - "self": host clicked it themselves (no toast, no notification)
+   *  - "broadcast": cross-tab BroadcastChannel (live event)
+   *  - "supabase": Supabase realtime postgres_changes (live event)
+   *  - "initial-fetch": replayed from the rsvps table on dashboard
+   *    mount — i.e. historical, NOT new. Consumers should silently
+   *    fold these into state and avoid toasts / notifications.
+   */
+  source: "self" | "broadcast" | "supabase" | "initial-fetch";
 }
 
 let channel: BroadcastChannel | null = null;
@@ -320,7 +328,7 @@ async function initialFetchRsvps(): Promise<void> {
     if (!data) return;
     console.log(`[momentum/rsvpSync] initial fetch: ${data.length} rsvp row(s)`);
     for (const row of data) {
-      applyRowFromCloud(row);
+      applyRowFromCloud(row, "initial-fetch");
     }
     if (data.length > 0) {
       const last = data[data.length - 1];
@@ -390,15 +398,25 @@ async function pollOnce(): Promise<void> {
 
 /** Apply a single Supabase rsvps row through the same handler path the
  *  realtime channel uses. Idempotent — calling with the same row twice
- *  just rewrites the local store with the same values. */
-function applyRowFromCloud(row: {
-  event_id?: string;
-  guest_id?: string;
-  status?: string;
-  attending_count?: number;
-  notes?: string | null;
-  responded_at?: string;
-}): void {
+ *  just rewrites the local store with the same values.
+ *
+ *  `sourceTag` lets the caller distinguish a historical replay (the
+ *  initial fetch on dashboard mount — `"initial-fetch"`) from a genuine
+ *  live event (`"supabase"`). UI handlers can then suppress toasts /
+ *  notifications for the historical batch, so a host opening the page
+ *  doesn't get pelted by 200 "X confirmed!" pop-ups.
+ */
+function applyRowFromCloud(
+  row: {
+    event_id?: string;
+    guest_id?: string;
+    status?: string;
+    attending_count?: number;
+    notes?: string | null;
+    responded_at?: string;
+  },
+  sourceTag: "supabase" | "initial-fetch" = "supabase",
+): void {
   if (!row.guest_id || !row.event_id || !row.status) return;
   if (!isFinalStatus(row.status)) return;
   const finalStatus: "confirmed" | "declined" | "maybe" = row.status;
@@ -414,7 +432,7 @@ function applyRowFromCloud(row: {
           : 1,
     notes: row.notes ?? undefined,
     respondedAt: row.responded_at ?? new Date().toISOString(),
-    source: "supabase",
+    source: sourceTag,
   };
   actions.setRsvp(update.guestId, finalStatus, update.attendingCount);
   if (update.notes) actions.updateGuest(update.guestId, { notes: update.notes });

@@ -229,6 +229,12 @@ function GuestsPageInner() {
 
   useEffect(() => {
     const off = subscribeRsvpUpdates((u: RsvpUpdate) => {
+      // R111 — historical rows replayed by the initial fetch on
+      // dashboard mount aren't "new" — they happened in the past. Fold
+      // them into state silently; otherwise the host gets a wall of
+      // green "X confirmed!" toasts every time they open the page.
+      if (u.source === "initial-fetch") return;
+
       if (u.source === "self") {
         // Still flash the row so the dashboard feels alive when the host
         // clicks "אישר" themselves, but skip the toast.
