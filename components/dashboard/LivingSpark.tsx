@@ -101,7 +101,10 @@ function ariaFor(days: number | null, progress?: number): string {
 
 export const LivingSpark = forwardRef<LivingSparkHandle, Props>(
   function LivingSpark({ daysUntilEvent, progress, size = 320 }, ref) {
-    const px = Math.max(240, Math.min(480, size));
+    // R139 — lowered the floor from 240 to 140 so the compacter
+    // dashboard hero can render the spark at a more modest size
+    // alongside the new save-the-date layout (was clamped up to 240).
+    const px = Math.max(140, Math.min(480, size));
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [reduced, setReduced] = useState(false);
 

@@ -98,11 +98,14 @@ export function IntimateHero({
       <Ornament className="hero-luxury-ornament bl" />
       <Ornament className="hero-luxury-ornament br" />
 
-      <div className="relative z-10 flex flex-col items-center text-center px-6 sm:px-10 py-10 md:py-12">
+      {/* R139 — overall tightened: padding 10/12 → 6/7, inner gaps shrunk.
+          The card now reads as a refined miniature save-the-date instead
+          of a dominating hero. */}
+      <div className="relative z-10 flex flex-col items-center text-center px-5 sm:px-8 py-6 md:py-7">
         {/* Eyebrow — type pill in muted gold. Caps + tracking gives it
             the "engraved metal nameplate" vibe above the names. */}
         <span
-          className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-semibold"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.2em] font-semibold"
           style={{
             background: "rgba(0,0,0,0.35)",
             border: "1px solid var(--border-gold)",
@@ -115,11 +118,11 @@ export function IntimateHero({
           {typeLabel}
         </span>
 
-        {/* Names — the centerpiece. Frank Ruhl Libre at hero size,
-            gradient-gold-shimmer for the slow sheen, with a floret
-            ornament between partners (or just the single name when
-            it's a solo host event like a bar mitzvah). */}
-        <h1 className="hero-luxury-names gradient-gold-shimmer mt-5 mb-1">
+        {/* Names — the centerpiece. Frank Ruhl Libre, gradient-gold-shimmer
+            for the slow sheen, with a floret ornament between partners
+            (or just the single name when it's a solo host event like a
+            bar mitzvah). R139 — names font size shrunk in CSS. */}
+        <h1 className="hero-luxury-names gradient-gold-shimmer mt-3 mb-1">
           {hasPartner ? (
             <span className="inline-flex items-baseline justify-center flex-wrap">
               <span>{event.hostName}</span>
@@ -146,11 +149,11 @@ export function IntimateHero({
           </div>
         )}
 
-        {/* LivingSpark — wrapped in the halo. Size stays 220 (same as
-            R77) so the proportions read against the new larger names
-            instead of competing with them. */}
-        <div className="hero-luxury-spark-wrap mt-6">
-          <LivingSpark daysUntilEvent={daysLeft} progress={progress} size={220} />
+        {/* LivingSpark — wrapped in the halo. R139 — shrunk 220→160 so
+            the proportions sit alongside the compacter title instead
+            of dominating the card. */}
+        <div className="hero-luxury-spark-wrap mt-4">
+          <LivingSpark daysUntilEvent={daysLeft} progress={progress} size={160} />
         </div>
 
         {/* Slim gold rule between spark and countdown — repeats the
@@ -158,7 +161,7 @@ export function IntimateHero({
             floret (one is plenty for the date). */}
         <div
           aria-hidden
-          className="mx-auto mt-5 mb-4 w-16 h-px"
+          className="mx-auto mt-3 mb-3 w-14 h-px"
           style={{
             background: "linear-gradient(90deg, transparent, var(--accent), transparent)",
             opacity: 0.7,
@@ -166,20 +169,22 @@ export function IntimateHero({
         />
 
         {past ? (
-          <span className="hero-luxury-date text-xl md:text-2xl gradient-gold-shimmer" style={{ letterSpacing: "0.05em" }}>
+          <span className="hero-luxury-date text-lg md:text-xl gradient-gold-shimmer" style={{ letterSpacing: "0.05em" }}>
             🎉 חגגתם! תודה שתכננתם איתנו
           </span>
         ) : today ? (
-          <span className="text-2xl md:text-4xl font-extrabold gradient-gold-shimmer animate-pulse">
+          <span className="text-xl md:text-3xl font-extrabold gradient-gold-shimmer animate-pulse">
             🎉 היום הגדול הגיע!
           </span>
         ) : (
-          <LiveCountdown targetDate={event.date} />
+          // R139 — pass size="compact" to shrink the digits ~40% so
+          // they don't overpower the new compacter title block above.
+          <LiveCountdown targetDate={event.date} size="compact" />
         )}
 
         {countdownCaption && (
           <div
-            className="mt-5 text-xs md:text-sm max-w-md leading-relaxed"
+            className="mt-3 text-[11px] md:text-xs max-w-md leading-relaxed"
             style={{ color: "var(--foreground-muted)", fontStyle: "italic" }}
           >
             {countdownCaption}

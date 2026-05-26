@@ -1530,13 +1530,14 @@ select:focus-visible {
 /* Slow rotating conic-gradient halo behind the spark. ~28s per turn
    so it reads as "living" without being distracting. The halo is
    masked with a radial alpha so the edges blur out instead of
-   showing the sharp arc termini. */
+   showing the sharp arc termini.
+   R139 — shrunk from 720px → 520px to match the compacter hero. */
 .hero-luxury-conic {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 720px;
-  height: 720px;
+  width: 520px;
+  height: 520px;
   transform: translate(-50%, -50%);
   background: conic-gradient(
     from 0deg,
@@ -1577,12 +1578,13 @@ select:focus-visible {
 
 /* Inner double-hairline frame — a "passe-partout" treatment that
    immediately reads as "ceremonial card". Two thin gold lines with
-   a few pixels of air between them, set in from the outer edge. */
+   a few pixels of air between them, set in from the outer edge.
+   R139 — inset shrunk 16px → 12px to match the compacter hero. */
 .hero-luxury-frame {
   position: absolute;
-  inset: 16px;
+  inset: 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  border-radius: 22px;
+  border-radius: 20px;
   pointer-events: none;
   z-index: 2;
   box-shadow:
@@ -1592,30 +1594,32 @@ select:focus-visible {
 
 /* Corner ornaments — small SVG filigrees in each corner. Positioned
    absolutely just outside the inner frame so they read as part of
-   the engraved card. Hairline strokes in gold gradient. */
+   the engraved card. Hairline strokes in gold gradient.
+   R139 — shrunk from 56→42px to match the compacter hero. */
 .hero-luxury-ornament {
   position: absolute;
-  width: 56px;
-  height: 56px;
+  width: 42px;
+  height: 42px;
   pointer-events: none;
   z-index: 3;
   color: var(--accent);
   opacity: 0.85;
 }
-.hero-luxury-ornament.tl { top: 12px; left: 12px; }
-.hero-luxury-ornament.tr { top: 12px; right: 12px; transform: scaleX(-1); }
-.hero-luxury-ornament.bl { bottom: 12px; left: 12px; transform: scaleY(-1); }
-.hero-luxury-ornament.br { bottom: 12px; right: 12px; transform: scale(-1, -1); }
+.hero-luxury-ornament.tl { top: 10px; left: 10px; }
+.hero-luxury-ornament.tr { top: 10px; right: 10px; transform: scaleX(-1); }
+.hero-luxury-ornament.bl { bottom: 10px; left: 10px; transform: scaleY(-1); }
+.hero-luxury-ornament.br { bottom: 10px; right: 10px; transform: scale(-1, -1); }
 
-/* The names. Serif, huge, with gradient gold + slow shimmer sweep
+/* The names. Serif, with gradient gold + slow shimmer sweep
    (the existing .gradient-gold-shimmer rule handles the sweep). The
    `text-wrap: balance` distributes long couple names onto two
-   visually-balanced lines instead of an orphan. */
+   visually-balanced lines instead of an orphan.
+   R139 — shrunk clamp(2.5rem,7vw,4.5rem) → clamp(1.75rem,4.6vw,3rem). */
 .hero-luxury-names {
   font-family: var(--font-display), Georgia, serif;
   font-weight: 700;
-  font-size: clamp(2.5rem, 7vw, 4.5rem);
-  line-height: 1.02;
+  font-size: clamp(1.75rem, 4.6vw, 3rem);
+  line-height: 1.05;
   letter-spacing: -0.015em;
   text-wrap: balance;
   text-shadow: 0 2px 12px rgba(212, 176, 104, 0.18);
@@ -1624,20 +1628,21 @@ select:focus-visible {
 /* Decorative "&" between two names. A small gold floret SVG renders
    inside via :before, so we don't need to choose a glyph that may
    look awkward in Hebrew shaping. Has a tiny pulse animation that
-   feels heartbeat-like, not flashy. */
+   feels heartbeat-like, not flashy.
+   R139 — shrunk to match the new name size. */
 .hero-luxury-amp {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: clamp(2.5rem, 6vw, 3.75rem);
-  height: clamp(2.5rem, 6vw, 3.75rem);
-  margin: 0 clamp(0.5rem, 1.5vw, 1.25rem);
+  width: clamp(1.75rem, 4vw, 2.5rem);
+  height: clamp(1.75rem, 4vw, 2.5rem);
+  margin: 0 clamp(0.4rem, 1.1vw, 0.85rem);
   vertical-align: middle;
   position: relative;
   color: var(--accent);
   font-family: var(--font-display), Georgia, serif;
   font-weight: 500;
-  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-size: clamp(1.4rem, 3.2vw, 2.2rem);
   line-height: 1;
   animation: hero-luxury-amp-pulse 3.4s ease-in-out infinite;
 }
@@ -1682,17 +1687,19 @@ select:focus-visible {
 }
 .hero-luxury-rule .floret::after { inset: 4px; opacity: 0.4; }
 
-/* Date — engraved/letterpressed style: caps, wide tracking, gold. */
+/* Date — engraved/letterpressed style: caps, wide tracking, gold.
+   R139 — shrunk to feel like an inscription, not a headline. */
 .hero-luxury-date {
   font-family: var(--font-display), Georgia, serif;
   font-weight: 500;
-  font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+  font-size: clamp(0.8rem, 1.7vw, 0.95rem);
   letter-spacing: 0.18em;
   color: var(--foreground-soft);
 }
 
 /* Soft halo behind the LivingSpark canvas. A pulsing gold blob —
-   *not* rotating (the canvas inside already has its own motion). */
+   *not* rotating (the canvas inside already has its own motion).
+   R139 — inset tightened -28→-20 since the spark itself is smaller. */
 .hero-luxury-spark-wrap {
   position: relative;
   display: flex;
@@ -1702,13 +1709,14 @@ select:focus-visible {
 .hero-luxury-spark-wrap::before {
   content: "";
   position: absolute;
-  inset: -28px;
+  inset: -20px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(244, 222, 169, 0.22), rgba(212, 176, 104, 0.08) 40%, transparent 70%);
-  filter: blur(20px);
+  filter: blur(18px);
   animation: hero-spark-halo-breathe 5.6s ease-in-out infinite;
   pointer-events: none;
 }
+
 @keyframes hero-spark-halo-breathe {
   0%, 100% { transform: scale(0.96); opacity: 0.75; }
   50%      { transform: scale(1.05); opacity: 1; }

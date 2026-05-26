@@ -30,6 +30,11 @@ interface Props {
   targetDate: Date | string;
   /** When days-remaining drops at or below this, the second-tick + seconds segment appear. Default 30. */
   showSecondsThreshold?: number;
+  /** R139 — visual size. "default" keeps the original 4xl→6xl digits used
+   *  on standalone countdown contexts (R44). "compact" shrinks to
+   *  3xl→4xl for embedded use (the luxury hero card), where the
+   *  couple's names should remain the largest visual on the page. */
+  size?: "default" | "compact";
 }
 
 interface TimeRemaining {
@@ -55,6 +60,7 @@ function calcRemaining(targetMs: number): TimeRemaining {
 export function LiveCountdown({
   targetDate,
   showSecondsThreshold = 30,
+  size = "default",
 }: Props) {
   // Normalise the target to a single ms value — using getTime() as the
   // effect dep avoids "new Date() identity changes every render" issues.
@@ -171,15 +177,15 @@ export function LiveCountdown({
             and felt visually busy. Only the trailing "seconds" segment
             gets a slight opacity drop so it doesn't pull focus away
             from the meaningful days count. */}
-        <Segment value={remaining.days} label="ימים" />
-        <Separator />
-        <Segment value={remaining.hours} label="שעות" />
-        <Separator />
-        <Segment value={remaining.minutes} label="דק׳" />
+        <Segment value={remaining.days} label="ימים" size={size} />
+        <Separator size={size} />
+        <Segment value={remaining.hours} label="שעות" size={size} />
+        <Separator size={size} />
+        <Segment value={remaining.minutes} label="דק׳" size={size} />
         {showSeconds && (
           <>
-            <Separator pulse={!reducedMotion} />
-            <Segment value={remaining.seconds} label="שנ׳" subtle />
+            <Separator pulse={!reducedMotion} size={size} />
+            <Segment value={remaining.seconds} label="שנ׳" subtle size={size} />
           </>
         )}
       </div>
@@ -193,6 +199,7 @@ const Segment = memo(function Segment({
   value,
   label,
   subtle,
+  size = "default",
 }: {
   value: number;
   label: string;
@@ -200,18 +207,27 @@ const Segment = memo(function Segment({
    *  digit stays the visual anchor. All segments are the SAME font
    *  size — required so digits never jump heights at tick. */
   subtle?: boolean;
+  size?: "default" | "compact";
 }) {
   const padded = value.toString().padStart(2, "0");
+  // R139 — compact mode shrinks the digits ~40% so the couple's names
+  // remain the page's largest visual when embedded in the luxury hero.
+  const digitClasses =
+    size === "compact"
+      ? "text-2xl sm:text-3xl md:text-4xl"
+      : "text-4xl sm:text-5xl md:text-6xl";
+  const minW = size === "compact" ? "min-w-[44px] sm:min-w-[54px]" : "min-w-[60px] sm:min-w-[72px]";
+  const labelTop = size === "compact" ? "mt-1.5" : "mt-2";
   return (
-    <div className="flex flex-col items-center min-w-[60px] sm:min-w-[72px]">
+    <div className={`flex flex-col items-center ${minW}`}>
       <span
-        className={`ltr-num font-extrabold tracking-tight gradient-gold leading-none text-4xl sm:text-5xl md:text-6xl ${subtle ? "opacity-70" : ""}`}
+        className={`ltr-num font-extrabold tracking-tight gradient-gold leading-none ${digitClasses} ${subtle ? "opacity-70" : ""}`}
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
         {padded}
       </span>
       <span
-        className="mt-2 text-xs uppercase tracking-widest font-semibold"
+        className={`${labelTop} text-[10px] sm:text-xs uppercase tracking-widest font-semibold`}
         style={{ color: "var(--foreground-muted)" }}
       >
         {label}
@@ -220,11 +236,21 @@ const Segment = memo(function Segment({
   );
 });
 
-const Separator = memo(function Separator({ pulse }: { pulse?: boolean }) {
+const Separator = memo(function Separator({
+  pulse,
+  size = "default",
+}: {
+  pulse?: boolean;
+  size?: "default" | "compact";
+}) {
+  const sizeClasses =
+    size === "compact"
+      ? "text-2xl sm:text-3xl md:text-4xl"
+      : "text-4xl sm:text-5xl md:text-6xl";
   return (
     <span
       aria-hidden
-      className={`text-4xl sm:text-5xl md:text-6xl font-extrabold gradient-gold opacity-40 leading-none self-start ${
+      className={`${sizeClasses} font-extrabold gradient-gold opacity-40 leading-none self-start ${
         pulse ? "animate-pulse" : ""
       }`}
     >
