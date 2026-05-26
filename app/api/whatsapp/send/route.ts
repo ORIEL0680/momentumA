@@ -5,6 +5,7 @@ import {
   sendWhatsApp,
   sendWhatsAppTemplate,
   isWhatsAppConfigured,
+  isWhatsAppSandbox,
 } from "@/lib/twilio-whatsapp";
 import { rateLimit } from "@/lib/serverRateLimit";
 
@@ -141,9 +142,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status });
   }
 
+  // R133 — `sandbox: true` warns the caller that even though the API
+  // accepted the request, delivery will silently fail unless the
+  // recipient has manually sent `join <keyword>` to Twilio's shared
+  // sandbox number. BulkSend modal uses this to put up a "real
+  // delivery requires a Business Profile" banner.
   return NextResponse.json({
     ok: true,
     sid: result.sid,
     status: result.status,
+    sandbox: isWhatsAppSandbox(),
   });
 }

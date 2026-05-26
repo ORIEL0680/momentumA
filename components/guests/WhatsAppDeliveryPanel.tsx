@@ -48,6 +48,10 @@ export function WhatsAppDeliveryPanel() {
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageStatus[]>([]);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  // R133 — Twilio sandbox flag from the status endpoint. When true,
+  // the panel renders a prominent red banner explaining why guests
+  // aren't receiving messages even though the API reports success.
+  const [sandbox, setSandbox] = useState(false);
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -71,12 +75,15 @@ export function WhatsAppDeliveryPanel() {
         ok?: boolean;
         messages?: MessageStatus[];
         error?: string;
+        sandbox?: boolean;
       };
       if (!res.ok || !body.ok) {
         setError(body.error ?? "fetch_failed");
+        setSandbox(!!body.sandbox);
         return;
       }
       setMessages(body.messages ?? []);
+      setSandbox(!!body.sandbox);
       setLastFetched(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "network");
@@ -177,6 +184,41 @@ export function WhatsAppDeliveryPanel() {
               {loading ? "טוען..." : "רענן"}
             </button>
           </div>
+
+          {/* R133 — sandbox banner. When TWILIO_WHATSAPP_FROM is the
+              shared sandbox number +14155238886, only phones that
+              manually sent `join <keyword>` receive messages. Everyone
+              else gets a silent drop. This is THE most common root
+              cause of "my guests don't get the invitations" and it's
+              an account-config issue, not a code bug. */}
+          {sandbox && (
+            <div
+              className="rounded-2xl p-3 text-xs leading-relaxed flex items-start gap-2"
+              style={{
+                background: "rgba(248,113,113,0.08)",
+                border: "1px solid rgba(248,113,113,0.4)",
+                color: "rgb(252,165,165)",
+              }}
+              role="alert"
+            >
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" aria-hidden />
+              <div>
+                <div className="font-bold mb-1">
+                  ⚠️ חשבון Twilio במצב Sandbox — האורחים לא יקבלו הודעות
+                </div>
+                <div style={{ color: "rgb(252,165,165, 0.9)" }}>
+                  זו הסיבה שרק הטלפון שלך מקבל הודעות. ה-Sandbox מספק
+                  הודעות רק לטלפונים שביצעו &quot;join&quot; ידני.
+                </div>
+                <div className="mt-2 text-[11px]" style={{ color: "rgba(252,165,165,0.85)" }}>
+                  פתרון: שדרג את חשבון ה-Twilio שלך ל-WhatsApp Business
+                  API (דרך אישור Meta). עד אז — השתמש בכפתורי
+                  &quot;שלח דרך וואטסאפ&quot; (wa.me) שעובדים מהמכשיר
+                  שלך ומגיעים לכל אורח.
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <ErrorBanner error={error} />

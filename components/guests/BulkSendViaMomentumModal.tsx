@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2, Check, X } from "lucide-react";
+import { Send, Loader2, Check, X, AlertTriangle } from "lucide-react";
 import { actions } from "@/lib/store";
 import { showToast } from "@/components/Toast";
+import { getSupabase } from "@/lib/supabase";
 import { buildHostInvitationWhatsappLink } from "@/lib/invitation";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send-client";
 import {
@@ -60,6 +61,36 @@ export function BulkSendViaMomentumModal({
     candidates.map((g) => ({ status: "queued", guest: g })),
   );
   const cancelRef = useRef(false);
+  // R133 — pre-flight sandbox check. Hits the status endpoint once on
+  // mount; if the Twilio account is on the shared Sandbox number, we
+  // show a red banner BEFORE the host clicks send. Without this the
+  // bulk-send modal would happily report "✓ 200 נשלחו" while
+  // 0 actually reached anyone.
+  const [sandbox, setSandbox] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const supabase = getSupabase();
+        if (!supabase) return;
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const res = await fetch("/api/whatsapp/status?limit=1", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          sandbox?: boolean;
+        };
+        if (!cancelled) setSandbox(!!body.sandbox);
+      } catch {
+        /* offline / 503 — fall through to default (no banner) */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Esc/click-out close (only when not mid-send so a slip doesn't
   // abort a 200-guest batch) + body scroll lock.
@@ -277,6 +308,47 @@ export function BulkSendViaMomentumModal({
         <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
           {phase === "confirm" && (
             <>
+              {/* R133 — sandbox warning. Show BEFORE the host hits send
+                  so they don't waste a 200-guest batch on the silent-
+                  drop sandbox path. */}
+              {sandbox && (
+                <div
+                  className="rounded-2xl p-3 text-sm leading-relaxed flex items-start gap-2.5"
+                  style={{
+                    background: "rgba(248,113,113,0.10)",
+                    border: "1px solid rgba(248,113,113,0.4)",
+                    color: "rgb(252,165,165)",
+                  }}
+                  role="alert"
+                >
+                  <AlertTriangle size={18} className="shrink-0 mt-0.5" aria-hidden />
+                  <div>
+                    <div className="font-bold mb-1">
+                      ⚠️ Twilio במצב Sandbox — האורחים לא יקבלו!
+                    </div>
+                    <div
+                      className="text-xs"
+                      style={{ color: "rgba(252,165,165,0.95)" }}
+                    >
+                      רק טלפונים שביצעו &quot;join&quot; ידני מקבלים הודעות
+                      ב-Sandbox. השליחה תיראה כמוצלחת אבל ההודעות לא
+                      יגיעו לאף אורח (חוץ מהטלפון שלך, אם הצטרפת בעבר).
+                    </div>
+                    <div
+                      className="mt-2 text-[11px]"
+                      style={{ color: "rgba(252,165,165,0.85)" }}
+                    >
+                      <strong>פתרון:</strong> שדרג ל-WhatsApp Business דרך
+                      Twilio (דורש אישור Meta, 1-3 ימים).
+                      <br />
+                      <strong>בינתיים:</strong> סגור חלון זה ולחץ על
+                      כפתור ה-וואטסאפ הירוק ליד כל אורח בנפרד — זה
+                      פותח את WhatsApp במכשיר שלך ומגיע ל-100% מהאורחים.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div
                 className="text-sm leading-relaxed"
                 style={{ color: "var(--foreground-soft)" }}
@@ -408,7 +480,18 @@ export function BulkSendViaMomentumModal({
               </button>
               <button
                 type="button"
-                onClick={handleSend}
+                onClick={() => {
+                  if (sandbox) {
+                    if (
+                      !confirm(
+                        "Twilio במצב Sandbox — האורחים לא יקבלו הודעות. להמשיך בכל זאת? (לרוב המקרים: ביטול ושימוש בכפתור הוואטסאפ הירוק בשורה לכל אורח)",
+                      )
+                    ) {
+                      return;
+                    }
+                  }
+                  void handleSend();
+                }}
                 className="btn-gold inline-flex items-center justify-center gap-2"
                 style={{ minHeight: 48 }}
               >

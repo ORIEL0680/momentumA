@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   fetchRecentWhatsAppMessages,
   isWhatsAppConfigured,
+  isWhatsAppSandbox,
 } from "@/lib/twilio-whatsapp";
 import { rateLimit } from "@/lib/serverRateLimit";
 
@@ -82,10 +83,19 @@ export async function GET(req: NextRequest) {
   if (!result.ok) {
     const status = result.error === "not_configured" ? 503 : 502;
     return NextResponse.json(
-      { ok: false, error: result.error },
+      { ok: false, error: result.error, sandbox: isWhatsAppSandbox() },
       { status },
     );
   }
 
-  return NextResponse.json({ ok: true, messages: result.messages });
+  // R133 — surface `sandbox` flag so the UI can warn the host that
+  // recipients who haven't joined the Twilio sandbox keyword won't
+  // receive ANY messages. This was the root cause of "guests don't
+  // receive my invitations" — Twilio queues + accepts the request
+  // but silently drops delivery.
+  return NextResponse.json({
+    ok: true,
+    messages: result.messages,
+    sandbox: isWhatsAppSandbox(),
+  });
 }

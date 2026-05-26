@@ -32,6 +32,29 @@ export function isWhatsAppConfigured(): boolean {
   return !!(TWILIO_SID && TWILIO_TOKEN && TWILIO_WHATSAPP_FROM);
 }
 
+/**
+ * R133 — true when the configured sender is Twilio's shared WhatsApp
+ * Sandbox number (`+14155238886`).
+ *
+ * Sandbox mode has a hard limitation that bit the owner: Twilio will
+ * ONLY deliver messages to phones that have manually sent
+ * `join <keyword>` to that number first. The owner's phone joined
+ * during setup → receives messages. Guests never joined → Twilio
+ * silently drops their messages (sometimes returns "queued" or
+ * "sent" status, but no delivery actually happens).
+ *
+ * The only path to deliver-to-anyone is moving off the sandbox to a
+ * verified WhatsApp Business sender through Twilio + Meta. Until
+ * then the UI surfaces this banner so the host doesn't waste real
+ * invitations on the silent-drop path.
+ */
+export function isWhatsAppSandbox(): boolean {
+  if (!TWILIO_WHATSAPP_FROM) return false;
+  // The canonical sandbox number. Normalize for "+", spaces, dashes.
+  const digits = TWILIO_WHATSAPP_FROM.replace(/\D/g, "");
+  return digits === "14155238886";
+}
+
 export interface SendResult {
   ok: boolean;
   /** Twilio message SID on success — pass to status webhooks for tracking. */
