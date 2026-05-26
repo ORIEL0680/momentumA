@@ -81,18 +81,76 @@ export default function VendorJoinPage() {
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  // R124 — Israeli mobile / landline phone pattern, tolerant of
+  // hyphens, dots, spaces, optional +972 country code, and leading 0.
+  // Examples that pass: "050-1234567", "0541234567", "+972 54 123 4567",
+  // "972-3-1234567". Server-side normalization still runs in
+  // /api/vendors/apply, so the regex only needs to be roughly right —
+  // we want to catch typos ("123") and not gatekeep the long tail.
+  const isValidIsraeliPhone = (raw: string): boolean => {
+    const digits = raw.replace(/[\s\-.()]+/g, "");
+    // +972XXXXXXXXX (9-10 digits after the 972), OR 0X[X]XXXXXXX
+    return /^(?:\+?972|0)\d{8,9}$/.test(digits);
+  };
+
+  // R124 — accept https://, http://, or a bare host like "instagram.com/foo".
+  // The server's URL validator (apply route) is the strict layer; this
+  // is a friendly pre-check so the vendor doesn't get bounced after submit.
+  const isValidWorkUrl = (raw: string): boolean => {
+    const v = raw.trim();
+    if (!v) return false;
+    if (/^https?:\/\//i.test(v)) {
+      try {
+        new URL(v);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    // Bare host: must contain a dot + something after it, no spaces.
+    return /^[A-Za-z0-9][A-Za-z0-9.\-_/?=&%#:@+~]+\.[A-Za-z]{2,}/.test(v);
+  };
+
   // Per-step required fields — the "Next" button stays disabled until
   // the current step's mandatory fields are filled.
   const stepValid = (s: 1 | 2 | 3): boolean => {
     if (s === 1)
       return !!form.business_name && !!form.contact_name && !!form.category;
-    if (s === 2) return !!form.phone && !!form.email;
+    if (s === 2)
+      return (
+        !!form.phone &&
+        isValidIsraeliPhone(form.phone) &&
+        !!form.email &&
+        /.+@.+\..+/.test(form.email)
+      );
     return (
-      !!form.business_id && !!form.years_in_field && !!form.sample_work_url
+      !!form.business_id &&
+      !!form.years_in_field &&
+      !!form.sample_work_url &&
+      isValidWorkUrl(form.sample_work_url)
     );
   };
   const goNext = () => {
     if (!stepValid(step)) {
+      // R124 — friendlier per-step error (was a single generic toast).
+      if (step === 2) {
+        if (!form.phone || !isValidIsraeliPhone(form.phone)) {
+          showToast("מספר טלפון לא תקין — לדוגמה: 050-1234567", "error");
+          return;
+        }
+        if (!form.email || !/.+@.+\..+/.test(form.email)) {
+          showToast("כתובת מייל לא תקינה", "error");
+          return;
+        }
+      } else if (step === 3) {
+        if (!form.sample_work_url || !isValidWorkUrl(form.sample_work_url)) {
+          showToast(
+            "קישור לדוגמת עבודה חייב להיות URL (אינסטגרם / אתר / דרייב)",
+            "error",
+          );
+          return;
+        }
+      }
       showToast("יש למלא את שדות החובה בשלב זה", "error");
       return;
     }

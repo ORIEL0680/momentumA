@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,30 @@ import {
   type VendorLandingData,
 } from "@/lib/types";
 import { getVendorPhotoUrl, sanitizeFilename } from "@/lib/vendorStudio";
+
+/**
+ * R124 — Sanitize Instagram / Facebook handles.
+ * Accepts:
+ *   • bare handle: "yourstudio"
+ *   • leading @: "@yourstudio"
+ *   • full URL: "https://instagram.com/yourstudio/" / "facebook.com/yourstudio"
+ * Returns the bare handle (no leading @, no URL, no trailing slash).
+ * Empty input → empty string.
+ */
+function sanitizeSocialHandle(input: string): string {
+  if (!input) return "";
+  let v = input.trim();
+  // Strip URL prefix
+  v = v.replace(
+    /^https?:\/\/(?:www\.)?(?:instagram\.com|facebook\.com|fb\.com)\//i,
+    "",
+  );
+  // Strip query string + trailing slash
+  v = v.split("?")[0].split("#")[0].replace(/\/+$/, "");
+  // Strip leading @
+  v = v.replace(/^@+/, "");
+  return v;
+}
 
 /**
  * R20 Phase 9 — Vendor Studio editor.
@@ -57,6 +81,14 @@ export default function VendorStudioEditor() {
   // True when the Supabase env vars aren't set. Surfaced as a banner so
   // vendors stop wondering why "load" succeeded with empty fields.
   const [supabaseMissing, setSupabaseMissing] = useState(false);
+  // R124 — snapshot of the form state at last successful load/save.
+  // We diff `currentSnapshot` against this to compute `isDirty` — used
+  // to (a) show an "unsaved changes" indicator next to Save, (b) warn
+  // via beforeunload if the vendor closes the tab, (c) gate the
+  // "open public page" link so the vendor doesn't preview a stale DB
+  // row and think the editor's broken.
+  const [savedSnapshot, setSavedSnapshot] = useState<string>("");
+  const [yearsError, setYearsError] = useState<string | null>(null);
 
   const loadVendor = useCallback(async () => {
     const supabase = getSupabase();
@@ -95,9 +127,95 @@ export default function VendorStudioEditor() {
       setHeroPhotoPath(data.hero_photo_path);
       setGalleryPaths(data.gallery_paths ?? []);
       setPublished(data.landing_published);
+      // R124 — anchor the saved-snapshot to what we just loaded so
+      // isDirty starts at false. The snapshot keys mirror the field
+      // setters exactly; any drift = dirty.
+      setSavedSnapshot(
+        JSON.stringify({
+          name: data.name ?? "",
+          category: data.category ?? "",
+          city: data.city ?? "",
+          phone: data.phone ?? "",
+          email: data.email ?? "",
+          website: data.website ?? "",
+          instagram: data.instagram ?? "",
+          facebook: data.facebook ?? "",
+          tagline: data.tagline ?? "",
+          aboutLong: data.about_long ?? "",
+          template: data.landing_template,
+          serviceAreas: (data.service_areas ?? []).join(", "),
+          languages: (data.languages ?? []).join(", "),
+          yearsExperience: data.years_experience?.toString() ?? "",
+          heroPhotoPath: data.hero_photo_path,
+          galleryPaths: data.gallery_paths ?? [],
+          published: data.landing_published,
+        }),
+      );
     }
     setLoading(false);
   }, [router]);
+
+  // R124 — current form state, serialized, so isDirty is a stable string
+  // comparison instead of 17 separate value checks.
+  const currentSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        name,
+        category,
+        city,
+        phone,
+        email,
+        website,
+        instagram,
+        facebook,
+        tagline,
+        aboutLong,
+        template,
+        serviceAreas,
+        languages,
+        yearsExperience,
+        heroPhotoPath,
+        galleryPaths,
+        published,
+      }),
+    [
+      name,
+      category,
+      city,
+      phone,
+      email,
+      website,
+      instagram,
+      facebook,
+      tagline,
+      aboutLong,
+      template,
+      serviceAreas,
+      languages,
+      yearsExperience,
+      heroPhotoPath,
+      galleryPaths,
+      published,
+    ],
+  );
+  const isDirty = !!savedSnapshot && currentSnapshot !== savedSnapshot;
+
+  // R124 — warn before tab close / refresh if there are unsaved edits.
+  // Doesn't intercept Next.js client-side navigation (App Router has
+  // no router events) — for that, the "unsaved" badge by the Save
+  // button is the user-visible cue.
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers ignore the message string and show their own.
+      // Returning a value (legacy API) keeps the dialog firing on
+      // older browsers.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     // Documented "load on mount" pattern — same as the dashboard / report
@@ -296,6 +414,10 @@ export default function VendorStudioEditor() {
       setVendor(inserted);
     }
 
+    // R124 — pin the new "saved" snapshot to the current form state so
+    // isDirty flips back to false. Without this, beforeunload would
+    // still nag the vendor right after a successful save.
+    setSavedSnapshot(currentSnapshot);
     showToast("השינויים נשמרו בהצלחה!", "success");
     setSaving(false);
   };
@@ -374,6 +496,18 @@ export default function VendorStudioEditor() {
                   ⚠ עדיין לא פורסם — תצוגה מקדימה זמינה רק לך
                 </div>
               )}
+              {/* R124 — preview links read the DB row, not the in-memory
+                  edits. Tell the vendor so they don't think the preview
+                  is broken when their typed-but-unsaved tagline doesn't
+                  show. The hint disappears once they save. */}
+              {isDirty && (
+                <div
+                  className="text-[10px] mt-1 inline-flex items-center gap-1"
+                  style={{ color: "var(--accent)" }}
+                >
+                  💡 התצוגה המקדימה מציגה את הגרסה השמורה — שמור כדי לראות את השינויים החדשים.
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
               {/* Owner-preview route works on unpublished drafts. The public
@@ -386,7 +520,13 @@ export default function VendorStudioEditor() {
                 style={{
                   background: "var(--input-bg)",
                   border: "1px solid var(--border-strong)",
+                  opacity: isDirty ? 0.7 : 1,
                 }}
+                title={
+                  isDirty
+                    ? "הדף מציג את הגרסה השמורה — שמור כדי לראות את השינויים שלך"
+                    : undefined
+                }
               >
                 <Eye size={14} aria-hidden /> תצוגה מקדימה
               </a>
@@ -396,6 +536,12 @@ export default function VendorStudioEditor() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-gold text-sm inline-flex items-center gap-2 px-4 py-2"
+                  style={{ opacity: isDirty ? 0.7 : 1 }}
+                  title={
+                    isDirty
+                      ? "הדף הציבורי מציג את הגרסה השמורה"
+                      : undefined
+                  }
                 >
                   פתח את הדף הציבורי
                 </a>
@@ -506,6 +652,7 @@ export default function VendorStudioEditor() {
                   dir="ltr"
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
+                  onBlur={() => setInstagram((v) => sanitizeSocialHandle(v))}
                   className="input text-start"
                   placeholder="yourstudio"
                 />
@@ -521,6 +668,7 @@ export default function VendorStudioEditor() {
                   dir="ltr"
                   value={facebook}
                   onChange={(e) => setFacebook(e.target.value)}
+                  onBlur={() => setFacebook((v) => sanitizeSocialHandle(v))}
                   className="input text-start"
                 />
               </label>
@@ -769,10 +917,39 @@ export default function VendorStudioEditor() {
               <input
                 type="number"
                 inputMode="numeric"
+                min={0}
+                max={80}
                 value={yearsExperience}
-                onChange={(e) => setYearsExperience(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setYearsExperience(v);
+                  // R124 — show inline feedback when the input can't
+                  // be parsed as a year count; otherwise it silently
+                  // saves as null and the vendor wonders why their
+                  // experience didn't stick.
+                  if (!v.trim()) {
+                    setYearsError(null);
+                  } else if (!/^\d+$/.test(v.trim())) {
+                    setYearsError("מספר שלם בלבד");
+                  } else {
+                    const n = Number(v);
+                    if (n < 0 || n > 80) setYearsError("0 עד 80");
+                    else setYearsError(null);
+                  }
+                }}
                 className="input ltr-num"
+                aria-invalid={!!yearsError}
+                aria-describedby={yearsError ? "years-err" : undefined}
               />
+              {yearsError && (
+                <span
+                  id="years-err"
+                  className="text-[11px] mt-1 block"
+                  style={{ color: "rgb(252,165,165)" }}
+                >
+                  {yearsError}
+                </span>
+              )}
             </label>
           </section>
 
@@ -843,17 +1020,41 @@ export default function VendorStudioEditor() {
               />
             </label>
 
+            {/* R124 — unsaved-changes indicator. The vendor sees a
+                clear "יש שינויים שלא נשמרו" badge next to the Save
+                button the moment any field diverges from the saved
+                snapshot. Pairs with the beforeunload guard. */}
+            {isDirty && (
+              <div
+                className="mt-5 mb-2 inline-flex items-center gap-2 text-xs rounded-full px-3 py-1.5"
+                style={{
+                  background: "rgba(212,176,104,0.10)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ background: "var(--accent)" }}
+                  aria-hidden
+                />
+                יש שינויים שלא נשמרו
+              </div>
+            )}
             <button
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="btn-gold w-full mt-5 inline-flex items-center justify-center gap-2 py-4 disabled:opacity-50"
+              className="btn-gold w-full mt-3 inline-flex items-center justify-center gap-2 py-4 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="animate-spin" size={18} aria-hidden />
               ) : (
                 <>
-                  <Save size={18} aria-hidden /> שמור שינויים
+                  <Save size={18} aria-hidden />
+                  {isDirty ? "שמור שינויים" : "נשמר ✓"}
                 </>
               )}
             </button>

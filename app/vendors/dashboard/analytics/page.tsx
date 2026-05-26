@@ -10,6 +10,8 @@ import {
   Loader2,
   AlertCircle,
   Inbox,
+  Star,
+  ExternalLink,
 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { getSupabase } from "@/lib/supabase";
@@ -65,6 +67,12 @@ export default function VendorAnalyticsPage() {
   const [totalViews, setTotalViews] = useState(0);
   const [leadsCount, setLeadsCount] = useState(0);
   const [actions, setActions] = useState<ActionCount[]>([]);
+  // R124 — review summary so the new #reviews section can show a
+  // count + average without redirecting the vendor to the public page.
+  const [reviewStats, setReviewStats] = useState<{
+    count: number;
+    avg: number | null;
+  }>({ count: 0, avg: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +153,26 @@ export default function VendorAnalyticsPage() {
           .map(([action_type, count]) => ({ action_type, count }))
           .sort((a, b) => b.count - a.count);
         setActions(list);
+
+        // R124 — review aggregate. Pulls just the ratings (id + rating)
+        // so we can compute count + avg without dragging the full
+        // text payload of each review. Cheap query, no pagination
+        // needed at this scale (vendors with 1000+ reviews are rare).
+        const { data: reviewRows } = await supabase
+          .from("vendor_reviews")
+          .select("rating")
+          .eq("vendor_id", landingRow.slug);
+        if (cancelled) return;
+        const ratings = (reviewRows ?? [])
+          .map((r) => (r as { rating: number }).rating)
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const avg =
+          ratings.length > 0
+            ? Math.round(
+                (ratings.reduce((s, n) => s + n, 0) / ratings.length) * 10,
+              ) / 10
+            : null;
+        setReviewStats({ count: ratings.length, avg });
       } catch (e) {
         if (cancelled) return;
         console.error("[vendor-analytics]", e);
@@ -244,17 +272,28 @@ export default function VendorAnalyticsPage() {
                 value={leadsCount}
                 label="לידים שנשלחו"
               />
+              {/* R124 — pre-data state shows "—" instead of "0.0%" so
+                  a vendor whose first lead hasn't come in yet doesn't
+                  think the dashboard is broken. Below ~10 views the
+                  conversion ratio is noise anyway. */}
               <Kpi
                 icon={<TrendingUp size={18} />}
-                value={`${conversionPct}%`}
+                value={
+                  totalViews < 10
+                    ? "—"
+                    : `${conversionPct}%`
+                }
                 label="המרה (לידים/צפיות)"
                 tone={
-                  conversionPct >= 5
-                    ? "positive"
-                    : conversionPct >= 2
-                      ? "neutral"
-                      : "muted"
+                  totalViews < 10
+                    ? "muted"
+                    : conversionPct >= 5
+                      ? "positive"
+                      : conversionPct >= 2
+                        ? "neutral"
+                        : "muted"
                 }
+                hint={totalViews < 10 ? "ממתינים ליותר צפיות" : undefined}
               />
             </div>
 
@@ -312,6 +351,81 @@ export default function VendorAnalyticsPage() {
               </div>
             </section>
 
+            {/* R124 — Reviews summary section.
+                #reviews is the anchor target the dashboard QuickAction
+                links to (`/vendors/dashboard/analytics#reviews`).
+                Shows count + average + a deep-link to the public
+                landing's reviews block so vendors can read individual
+                reviews without leaving Momentum more than once. */}
+            <section className="mt-8 scroll-mt-20" id="reviews">
+              <h2
+                className="text-xs uppercase tracking-widest font-semibold mb-3"
+                style={{ color: "var(--accent)" }}
+              >
+                ביקורות
+              </h2>
+              <div className="card p-5">
+                {reviewStats.count === 0 ? (
+                  <div className="text-center py-4">
+                    <Star
+                      size={22}
+                      className="mx-auto"
+                      style={{ color: "var(--foreground-muted)" }}
+                      aria-hidden
+                    />
+                    <p
+                      className="mt-2 text-sm"
+                      style={{ color: "var(--foreground-soft)" }}
+                    >
+                      עדיין אין ביקורות. ברגע שזוג ישאיר ביקורת בדף שלך —
+                      היא תופיע גם בקטלוג וגם כאן.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-5">
+                    <div>
+                      <div
+                        className="text-4xl font-extrabold ltr-num flex items-baseline gap-1"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        {reviewStats.avg ?? "—"}
+                        <Star
+                          size={18}
+                          fill="currentColor"
+                          strokeWidth={0}
+                          aria-hidden
+                        />
+                      </div>
+                      <div
+                        className="mt-0.5 text-xs"
+                        style={{ color: "var(--foreground-soft)" }}
+                      >
+                        ממוצע ב-
+                        <span className="ltr-num">{reviewStats.count}</span>{" "}
+                        ביקורות
+                      </div>
+                    </div>
+                    {landing?.slug && (
+                      <Link
+                        href={`/vendor/${landing.slug}#reviews`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ms-auto text-xs rounded-full px-4 py-2 inline-flex items-center gap-1.5 transition"
+                        style={{
+                          border: "1px solid var(--border-gold)",
+                          color: "var(--accent)",
+                          background: "rgba(212,176,104,0.06)",
+                        }}
+                      >
+                        קרא את כל הביקורות
+                        <ExternalLink size={12} aria-hidden />
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+
             <p
               className="mt-8 text-[11px] text-center"
               style={{ color: "var(--foreground-muted)" }}
@@ -338,11 +452,15 @@ function Kpi({
   value,
   label,
   tone = "neutral",
+  hint,
 }: {
   icon: React.ReactNode;
   value: number | string;
   label: string;
   tone?: "positive" | "neutral" | "muted";
+  /** R124 — optional sub-line under the KPI label. Used for "ממתינים ליותר צפיות"
+   *  when the input set is too small to compute a meaningful ratio. */
+  hint?: string;
 }) {
   const toneColor =
     tone === "positive"
@@ -373,6 +491,14 @@ function Kpi({
       >
         {label}
       </div>
+      {hint && (
+        <div
+          className="mt-0.5 text-[10px]"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          {hint}
+        </div>
+      )}
     </div>
   );
 }

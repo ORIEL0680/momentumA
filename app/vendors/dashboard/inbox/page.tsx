@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Inbox as InboxIcon, Loader2 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
@@ -39,14 +39,24 @@ export default function VendorInboxPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  // R124 — track which slug a load() call belongs to. If the slug
+  // changes (or the component unmounts) while a load() is in-flight,
+  // we must not setLeads with stale data — otherwise the inbox of
+  // vendor A briefly shows vendor B's leads after a slug switch.
+  const activeSlugRef = useRef<string | null>(null);
+
   const load = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase || !slug) return;
+    const callSlug = slug;
+    activeSlugRef.current = callSlug;
     try {
       const { data: leadRows } = await supabase
         .from("vendor_leads")
         .select("id, couple_name, status")
         .eq("vendor_id", slug);
+      // Bail if a newer load() (or unmount) happened while we awaited.
+      if (activeSlugRef.current !== callSlug) return;
       const ls = (leadRows ?? []) as LeadRow[];
       if (ls.length === 0) {
         setLeads([]);
@@ -61,6 +71,7 @@ export default function VendorInboxPage() {
           ls.map((l) => l.id),
         )
         .order("created_at", { ascending: false });
+      if (activeSlugRef.current !== callSlug) return;
       const msgs = (msgRows ?? []) as MsgRow[];
 
       const byLead = new Map<string, MsgRow[]>();
@@ -128,6 +139,9 @@ export default function VendorInboxPage() {
       )
       .subscribe();
     return () => {
+      // Clear the in-flight slug guard so any pending load() promises
+      // resolving after unmount bail before touching React state.
+      activeSlugRef.current = null;
       void supabase.removeChannel(channel);
     };
   }, [slug, load]);

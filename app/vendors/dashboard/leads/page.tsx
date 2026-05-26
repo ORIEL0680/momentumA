@@ -60,6 +60,15 @@ export default function VendorLeadsPage() {
   // `vendorLanding` as the dep. Lift the slug to a local so the
   // dependency is just the slug string.
   const vendorSlug = vendorLanding?.slug ?? null;
+  // R124 — cap the list at 500 leads. A high-traffic vendor with
+  // thousands of historical leads would otherwise hang the dashboard
+  // on 2G/3G — we'd be downloading kilobytes per row × thousands.
+  // The cap surfaces visibly when hit (see `truncated` flag below)
+  // so the vendor can ask us for an archive export if they need
+  // older rows. 500 covers ~6 months of activity for the busiest
+  // vendor we see in production today.
+  const LEADS_LIMIT = 500;
+  const [truncated, setTruncated] = useState(false);
   const loadLeads = useCallback(async () => {
     const supabase = getSupabase();
     if (!supabase || !vendorSlug) return;
@@ -67,7 +76,8 @@ export default function VendorLeadsPage() {
       .from("vendor_leads")
       .select("*")
       .eq("vendor_id", vendorSlug)
-      .order("created_at", { ascending: false })) as {
+      .order("created_at", { ascending: false })
+      .limit(LEADS_LIMIT + 1)) as {
       data: VendorLead[] | null;
       error: { message: string } | null;
     };
@@ -75,7 +85,9 @@ export default function VendorLeadsPage() {
       setError(e.message);
       return;
     }
-    setLeads(data ?? []);
+    const rows = data ?? [];
+    setTruncated(rows.length > LEADS_LIMIT);
+    setLeads(rows.slice(0, LEADS_LIMIT));
   }, [vendorSlug]);
 
   useEffect(() => {
@@ -228,6 +240,36 @@ export default function VendorLeadsPage() {
             );
           })}
         </div>
+
+        {/* R124 — truncation banner when the vendor has more leads than
+            the dashboard caps. Kept compact + dismissible-looking so a
+            busy vendor isn't startled. We surface the founder email
+            because there's no self-service export endpoint yet. */}
+        {truncated && (
+          <div
+            className="mb-3 rounded-2xl p-3 text-xs flex items-start gap-2"
+            style={{
+              background: "rgba(212,176,104,0.08)",
+              border: "1px solid var(--border-gold)",
+              color: "var(--foreground-soft)",
+            }}
+            role="status"
+          >
+            <span aria-hidden>ℹ️</span>
+            <span>
+              מוצגים <span className="ltr-num font-semibold">{LEADS_LIMIT}</span>{" "}
+              הלידים האחרונים. לארכיון מלא של היסטוריה ישנה — כתוב לנו ל-
+              <a
+                href="mailto:talhemo132@gmail.com?subject=Leads%20archive%20request"
+                className="underline"
+                style={{ color: "var(--accent)" }}
+              >
+                talhemo132@gmail.com
+              </a>
+              .
+            </span>
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <EmptyState
@@ -389,12 +431,30 @@ function QuoteModal({
   const [terms, setTerms] = useState("");
   const [sending, setSending] = useState(false);
 
+  // R124 — YYYY-MM-DD of "today" in local time. Used both as the
+  // input's `min` (browsers will block earlier selections in most
+  // pickers) AND as a server-side validation before insert.
+  const todayIso = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
+
   const handleSend = async () => {
     if (sending) return;
     const cleaned = amount.replace(/[,\s]/g, "");
     const n = parseFloat(cleaned);
     if (!Number.isFinite(n) || n <= 0) {
       showToast("הזן סכום תקין בש״ח", "error");
+      return;
+    }
+    // R124 — reject quotes with a validity in the past. A vendor
+    // accidentally setting "valid until 2024-01-01" sends a couple
+    // an already-expired offer; better to fail loudly here.
+    if (validUntil && validUntil < todayIso) {
+      showToast("תוקף ההצעה לא יכול להיות בעבר", "error");
       return;
     }
     setSending(true);
@@ -455,6 +515,7 @@ function QuoteModal({
             </span>
             <input
               type="date"
+              min={todayIso}
               value={validUntil}
               onChange={(e) => setValidUntil(e.target.value)}
               className="input"

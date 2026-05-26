@@ -39,6 +39,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const v = await fetchApprovedApplication(slug);
     if (!v) return { title: "ספק לא נמצא — Momentum" };
     const cat = VENDOR_CATEGORIES.find((c) => c.id === v.category)?.label;
+    // R124 — every share gets a hero image. Auto-landings don't have a
+    // custom photo yet, so we use the brand fallback so WhatsApp /
+    // Facebook / Twitter previews never go bare.
+    const ogFallback = [
+      {
+        url: "/og-default-1200x630.png",
+        width: 1200,
+        height: 630,
+        alt: v.business_name,
+      },
+    ];
     return {
       title: `${v.business_name} — ${cat ?? "ספק"}${v.city ? ` ב-${v.city}` : ""} | Momentum`,
       description: (v.about ?? `${v.business_name} — ספק מאומת ב-Momentum.`).slice(0, 160),
@@ -48,6 +59,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         description: (v.about ?? "").slice(0, 200),
         type: "website",
         locale: "he_IL",
+        images: ogFallback,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: v.business_name,
+        description: (v.about ?? "").slice(0, 200),
+        images: ["/og-default-1200x630.png"],
       },
     };
   }
@@ -73,6 +91,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     "Momentum",
   ].filter((k): k is string => typeof k === "string" && k.length > 0);
 
+  // R124 — always provide an OG image. When the vendor hasn't
+  // uploaded a hero yet, fall back to the brand-default in /public so
+  // share previews still look polished. The default exists at
+  // /og-default-1200x630.png.
+  const ogImages = heroImg
+    ? [{ url: heroImg, width: 1200, height: 630, alt: vendor.name }]
+    : [
+        {
+          url: "/og-default-1200x630.png",
+          width: 1200,
+          height: 630,
+          alt: vendor.name,
+        },
+      ];
+  const twitterImages = [heroImg ?? "/og-default-1200x630.png"];
+
   return {
     title: `${vendor.name} — ${vendor.category ?? "ספק"}${vendor.city ? ` ב-${vendor.city}` : ""} | Momentum`,
     description: description.slice(0, 160),
@@ -80,15 +114,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: vendor.name,
       description,
-      images: heroImg ? [{ url: heroImg, width: 1200, height: 630, alt: vendor.name }] : undefined,
+      images: ogImages,
       type: "website",
       locale: "he_IL",
     },
     twitter: {
-      card: heroImg ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: vendor.name,
       description,
-      images: heroImg ? [heroImg] : undefined,
+      images: twitterImages,
     },
     alternates: {
       canonical: `/vendor/${slug}`,
