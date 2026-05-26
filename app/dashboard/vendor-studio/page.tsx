@@ -449,7 +449,7 @@ export default function VendorStudioEditor() {
             Vendor Studio
           </h1>
           <p className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
-            עיצוב דף הנחיתה המקצועי שלך — נראה ב-Google תוך 24 שעות
+            עיצוב דף הנחיתה המקצועי שלך — מאונדקס במנועי חיפוש לאחר זחילה
           </p>
         </div>
 
