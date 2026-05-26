@@ -911,14 +911,39 @@ function Table3DInner({
   const overCapacity = heads > table.capacity;
   const stateClass = overCapacity ? "over" : fullness >= 1 ? "full" : "";
 
-  // Chair positions in a circle around the table.
+  // R136 — chair positions + rotation around the table.
+  //
+  // The new chair shape is a proper "seat + back" visual (see CSS for
+  // .chair-v2 / .chair-v2-seat / .chair-v2-back). For the back to
+  // face OUTWARD on every chair around the circle we need each chair
+  // to be rotated by its angular position.
+  //
+  // Math: angle 0° (= "top of the circle") → chair's local "up"
+  //       should point away from the table center (i.e. up). That's
+  //       a 0° rotation. Chair at angle 90° (right side) → its local
+  //       "up" should point right → 90° rotation. So the rotation
+  //       equals the angle measured from "top" clockwise.
+  //
+  // Position: chairs sit on a ring at radius 53% of the surface, so
+  // the seat is just outside the table edge (50% = exact edge). This
+  // is what makes the table-with-chairs read as an actual table top.
   const chairs = Array.from({ length: table.capacity }).map((_, i) => {
-    const angle = (i * 360) / table.capacity - 90; // start from top
-    const rad = (angle * Math.PI) / 180;
-    // radius = 58% of width (table is square aspect-ratio)
-    const x = Math.cos(rad) * 62;
-    const y = Math.sin(rad) * 62;
-    return { x, y, filled: i < heads };
+    const angleFromTop = (i * 360) / table.capacity; // 0 = top, clockwise
+    const rad = ((angleFromTop - 90) * Math.PI) / 180; // -90 so 0 → top
+    const ring = 53; // % of surface = just outside the rim
+    return {
+      // Position as % offset from center; minus half-size keeps the
+      // chair element centered on the ring point.
+      dx: Math.cos(rad) * ring,
+      dy: Math.sin(rad) * ring,
+      // Rotation: chair's local "back at top" should point AWAY from
+      // center. The vector from center to chair is at angle
+      // (angleFromTop - 90) in normal cartesian; the chair's "up"
+      // axis needs to align with that vector. Default rotation 0
+      // points up, so we add angleFromTop.
+      rot: angleFromTop,
+      filled: i < heads,
+    };
   });
 
   return (
@@ -991,16 +1016,34 @@ function Table3DInner({
             AnimatePresence isn't needed — the CSS animation auto-plays once and
             the element unmounts when scanning flips back to false. */}
         {scanning && <span aria-hidden className="arrangement-scan" />}
+        {/* R136 — proper chair shapes: seat + curved back, rotated so
+            the back always faces away from the table. Each chair is
+            absolutely positioned on a 53%-radius ring (just outside
+            the rim) and rotated by `rot` so the back points outward.
+            The chair-v2 wrapper handles the rotation; child .seat /
+            .back render the actual chair geometry. */}
         {chairs.map((c, i) => (
           <span
             key={i}
-            className={`chair ${c.filled ? "filled" : ""}`}
-            style={{
-              left: `calc(50% - 6px)`,
-              top: `calc(50% - 6px)`,
-              transform: `translate(${c.x}%, ${c.y}%)`,
-            }}
-          />
+            className={`chair-v2 ${c.filled ? "filled" : ""}`}
+            // R136 — `--rot` is referenced by the @keyframes inside
+            // chair-v2.css so the settle-in animation preserves the
+            // chair's outward orientation. Without it the animated
+            // transform overrides the inline rotate() and every chair
+            // briefly snaps to angle 0 mid-animation.
+            style={
+              {
+                left: `calc(50% + ${c.dx}% - 9px)`,
+                top: `calc(50% + ${c.dy}% - 10px)`,
+                transform: `rotate(${c.rot}deg)`,
+                "--rot": `${c.rot}deg`,
+              } as CSSProperties
+            }
+            aria-hidden
+          >
+            <span className="chair-v2-back" />
+            <span className="chair-v2-seat" />
+          </span>
         ))}
         <div
           className="text-[10px] uppercase tracking-[0.2em] font-semibold"
