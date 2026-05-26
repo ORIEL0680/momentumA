@@ -630,79 +630,71 @@ body {
 }
 .table-3d:hover { transform: translateZ(28px) scale(1.04); }
 
-/* ─── Active = clicked table. DRAMATIC entrance: lifts off the floor, scales up,
-       glows in gold, and pulses the chairs. Effect is obvious even on slow GPUs. ─── */
+/* R137 — Active state is now SUBTLE on the floor card. Clicking a
+   table opens the center-of-screen detail modal (TableDetailModal),
+   so the floor card just needs to "remember" which table is open so
+   the host sees it pulsing softly behind the backdrop blur. Pre-R137
+   the active class did a dramatic translateZ(120px) + scale(1.45)
+   in-place lift — that fought with the modal for the user's eye and
+   left a giant zoomed table hovering when the modal closed. The
+   modal IS the focus; the card just keeps a gentle gold glow. */
 .table-3d.active {
-  transform: translateZ(120px) scale(1.45) !important;
-  z-index: 10;
-  animation: table-zoom-in 800ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  transition: none; /* let the keyframes drive the entrance, then transition takes over */
+  z-index: 8;
+  animation: table-card-pulse 1.6s ease-in-out infinite;
 }
 .table-3d.active .surface {
-  background:
-    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.28), transparent 55%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 25%, var(--surface-2)), color-mix(in srgb, var(--accent) 12%, var(--surface-3)));
-  border: 2px solid var(--accent);
+  border: 1.5px solid var(--accent);
   box-shadow:
-    0 0 0 4px var(--accent-glow),
-    0 0 80px var(--accent-glow),
-    0 0 160px var(--accent-glow),
-    0 60px 100px -20px rgba(0,0,0,0.85),
-    inset 0 -2px 0 rgba(0,0,0,0.4);
+    0 0 0 1px var(--accent-glow),
+    0 0 24px -4px var(--accent-glow),
+    0 30px 60px -16px rgba(0,0,0,0.6),
+    inset 0 -2px 0 rgba(0,0,0,0.42),
+    inset 0 0 0 1px rgba(212,176,104,0.05);
 }
-.table-3d.active::after {
-  opacity: 1;
-  bottom: -40px;
-  left: 0%;
-  right: 0%;
-  height: 36px;
-  background: rgba(0, 0, 0, 0.7);
-  filter: blur(24px);
+@keyframes table-card-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px var(--accent-glow)); }
+  50%      { filter: drop-shadow(0 0 14px var(--accent-glow)); }
 }
 
-/* When ANY table is focused, the others step back — but stay visible AND
-   clickable so the user can switch from one focused table to another with
-   a single click instead of having to "close" first. */
+/* R137 — `.table-detail-preview` is the static table rendered inside
+   the modal. It needs to render flat (no perspective tilt or float
+   animation) because the modal frame already provides its own depth
+   via the layered backdrop + soft glow. We override everything that
+   could shift it visually. */
+.table-detail-preview {
+  transform-style: flat !important;
+  animation: none !important;
+}
+.table-detail-preview .surface {
+  /* Inside the modal the table sits on a darker pedestal background,
+     so the inner rim glow needs to be a touch stronger to read. */
+  box-shadow:
+    0 0 0 1px rgba(212,176,104,0.32),
+    0 30px 60px -20px rgba(0,0,0,0.7),
+    inset 0 -2px 0 rgba(0,0,0,0.42),
+    inset 0 0 0 1px rgba(212,176,104,0.08);
+}
+.table-detail-preview::after { display: none; }
+.table-detail-preview .table-name-label {
+  transform: none !important;
+}
+
+/* R137 — pre-R137 we dimmed other tables when one was active. The
+   modal now occludes the floor with a backdrop blur, so dimming the
+   other cards is unnecessary AND clipped the soft glow on the
+   currently-active card poking through. Keeping the rule as a tiny
+   opacity nudge so the floor still feels paused without losing the
+   active card's glow. */
 .floor-3d-inner.has-focused .table-3d:not(.active) {
-  opacity: 0.55;
-  filter: saturate(0.75);
-  transform: scale(0.88);
-  transition: opacity 350ms ease, filter 350ms ease, transform 350ms ease;
-  /* pointer-events stays default — clickable */
-}
-.floor-3d-inner.has-focused .table-3d:not(.active):hover {
-  opacity: 1;
-  filter: saturate(1);
-  transform: scale(0.95) translateZ(20px);
-  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 350ms ease;
 }
 
-/* The keyframe — overshoots dramatically so you feel it lift off the page */
-@keyframes table-zoom-in {
-  0%   { transform: translateZ(0) scale(1) rotate(0deg); }
-  20%  { transform: translateZ(60px) scale(1.15) rotate(-4deg); }
-  45%  { transform: translateZ(180px) scale(1.65) rotate(3deg); }
-  70%  { transform: translateZ(140px) scale(1.40) rotate(-1deg); }
-  100% { transform: translateZ(120px) scale(1.45) rotate(0deg); }
-}
-
-/* The whole room tilts in slightly when a table is selected — you feel zoomed in */
 .floor-3d-inner { transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1); }
-.floor-3d-inner.has-focused {
-  transform: rotateX(15deg) translateZ(60px) scale(1.05);
-}
 
-/* The chairs of the focused table pulse with gold to draw the eye */
-.table-3d.active .chair.filled {
-  animation: chair-pulse 1.4s ease-in-out infinite;
-}
-@keyframes chair-pulse {
-  0%, 100% { transform: scale(1.3); box-shadow: 0 0 18px var(--accent-glow); }
-  50%      { transform: scale(1.6); box-shadow: 0 0 32px var(--accent-glow); }
-}
-
-/* Mobile users without the perspective transform still get a clear visual:
-   even without translateZ doing much, the scale & glow are unmistakable. */
+/* R137 — old .chair (12px dot) chair-pulse rule removed. The new
+   chair-v2 has its own chair-v2-breathe rule for the active table
+   (see chair-v2 section below). */
 /* R136 — premium table surface. Pre-R136: a flat dark disc with one
  * highlight. Post-R136 layers four backgrounds for a real "table-top"
  * feel: a faint gold rim glow + a top-light radial sheen + a base

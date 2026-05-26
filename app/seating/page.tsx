@@ -554,7 +554,16 @@ export default function SeatingPage() {
           )}
 
           {state.guests.length > 0 && state.tables.length > 0 && (
-            <div className="mt-10 grid lg:grid-cols-[1fr_320px] gap-6">
+            // R137 — wider floor, narrower side panel. Pre-R137 the
+            // side panel ate 320px and the floor was a 1fr column with
+            // 2/3 grid cards — on a 1280px screen the tables crammed
+            // into ~600px and looked tiny. Now: side panel = 264px,
+            // floor card grid can use 4 columns on lg+ so each table
+            // is a touch smaller individually but the FLOOR reads as
+            // an actual venue room. The "click to open in center"
+            // modal (R137) means the side panel no longer holds the
+            // editor, freeing it up to be slim.
+            <div className="mt-10 grid lg:grid-cols-[1fr_264px] gap-5">
               <div>
                 {/* R71 (R60-5) — 2D top-down floor plan is the only view.
                     The 3D toggle (R44 §3) was removed: webgl freezes on
@@ -564,8 +573,8 @@ export default function SeatingPage() {
                   className="floor-3d"
                   data-many-tables={state.tables.length > 10 ? "true" : "false"}
                 >
-                  <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-8 md:p-12`}>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-16 md:gap-y-24">
+                  <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-6 md:p-10`}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-14 md:gap-y-20">
                       {tablesWithGuests.map(({ table, heads }, i) => (
                         <Table3D
                           key={table.id}
@@ -586,24 +595,16 @@ export default function SeatingPage() {
                 </div>
               </div>
 
-              {/* Side panel: unassigned + active table editor */}
+              {/* R137 — side panel is now ONLY the unassigned list +
+                  a small legend. The table editor lives in the
+                  center-of-screen modal that opens on click. */}
               <aside className="space-y-4">
                 <UnassignedPanel guests={unassigned} onDropGuest={handleDropOnUnassigned} />
-                {activeTable && activeRow && (
-                  <TableEditorPanel
-                    table={activeTable}
-                    guests={activeRow.guests}
-                    heads={activeRow.heads}
-                    unassigned={unassigned}
-                    onClose={() => setActiveTableId(null)}
-                    onEdit={() => setEditingTable(activeTable)}
-                  />
-                )}
-                {!activeTable && (
-                  <div className="card p-5 text-center text-sm" style={{ color: "var(--foreground-muted)" }}>
-                    💡 לחץ על שולחן כדי להוסיף או להזיז אורחים
-                  </div>
-                )}
+                <FloorLegendCard
+                  tablesCount={state.tables.length}
+                  full={tablesWithGuests.filter((r) => r.heads >= r.table.capacity && r.heads <= r.table.capacity).length}
+                  over={tablesWithGuests.filter((r) => r.heads > r.table.capacity).length}
+                />
               </aside>
             </div>
           )}
@@ -616,6 +617,28 @@ export default function SeatingPage() {
           />
         )}
         {editingTable && <TableModal table={editingTable} onClose={() => setEditingTable(null)} />}
+        {/* R137 — center-of-screen detail modal. Replaces the in-aside
+            TableEditorPanel + the dramatic in-place table zoom. When the
+            user clicks a table, this opens with: a big interactive preview
+            on the left (the same Table3D look, drag-droppable) and a
+            polished guest editor on the right. Closes on Esc / backdrop /
+            X. AnimatePresence lets the scale-out exit play before unmount. */}
+        <AnimatePresence>
+          {activeTable && activeRow && (
+            <TableDetailModal
+              key={activeTable.id}
+              table={activeTable}
+              guests={activeRow.guests}
+              heads={activeRow.heads}
+              unassigned={unassigned}
+              receiving={flashingTables.has(activeTable.id)}
+              displayNumber={activeTable.number ?? state.tables.findIndex((t) => t.id === activeTable.id) + 1}
+              onClose={() => setActiveTableId(null)}
+              onEdit={() => setEditingTable(activeTable)}
+              onDropGuest={handleDropOnTable}
+            />
+          )}
+        </AnimatePresence>
         {/* AnimatePresence lets ThinkingOverlay run its exit transition (fade
             + slide down) before unmounting. Without it the badge would just
             disappear the moment thinking flips back to false. */}
@@ -1209,23 +1232,71 @@ function UnassignedPanel({ guests, onDropGuest }: { guests: Guest[]; onDropGuest
   );
 }
 
-function TableEditorPanel({
+// ─────────────────────────────── R137 — Table Detail Modal ───────────────────────────────
+//
+// Center-of-screen modal that opens when the host clicks a table on the
+// floor. Replaces the older "table zooms in place + side-panel editor"
+// pattern with a focused, premium dialog:
+//   • Backdrop blurs the floor behind it so attention stays on this table
+//   • Left column: big 3D table preview (chairs, capacity bar, name pill)
+//     — drag-drop target, so the host can drag an unassigned guest from
+//     the side panel directly into the preview without closing the modal
+//   • Right column: guest editor (seated list with bounce in/out, add-by-
+//     name form, add-existing-unassigned picker, edit/delete actions)
+//
+// Animations are intentionally restrained — one scale-in on open, one
+// scale-out on close. Inside the modal it's the chairs + bar that move,
+// not the modal frame, so the host's eye lands on data not chrome.
+function TableDetailModal({
   table,
   guests,
   heads,
   unassigned,
+  displayNumber,
+  receiving,
   onClose,
   onEdit,
+  onDropGuest,
 }: {
   table: SeatingTable;
   guests: Guest[];
   heads: number;
   unassigned: Guest[];
+  displayNumber: number;
+  receiving: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onDropGuest: (tableId: string, guestId: string) => void;
 }) {
   const [newName, setNewName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const overCapacity = heads > table.capacity;
+  const fullness = Math.min(1, heads / table.capacity);
+  const stateClass = overCapacity ? "over" : fullness >= 1 ? "full" : "";
+
+  // Esc to close — same convention as other modals in this app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // R136 chair math — same formula as the floor card. Kept local to
+  // this modal so the preview stays in sync when capacity changes
+  // mid-session.
+  const chairs = Array.from({ length: table.capacity }).map((_, i) => {
+    const angleFromTop = (i * 360) / table.capacity;
+    const rad = ((angleFromTop - 90) * Math.PI) / 180;
+    const ring = 53;
+    return {
+      dx: Math.cos(rad) * ring,
+      dy: Math.sin(rad) * ring,
+      rot: angleFromTop,
+      filled: i < heads,
+    };
+  });
 
   const handleAddGuest = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -1236,168 +1307,412 @@ function TableEditorPanel({
     setNewName("");
   };
 
-  const moveExisting = (guestId: string) => {
-    actions.assignSeat(guestId, table.id);
-  };
-
   return (
-    <div className="card p-5 fade-up sticky top-20">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Big gold numeric chip — same identifier the host shouts across
-              the room. Mirrors the inside-the-circle number on the floor. */}
-          <div
-            className="rounded-xl flex items-center justify-center shrink-0"
-            style={{
-              width: 44,
-              height: 44,
-              background:
-                "linear-gradient(135deg, rgba(244,222,169,0.20), rgba(168,136,74,0.10))",
-              border: "1px solid var(--border-gold)",
-            }}
-          >
-            <span className="text-xl font-extrabold gradient-gold ltr-num">
-              {table.number ?? "?"}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <div className="font-bold text-lg truncate">{table.name}</div>
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+      style={{ background: "rgba(8,6,4,0.74)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal
+      aria-labelledby="table-detail-title"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.22 }}
+    >
+      <motion.div
+        className="w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl overflow-hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--surface-1)), var(--surface-1))",
+          border: "1px solid var(--border-gold)",
+          boxShadow:
+            "0 40px 90px -20px rgba(0,0,0,0.7), 0 0 0 1px var(--accent-glow), 0 0 120px -20px var(--accent-glow)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.86, y: 24, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.92, y: 10, opacity: 0 }}
+        transition={{ type: "spring", damping: 22, stiffness: 280 }}
+      >
+        <header
+          className="px-6 py-5 flex items-start justify-between gap-3"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="text-xs ltr-num"
+              className="rounded-2xl flex items-center justify-center shrink-0"
               style={{
-                color: overCapacity ? "rgb(252 165 165)" : "var(--foreground-muted)",
+                width: 56,
+                height: 56,
+                background:
+                  "linear-gradient(135deg, rgba(244,222,169,0.28), rgba(168,136,74,0.16))",
+                border: "1px solid var(--border-gold)",
+                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 20px -8px var(--accent-glow)",
               }}
             >
-              {heads} / {table.capacity} מקומות
+              <span className="text-2xl font-extrabold gradient-gold ltr-num">{displayNumber}</span>
+            </div>
+            <div className="min-w-0">
+              <span className="eyebrow text-[10px]">שולחן {displayNumber}</span>
+              <h2 id="table-detail-title" className="text-2xl md:text-3xl font-extrabold tracking-tight gradient-gold leading-tight truncate">
+                {table.name}
+              </h2>
+              <div className="mt-0.5 text-xs ltr-num" style={{ color: overCapacity ? "rgb(252 165 165)" : "var(--foreground-muted)" }}>
+                {heads} / {table.capacity} מקומות
+                {table.circle && (
+                  <>
+                    {" · "}
+                    <span style={{ color: "var(--accent)" }}>{table.circle}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onEdit}
+              aria-label="ערוך שולחן"
+              className="p-2 rounded-full hover:bg-[var(--secondary-button-bg)]"
+              title="ערוך שולחן"
+            >
+              <Pencil size={15} style={{ color: "var(--foreground-muted)" }} />
+            </button>
+            <button
+              onClick={() => {
+                if (confirm(`למחוק את שולחן ${displayNumber} — ${table.name}? האורחים יחזרו לרשימת הממתינים.`)) {
+                  actions.removeTable(table.id);
+                  onClose();
+                }
+              }}
+              aria-label="מחק שולחן"
+              className="p-2 rounded-full hover:bg-[var(--secondary-button-bg)]"
+              title="מחק שולחן"
+            >
+              <Trash2 size={15} style={{ color: "var(--foreground-muted)" }} />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="סגור"
+              className="p-2 rounded-full hover:bg-[var(--secondary-button-bg)]"
+              title="סגור"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </header>
+
+        <div className="grid md:grid-cols-[1fr_1fr] gap-0 overflow-hidden flex-1 min-h-0">
+          {/* Left — big table preview. Same Table3D visual language but
+              statically rendered at a comfortable hero size. Acts as a
+              drop target so the host can drag from the unassigned list
+              behind the modal (we keep pointer-events normal on it) and
+              drop onto the preview. */}
+          <div
+            className="relative flex items-center justify-center p-6 md:p-10"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 35%, rgba(212,176,104,0.10), transparent 70%), var(--surface-1)",
+              borderInlineEnd: "1px solid var(--border)",
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes(DRAG_MIME)) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (!dragOver) setDragOver(true);
+              }
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setDragOver(false);
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              if (!e.dataTransfer.types.includes(DRAG_MIME)) return;
+              const gid = e.dataTransfer.getData(DRAG_MIME);
+              if (gid) onDropGuest(table.id, gid);
+            }}
+          >
+            <div
+              className={[
+                "table-3d table-detail-preview",
+                stateClass,
+                dragOver ? "drag-over table-drop-active" : "",
+                receiving ? "table-receive" : "",
+                "active",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              style={
+                {
+                  width: "min(86%, 340px)",
+                  // Override the floor's translateZ + tilt — inside the
+                  // modal we want a calm, centered, presentation-grade
+                  // preview, not the dramatic in-place lift.
+                  transform: "none",
+                  animation: "none",
+                } as CSSProperties
+              }
+              aria-hidden
+            >
+              <div className="table-name-label" style={{ transform: "translateZ(0)" }}>
+                {table.name}
+              </div>
+              <div className="surface relative" style={{ width: "100%", aspectRatio: "1" }}>
+                {chairs.map((c, i) => (
+                  <span
+                    key={i}
+                    className={`chair-v2 ${c.filled ? "filled" : ""}`}
+                    style={
+                      {
+                        left: `calc(50% + ${c.dx}% - 9px)`,
+                        top: `calc(50% + ${c.dy}% - 10px)`,
+                        transform: `rotate(${c.rot}deg)`,
+                        "--rot": `${c.rot}deg`,
+                      } as CSSProperties
+                    }
+                    aria-hidden
+                  >
+                    <span className="chair-v2-back" />
+                    <span className="chair-v2-seat" />
+                  </span>
+                ))}
+                <div
+                  className="text-[10px] uppercase tracking-[0.2em] font-semibold"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  שולחן
+                </div>
+                <div className="table-number-display ltr-num">{displayNumber}</div>
+                <div
+                  className="text-xs ltr-num mt-0.5 font-semibold"
+                  style={{
+                    color: overCapacity
+                      ? "rgb(252 165 165)"
+                      : fullness >= 1
+                        ? "var(--accent)"
+                        : "var(--foreground-soft)",
+                  }}
+                >
+                  {heads} / {table.capacity}
+                </div>
+                {table.capacity > 0 && (
+                  <div
+                    className="mt-2 mx-auto h-0.5 w-16 rounded-full overflow-hidden"
+                    style={{ background: "rgba(0,0,0,0.25)" }}
+                    aria-hidden
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(100, fullness * 100)}%`,
+                        background: overCapacity
+                          ? "linear-gradient(90deg, rgb(248,113,113), rgb(220,38,38))"
+                          : fullness >= 1
+                            ? "linear-gradient(90deg, var(--gold-100), var(--gold-500))"
+                            : "linear-gradient(90deg, rgba(244,222,169,0.5), rgba(168,136,74,0.6))",
+                        boxShadow:
+                          fullness >= 1 && !overCapacity
+                            ? "0 0 6px var(--accent-glow)"
+                            : "none",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <p
+              className="absolute bottom-3 left-0 right-0 text-center text-[11px]"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              💡 גרור אורח מהרשימה ישירות לכאן
+            </p>
+          </div>
+
+          {/* Right — guest editor: seated guests + add new + add existing. */}
+          <div className="p-5 md:p-6 overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                יושבים כאן
+              </h3>
+              <span className="pill pill-muted">{guests.length}</span>
+            </div>
+
+            {/* Seated guests — bouncy chips like the old editor, capped
+                at 15 to keep render budget healthy on big tables. */}
+            {guests.length > 0 ? (
+              guests.length < 15 ? (
+                <motion.div layout className="space-y-1.5 mb-4">
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {guests.map((g) => (
+                      <motion.div
+                        key={g.id}
+                        layout
+                        initial={{ scale: 0.5, opacity: 0, y: -10 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.2 } }}
+                        transition={{ type: "spring", damping: 18, stiffness: 320 }}
+                        draggable
+                        onDragStart={setGuestDragPayload(g.id)}
+                        className="rounded-xl p-2.5 flex items-center gap-2 text-sm cursor-grab active:cursor-grabbing"
+                        style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
+                        aria-label={`גרור את ${g.name} כדי להעביר לשולחן אחר`}
+                      >
+                        <Avatar name={g.name} id={g.id} size={26} />
+                        <span className="flex-1 truncate">{g.name}</span>
+                        {(g.attendingCount ?? 1) > 1 && (
+                          <span className="ltr-num text-[--accent] text-xs font-bold">
+                            +{(g.attendingCount ?? 1) - 1}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => actions.assignSeat(g.id, null)}
+                          className="hover:text-red-400 p-1"
+                          style={{ color: "var(--foreground-muted)" }}
+                          aria-label="הסר משולחן"
+                        >
+                          <X size={12} />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              ) : (
+                <div className="space-y-1.5 mb-4">
+                  {guests.map((g) => (
+                    <div
+                      key={g.id}
+                      draggable
+                      onDragStart={setGuestDragPayload(g.id)}
+                      className="rounded-xl p-2.5 flex items-center gap-2 text-sm cursor-grab active:cursor-grabbing"
+                      style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
+                    >
+                      <Avatar name={g.name} id={g.id} size={26} />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      {(g.attendingCount ?? 1) > 1 && (
+                        <span className="ltr-num text-[--accent] text-xs font-bold">
+                          +{(g.attendingCount ?? 1) - 1}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => actions.assignSeat(g.id, null)}
+                        className="hover:text-red-400 p-1"
+                        style={{ color: "var(--foreground-muted)" }}
+                        aria-label="הסר משולחן"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div
+                className="text-sm text-center py-6 rounded-xl mb-4"
+                style={{ background: "var(--input-bg)", color: "var(--foreground-muted)", border: "1px dashed var(--border)" }}
+              >
+                <Users size={18} className="mx-auto mb-1 opacity-60" />
+                השולחן ריק — הוסף אורחים למטה או גרור לתצוגה משמאל.
+              </div>
+            )}
+
+            <form
+              onSubmit={handleAddGuest}
+              className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3"
+              style={{ background: "var(--input-bg)", border: "1px solid var(--border-strong)" }}
+            >
+              <UserPlus size={15} className="text-[--accent] shrink-0" />
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="הוסף אורח לשולחן זה..."
+                className="flex-1 bg-transparent border-0 outline-none text-sm"
+                style={{ color: "var(--foreground)" }}
+              />
+              <button
+                type="submit"
+                disabled={!newName.trim()}
+                className="text-xs font-semibold disabled:opacity-40"
+                style={{ color: "var(--accent)" }}
+              >
+                הוסף
+              </button>
+            </form>
+
+            {unassigned.length > 0 && (
+              <div>
+                <div className="text-xs mb-1.5" style={{ color: "var(--foreground-muted)" }}>
+                  או הושב מוזמן קיים:
+                </div>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto pr-0.5">
+                  {unassigned.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => actions.assignSeat(g.id, table.id)}
+                      className="w-full rounded-xl p-2 text-start flex items-center gap-2 text-sm transition hover:bg-[var(--secondary-button-bg)]"
+                      style={{ border: "1px dashed var(--border)", color: "var(--foreground-soft)" }}
+                    >
+                      <Plus size={12} className="text-[--accent]" />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      {(g.attendingCount ?? 1) > 1 && (
+                        <span className="ltr-num text-xs">+{(g.attendingCount ?? 1) - 1}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={onEdit} aria-label="ערוך שולחן" className="p-1.5 rounded-full hover:bg-[var(--secondary-button-bg)]">
-            <Pencil size={14} style={{ color: "var(--foreground-muted)" }} />
-          </button>
-          <button onClick={() => actions.removeTable(table.id)} aria-label="מחק שולחן" className="p-1.5 rounded-full hover:bg-[var(--secondary-button-bg)]">
-            <Trash2 size={14} style={{ color: "var(--foreground-muted)" }} />
-          </button>
-          <button onClick={onClose} aria-label="סגור" className="p-1.5 rounded-full hover:bg-[var(--secondary-button-bg)]">
-            <X size={14} style={{ color: "var(--foreground-muted)" }} />
-          </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// R137 — slim help / legend card. Replaces the in-aside table editor.
+// Three quick stats + the click-to-open hint, in a card the same size
+// as a guest entry. Keeps the side panel useful when no table is open.
+function FloorLegendCard({ tablesCount, full, over }: { tablesCount: number; full: number; over: number }) {
+  return (
+    <div className="card p-4">
+      <div className="text-xs font-bold mb-3" style={{ color: "var(--foreground)" }}>
+        מפת רחבה
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="flex items-center justify-between" style={{ color: "var(--foreground-soft)" }}>
+          <span className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))" }} />
+            שולחן מלא
+          </span>
+          <span className="ltr-num font-bold">{full}</span>
+        </div>
+        <div className="flex items-center justify-between" style={{ color: "var(--foreground-soft)" }}>
+          <span className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(248,113,113,0.85)" }} />
+            יותר אורחים מקיבולת
+          </span>
+          <span className="ltr-num font-bold">{over}</span>
+        </div>
+        <div className="flex items-center justify-between" style={{ color: "var(--foreground-soft)" }}>
+          <span className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--surface-3)", border: "1px solid var(--border-strong)" }} />
+            יש מקום פנוי
+          </span>
+          <span className="ltr-num font-bold">{Math.max(0, tablesCount - full - over)}</span>
         </div>
       </div>
-
-      {/* Seated guests — each chip bounces in when assigned, fades+shrinks when
-          removed. The `layout` prop reflows the rest of the list smoothly so
-          the remaining chips slide up instead of jump-cutting.
-          Past 15 guests the animation budget breaks (15 × spring layout per
-          render) so we switch to a plain list — same visuals on rest, just
-          no entrance / exit bounce. */}
-      {guests.length > 0 ? (
-        guests.length < 15 ? (
-          <motion.div layout className="space-y-1.5 mb-3">
-            <AnimatePresence mode="popLayout" initial={false}>
-              {guests.map((g) => (
-                <motion.div
-                  key={g.id}
-                  layout
-                  initial={{ scale: 0.5, opacity: 0, y: -10 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.2 } }}
-                  transition={{ type: "spring", damping: 18, stiffness: 320 }}
-                  draggable
-                  onDragStart={setGuestDragPayload(g.id)}
-                  className="rounded-xl p-2 flex items-center gap-2 text-sm cursor-grab active:cursor-grabbing"
-                  style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
-                  aria-label={`גרור את ${g.name} כדי להעביר לשולחן אחר`}
-                >
-                  <CheckCircle2 size={14} className="text-[--accent] shrink-0" />
-                  <span className="flex-1 truncate">{g.name}</span>
-                  {(g.attendingCount ?? 1) > 1 && <span className="ltr-num text-[--accent] text-xs font-bold">+{(g.attendingCount ?? 1) - 1}</span>}
-                  <button onClick={() => actions.assignSeat(g.id, null)} className="hover:text-red-400 p-1" style={{ color: "var(--foreground-muted)" }} aria-label="הסר משולחן">
-                    <X size={12} />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-        ) : (
-          <div className="space-y-1.5 mb-3">
-            {guests.map((g) => (
-              <div
-                key={g.id}
-                draggable
-                onDragStart={setGuestDragPayload(g.id)}
-                className="rounded-xl p-2 flex items-center gap-2 text-sm cursor-grab active:cursor-grabbing"
-                style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
-                aria-label={`גרור את ${g.name} כדי להעביר לשולחן אחר`}
-              >
-                <CheckCircle2 size={14} className="text-[--accent] shrink-0" />
-                <span className="flex-1 truncate">{g.name}</span>
-                {(g.attendingCount ?? 1) > 1 && <span className="ltr-num text-[--accent] text-xs font-bold">+{(g.attendingCount ?? 1) - 1}</span>}
-                <button onClick={() => actions.assignSeat(g.id, null)} className="hover:text-red-400 p-1" style={{ color: "var(--foreground-muted)" }} aria-label="הסר משולחן">
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )
-      ) : (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-sm text-center py-3 rounded-xl mb-3"
-          style={{ background: "var(--input-bg)", color: "var(--foreground-muted)" }}
-        >
-          השולחן ריק. הוסף אורחים למטה.
-        </motion.div>
-      )}
-
-      {/* Add new guest by name */}
-      <form
-        onSubmit={handleAddGuest}
-        className="flex items-center gap-2 rounded-xl px-3 py-2 mb-3"
-        style={{ background: "var(--input-bg)", border: "1px solid var(--border-strong)" }}
+      <div
+        className="mt-4 pt-3 text-[11px] leading-relaxed"
+        style={{ borderTop: "1px solid var(--border)", color: "var(--foreground-muted)" }}
       >
-        <UserPlus size={14} className="text-[--accent] shrink-0" />
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="הוסף אורח לשולחן..."
-          className="flex-1 bg-transparent border-0 outline-none text-sm"
-          style={{ color: "var(--foreground)" }}
-        />
-        <button
-          type="submit"
-          disabled={!newName.trim()}
-          className="text-xs font-semibold disabled:opacity-40"
-          style={{ color: "var(--accent)" }}
-        >
-          הוסף
-        </button>
-      </form>
-
-      {/* Move existing unassigned guest here */}
-      {unassigned.length > 0 && (
-        <div>
-          <div className="text-xs mb-1.5" style={{ color: "var(--foreground-muted)" }}>או הוסף מוזמן קיים:</div>
-          <div className="space-y-1 max-h-[160px] overflow-y-auto">
-            {unassigned.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => moveExisting(g.id)}
-                className="w-full rounded-xl p-2 text-start flex items-center gap-2 text-sm transition hover:bg-[var(--secondary-button-bg)]"
-                style={{ border: "1px dashed var(--border)", color: "var(--foreground-soft)" }}
-              >
-                <Plus size={12} className="text-[--accent]" />
-                <span className="flex-1 truncate">{g.name}</span>
-                {(g.attendingCount ?? 1) > 1 && <span className="ltr-num text-xs">+{(g.attendingCount ?? 1) - 1}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+        💡 לחץ על שולחן כדי לפתוח אותו במרכז המסך עם כל הכלים לעריכה.
+      </div>
     </div>
   );
 }
+
 
 function TableModal({
   table,
