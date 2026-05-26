@@ -247,15 +247,15 @@ export default function VendorJoinPage() {
             <CheckCircle2 size={32} className="text-emerald-400" />
           </div>
           <h1 className="mt-4 text-2xl font-bold gradient-gold-shimmer">
-            הבקשה התקבלה!
+            ברוכים הבאים לקטלוג! 🎉
           </h1>
           <p
             className="mt-3 text-sm leading-relaxed"
             style={{ color: "var(--foreground-soft)" }}
           >
-            נבדוק את הפרטים שלך תוך <strong>1-3 ימי עסקים</strong>.
-            ברגע שהבקשה תאושר נשלח לך מייל עם קישור להפעלת הפרופיל
-            באפליקציה.
+            הפרופיל שלך <strong>פעיל בקטלוג מיד</strong>. שלחנו אליך
+            מייל עם קישור לדשבורד הספק — כך תוכל לעצב את הדף, להעלות
+            תמונות ולקבל לידים מזוגות.
           </p>
           <div
             className="mt-5 rounded-xl px-3 py-2.5 text-xs inline-flex items-center gap-2"
@@ -297,7 +297,7 @@ export default function VendorJoinPage() {
           <Building2 size={28} className="mx-auto text-[--accent]" />
           <h1 className="mt-3 text-3xl font-extrabold gradient-gold">הצטרפו כספק</h1>
           <p className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
-            ספק אירועים? הוסיפו את העסק שלכם לקטלוג. ההצטרפות חינם, אישור תוך 1-3 ימי עסקים.
+            ספק אירועים? הוסיפו את העסק שלכם לקטלוג. ההצטרפות חינם — הפרופיל פעיל מיד.
           </p>
           {/* R18 §G — speed badge to lower the perceived effort. */}
           <span className="mt-3 inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full" style={{ background: "rgba(212,176,104,0.12)", border: "1px solid var(--border-gold)", color: "var(--accent)" }}>

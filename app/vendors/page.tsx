@@ -421,7 +421,7 @@ function VendorsInner() {
             <div className="min-w-0">
               <div className="text-sm font-semibold">ספק אירועים?</div>
               <div className="text-xs mt-0.5" style={{ color: "var(--foreground-soft)" }}>
-                הצטרפו לקטלוג חינם — אישור תוך 1-3 ימי עסקים
+                הצטרפו לקטלוג חינם — הפרופיל פעיל מיד
               </div>
             </div>
             <span className="btn-gold text-xs px-3 py-1.5 shrink-0">הצטרפו</span>

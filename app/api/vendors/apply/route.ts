@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { notifyAdminOfNewApplication } from "@/lib/vendorNotifications";
+import { findAuthUserByEmail } from "@/lib/supabase/findAuthUserByEmail";
+import { createVendorLandingForApplication } from "@/lib/supabase/createVendorLanding";
+import {
+  notifyAdminOfNewApplication,
+  sendVendorApprovalEmail,
+} from "@/lib/vendorNotifications";
 import { VENDOR_CATEGORIES, type VendorApplicationInput } from "@/lib/vendorApplication";
 import { normalizeIsraeliPhone } from "@/lib/phone";
 
@@ -270,8 +275,19 @@ export async function POST(req: NextRequest) {
       years_in_field: body.years_in_field,
       ip_address: ip,
       user_agent: ua,
-      // status='pending', phone_verified=false, reviewed_at=null,
-      // approved_vendor_id=null all stay at their column defaults.
+      // R127 — AUTO-APPROVE the application at insert time. The owner
+      // doesn't want the manual approve-each-vendor step; vendors land
+      // straight in the catalog. Admin keeps removal/restore/feature
+      // controls in /admin/vendors for moderation, so a problematic
+      // vendor can still be pulled — but the default is "yes".
+      // Form-side validation (HTTPS-only URLs, category enum, phone
+      // normalization, length caps) is the same gate that used to
+      // matter at approval time, so no real auth is being skipped.
+      status: "approved" as const,
+      reviewed_at: new Date().toISOString(),
+      // approved_vendor_id gets stamped immediately too — clears the
+      // admin "approved but not synced to catalog" warning.
+      approved_vendor_id: null as string | null, // patched after we know `data.id`
     };
 
     const { data, error } = await supabase
@@ -304,8 +320,91 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // The application is in the DB. Notification failure must NOT roll back
-    // the row or surface as a 500 — admin can still see the entry and act.
+    // R127 — auto-approval bookkeeping. The status was set at insert
+    // time; here we close the loop by also stamping approved_vendor_id
+    // (so /admin sees the row as "synced to catalog") AND attempting
+    // the landing-row creation that the legacy decide route handled.
+    //
+    // Two outcomes for the landing:
+    //   • Auth user exists (vendor signed up before applying) → create
+    //     the vendor_landings row right now.
+    //   • Auth user doesn't exist yet (vendor will sign up later) →
+    //     skip; useVendorContext's self-provision (R123) kicks in on
+    //     first dashboard open.
+    //
+    // Both legs are best-effort and never roll back the application.
+    try {
+      await supabase
+        .from("vendor_applications")
+        .update({ approved_vendor_id: `app-${data.id}` })
+        .eq("id", data.id);
+    } catch (stampErr) {
+      console.error("[vendor-apply] approved_vendor_id stamp failed:", stampErr);
+    }
+
+    try {
+      const authUser = await findAuthUserByEmail(supabase, insertPayload.email);
+      if (authUser) {
+        const outcome = await createVendorLandingForApplication(
+          supabase,
+          {
+            id: data.id,
+            email: insertPayload.email,
+            business_name: insertPayload.business_name,
+            category: insertPayload.category,
+            city: insertPayload.city,
+            phone: insertPayload.phone,
+            website: insertPayload.website,
+            instagram: insertPayload.instagram,
+            facebook: insertPayload.facebook,
+            about: insertPayload.about,
+            years_in_field: insertPayload.years_in_field,
+          },
+          authUser.id,
+        );
+        if (outcome.status === "created") {
+          console.log(
+            `[vendor-apply] auto-approved + created landing ${outcome.slug} for ${insertPayload.business_name}`,
+          );
+        } else if (outcome.status === "already-exists") {
+          console.log(
+            `[vendor-apply] auto-approved; landing ${outcome.slug} already existed (re-application)`,
+          );
+        } else {
+          console.error(
+            `[vendor-apply] auto-approved but landing insert failed:`,
+            outcome.error,
+          );
+        }
+      } else {
+        console.log(
+          `[vendor-apply] auto-approved ${data.id}; no auth user for ${insertPayload.email} yet — self-provision will handle on first sign-in`,
+        );
+      }
+    } catch (landingErr) {
+      console.error("[vendor-apply] landing auto-creation threw:", landingErr);
+    }
+
+    // R127 — send the vendor their welcome / "you're approved" email
+    // immediately. Same template the decide route used to fire.
+    try {
+      const result = await sendVendorApprovalEmail({
+        email: insertPayload.email,
+        contact_name: insertPayload.contact_name,
+        business_name: insertPayload.business_name,
+      });
+      await supabase.from("vendor_notifications_log").insert({
+        application_id: data.id,
+        channel: result.channel,
+        status: result.status,
+        error: result.error ?? null,
+      });
+    } catch (mailErr) {
+      console.error("[vendor-apply] welcome email failed:", mailErr);
+    }
+
+    // Admin notification — the founder still wants to see "new vendor
+    // joined" alerts, even though no manual action is needed anymore.
     // The notify type expects `string | undefined` (not `string | null`) so
     // we coerce nullable optional fields here without touching the DB row.
     const notifyPayload = {

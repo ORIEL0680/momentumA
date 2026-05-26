@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 import { isFounderEmail } from "@/lib/constants";
 import { showToast } from "@/components/Toast";
-import { Modal } from "@/components/Modal";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,7 +14,6 @@ import {
   Shield,
   Trash2,
   RotateCcw,
-  AlertTriangle,
   Pin,
 } from "lucide-react";
 import {
@@ -29,12 +27,8 @@ export default function AdminVendorsPage() {
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [decidingId, setDecidingId] = useState<string | null>(null);
-  // R67 (R84) — soft-delete UI state. `pendingDelete` holds the vendor
-  // record currently in the confirm modal; null hides the modal. The
-  // typed `reason` is the optional context the admin can attach.
-  const [pendingDelete, setPendingDelete] =
-    useState<VendorApplicationRecord | null>(null);
-  const [deleteReason, setDeleteReason] = useState("");
+  // R127 — confirm modal removed. Delete is one-click + undo. The
+  // `pendingDelete` + `deleteReason` slots from R67 went with it.
   const [busyVendorId, setBusyVendorId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,20 +137,28 @@ export default function AdminVendorsPage() {
   // service-role-backed admin APIs (requireAdmin gate + audit log).
   // We optimistically update the local state and roll back on error
   // so the UI never feels stuck.
-  const deleteVendor = async (vendorId: string, reason: string) => {
+  // R127 — `deleteVendor` returns true/false so the caller can chain
+  // its own success toast (with undo action). The function only
+  // surfaces a toast on FAILURE — success messaging is the caller's
+  // responsibility now that the call site needs to attach an
+  // action button.
+  const deleteVendor = async (
+    vendorId: string,
+    reason: string,
+  ): Promise<boolean> => {
     setBusyVendorId(vendorId);
     try {
       const supabase = getSupabase();
       if (!supabase) {
         showToast("Supabase לא מוגדר", "error");
-        return;
+        return false;
       }
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
         showToast("צריך להתחבר", "error");
-        return;
+        return false;
       }
       const res = await fetch("/api/admin/vendors/delete", {
         method: "POST",
@@ -171,16 +173,12 @@ export default function AdminVendorsPage() {
         message?: string;
       };
       if (!res.ok) {
-        // R126 — log the full server response. Owner reported delete
-        // "doesn't work" with no on-screen detail; without this the
-        // diagnosis was guessing. Now any 403/404/500 lands a labeled
-        // error in the console next to the toast.
         console.error("[admin-vendors-delete]", res.status, data);
         showToast(
           data.message ?? `מחיקה נכשלה (${res.status})`,
           "error",
         );
-        return;
+        return false;
       }
       setApps((prev) =>
         prev.map((a) =>
@@ -193,12 +191,11 @@ export default function AdminVendorsPage() {
             : a,
         ),
       );
-      setPendingDelete(null);
-      setDeleteReason("");
-      showToast("✓ הספק הוסר מהקטלוג", "success");
+      return true;
     } catch (e) {
       console.error("[admin-vendors-delete] network/exception:", e);
       showToast("שגיאה ברשת — בדוק consol", "error");
+      return false;
     } finally {
       setBusyVendorId(null);
     }
@@ -436,9 +433,24 @@ export default function AdminVendorsPage() {
                     key={app.id}
                     app={app}
                     busy={busyVendorId === app.id}
+                    // R127 — one-click delete (no modal). The toast
+                    // surfaces an "בטל" button that calls restoreVendor
+                    // so an accidental click is reversible without
+                    // hunting through the "מושעים" section.
                     onDeleteClick={() => {
-                      setPendingDelete(app);
-                      setDeleteReason("");
+                      const name = app.business_name;
+                      void deleteVendor(app.id, "").then((ok) => {
+                        if (!ok) return;
+                        showToast(`✓ ${name} הוסר מהקטלוג`, "success", {
+                          duration: 8000,
+                          action: {
+                            label: "בטל",
+                            onClick: () => {
+                              void restoreVendor(app.id);
+                            },
+                          },
+                        });
+                      });
                     }}
                     onFeatureToggle={() =>
                       featureVendor(app.id, !app.featured_at)
@@ -501,100 +513,11 @@ export default function AdminVendorsPage() {
         )}
       </div>
 
-      {/* R67 (R84) — delete confirmation modal. Soft-delete + audit log. */}
-      {pendingDelete && (
-        <Modal
-          onClose={() => {
-            if (busyVendorId !== pendingDelete.id) {
-              setPendingDelete(null);
-              setDeleteReason("");
-            }
-          }}
-          title={
-            <span className="inline-flex items-center gap-2">
-              <AlertTriangle
-                size={18}
-                style={{ color: "rgb(248,113,113)" }}
-                aria-hidden
-              />
-              מחיקת ספק
-            </span>
-          }
-          maxWidthClass="max-w-md"
-        >
-          <div className="space-y-4">
-            <p className="text-sm leading-relaxed">
-              זה ירחיק את{" "}
-              <strong className="gradient-gold">
-                {pendingDelete.business_name}
-              </strong>{" "}
-              מהקטלוג ב-/vendors. הספק עצמו עדיין יוכל להתחבר ולערוך — רק
-              ההצגה הציבורית מושעית.
-            </p>
-            <ul
-              className="text-xs space-y-1 list-disc list-inside"
-              style={{ color: "var(--foreground-muted)" }}
-            >
-              <li>אתה תוכל לשחזר את הספק בכל עת מהאזור &ldquo;מושעים&rdquo;.</li>
-              <li>הפעולה מתועדת ב-admin_audit_log.</li>
-            </ul>
-            <div>
-              <label
-                htmlFor="delete-reason"
-                className="block text-xs mb-1.5"
-                style={{ color: "var(--foreground-soft)" }}
-              >
-                סיבה (אופציונלי, לתיעוד פנימי)
-              </label>
-              <textarea
-                id="delete-reason"
-                value={deleteReason}
-                onChange={(e) => setDeleteReason(e.target.value)}
-                className="input"
-                rows={2}
-                placeholder="לדוגמה: ספק לא זמין יותר / תלונות מלקוחות"
-              />
-            </div>
-            <div
-              className="flex items-center gap-2 pt-3"
-              style={{ borderTop: "1px solid var(--border)" }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingDelete(null);
-                  setDeleteReason("");
-                }}
-                disabled={busyVendorId === pendingDelete.id}
-                className="btn-secondary text-sm py-2 px-4 ms-auto"
-              >
-                ביטול
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  deleteVendor(pendingDelete.id, deleteReason.trim())
-                }
-                disabled={busyVendorId === pendingDelete.id}
-                className="inline-flex items-center gap-2 text-sm py-2 px-4 rounded-full transition disabled:opacity-50"
-                style={{
-                  background:
-                    "linear-gradient(135deg, rgba(248,113,113,0.85), rgba(220,38,38,0.85))",
-                  color: "white",
-                  fontWeight: 700,
-                }}
-              >
-                {busyVendorId === pendingDelete.id ? (
-                  <Loader2 size={14} className="animate-spin" aria-hidden />
-                ) : (
-                  <Trash2 size={14} aria-hidden />
-                )}
-                הסר מהקטלוג
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* R127 — delete confirmation modal removed. Delete is now
+          one-click directly from the row, with an 8-second "בטל" undo
+          inside the success toast. Modal-driven confirm-then-delete
+          required 3-4 clicks per removal which the owner explicitly
+          asked to eliminate. */}
     </main>
   );
 }
