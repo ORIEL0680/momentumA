@@ -84,12 +84,21 @@ export function JourneyPath({
             <li key={step.def.id} className="flex items-stretch gap-4">
               {/* Circle + connector column */}
               <div className="flex flex-col items-center shrink-0">
+                {/* R128 — the journey circle was rendering the step
+                    number off-center. Root cause: <span> inherited the
+                    body's line-height (~1.5), so the glyph's line-box
+                    pushed the digit visually below the flex midpoint.
+                    Fix: explicit lineHeight: 1 + wrap the number in a
+                    block <span> so it participates in the flex layout
+                    as a real centered child instead of a raw text node
+                    whose baseline depends on the parent's font metrics. */}
                 <span
-                  className="flex items-center justify-center rounded-full font-extrabold ltr-num"
+                  className="inline-flex items-center justify-center rounded-full font-extrabold ltr-num"
                   style={{
                     width: 64,
                     height: 64,
                     fontSize: 20,
+                    lineHeight: 1,
                     background: isDone
                       ? "rgba(52,211,153,0.15)"
                       : isActive
@@ -107,9 +116,6 @@ export function JourneyPath({
                       : isActive
                         ? "var(--gold-button-text)"
                         : "var(--foreground-muted)",
-                    // Static gold glow marks the active step — no
-                    // animation, so it's inherently reduced-motion safe
-                    // and never hidden (unlike .pulse-gold).
                     boxShadow: isActive
                       ? "0 0 0 6px rgba(212,176,104,0.16)"
                       : "none",
@@ -117,11 +123,13 @@ export function JourneyPath({
                   aria-hidden
                 >
                   {isDone ? (
-                    <Check size={26} />
+                    <Check size={26} strokeWidth={2.5} />
                   ) : isLocked ? (
                     <Lock size={22} />
                   ) : (
-                    step.order
+                    <span style={{ lineHeight: 1, display: "block" }}>
+                      {step.order}
+                    </span>
                   )}
                 </span>
                 {i < steps.length - 1 && (

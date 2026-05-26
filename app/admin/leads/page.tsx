@@ -334,16 +334,22 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-/** "5 דקות / 2 שעות / 3 ימים" relative time formatter (he-IL). */
+/** "5 דקות / 2 שעות / 3 ימים" relative time formatter (he-IL).
+ *  R128 — Hebrew grammar pass: singular vs plural forms for דק׳/שעה/יום
+ *  ("לפני דקה" vs "לפני 5 דק׳"). The pre-R128 ternary returned
+ *  "אחורה" for both branches — a copy-paste artifact. */
 function formatRelative(d: Date): string {
   const diffMs = Date.now() - d.getTime();
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "עכשיו";
-  if (min < 60) return `${min} דק׳ ${min > 1 ? "אחורה" : "אחורה"}`;
+  if (min === 1) return "לפני דקה";
+  if (min < 60) return `לפני ${min} דק׳`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} שעות אחורה`;
+  if (hr === 1) return "לפני שעה";
+  if (hr < 24) return `לפני ${hr} שעות`;
   const day = Math.floor(hr / 24);
-  if (day < 7) return `${day} ימים אחורה`;
+  if (day === 1) return "אתמול";
+  if (day < 7) return `לפני ${day} ימים`;
   return d.toLocaleDateString("he-IL", {
     day: "numeric",
     month: "short",

@@ -333,7 +333,17 @@ export default function AdminDashboardPage() {
               >
                 Admin Dashboard
               </div>
-              <div className="font-bold text-sm">לוח הבקרה של טל חמו</div>
+              {/* R128 — greeting is now dynamic: founder sees "טל חמו",
+                  any other admin sees the local-part of their email so
+                  the page doesn't render Tal's name to the wrong person. */}
+              <div className="font-bold text-sm">
+                לוח הבקרה של{" "}
+                {signedInEmail && isFounderEmail(signedInEmail)
+                  ? "טל חמו"
+                  : signedInEmail
+                    ? signedInEmail.split("@")[0]
+                    : "המנהל"}
+              </div>
             </div>
           </div>
           <Link
