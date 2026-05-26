@@ -110,12 +110,18 @@ function VendorsInner() {
           return;
         }
         const mapped = mapApprovedRows(data);
-        // Always log for diagnostic — easy to verify in DevTools that
-        // a freshly-approved vendor came back from the RPC.
-        console.info(
-          `[vendors-catalog] approved vendors from DB: ${mapped.length}`,
-          mapped.map((v) => ({ id: v.id, name: v.name, region: v.region })),
-        );
+        // R82-1 — was `console.info(...mapped.map(...))` dumping the
+        // full vendor list to every visitor's DevTools console. Vendor
+        // business names are technically public (they appear in the
+        // catalog UI) but concentrating them in a single log line was
+        // a free scraping helper. Down to count-only; if a specific
+        // missing-vendor case ever needs debugging, add the
+        // verbose log back behind `?debug=1`.
+        if (process.env.NODE_ENV !== "production") {
+          console.info(
+            `[vendors-catalog] approved vendors from DB: ${mapped.length}`,
+          );
+        }
         // R126 — was `if (mapped.length) setApproved(mapped)`. The
         // guard was a guard against a transient empty response, but
         // it also meant deleting the LAST approved vendor in
