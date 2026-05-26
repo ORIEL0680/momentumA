@@ -344,6 +344,34 @@ export default function SeatingPage() {
                 {thinking ? "חושב..." : "✨ סדר אוטומטית"}
               </motion.button>
               <PrintButton label="ייצא ל-PDF" />
+              {/* R135 — "נקה הכל" lets the host wipe every seat
+                  assignment in one click (with a confirm). Pre-R135 the
+                  only way to redo a seating layout was to clear each
+                  guest individually or re-run smart-arrange + accept.
+                  Hidden when there's nothing to clear so the toolbar
+                  stays calm. */}
+              {totals.assigned > 0 && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `לנקות את ההושבה של ${totals.assigned} אורחים? פעולה זו תחזיר את כולם לרשימת הממתינים.`,
+                      )
+                    ) {
+                      Object.keys(state.seatAssignments).forEach((gid) =>
+                        actions.assignSeat(gid, null),
+                      );
+                    }
+                  }}
+                  className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2"
+                  aria-label="נקה את כל ההושבה"
+                >
+                  <Trash2 size={14} /> נקה הכל
+                </motion.button>
+              )}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
@@ -356,43 +384,172 @@ export default function SeatingPage() {
             </div>
           </div>
 
-          {/* Top stats */}
-          <div className="mt-6 card-gold p-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#F4DEA9] to-[#A8884A] text-black flex items-center justify-center">
-                <Users size={18} />
+          {/* R135 — premium stats strip. Was a flat row with "X/Y" text;
+              now anchors the page with an animated gold progress bar +
+              prominent % so the host can read progress at a glance from
+              across the room. Three columns on desktop (icon+count,
+              progress, secondary stats) collapse to stacked on mobile. */}
+          <section
+            className="mt-6 card-gold p-5 md:p-6"
+            aria-label="סיכום סידורי הושבה"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                    color: "var(--gold-button-text)",
+                  }}
+                >
+                  <Users size={18} />
+                </div>
+                <div>
+                  <div
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    אורחים מסודרים
+                  </div>
+                  <div className="mt-0.5 text-2xl font-extrabold ltr-num leading-none">
+                    <span className="gradient-gold">{totals.assigned}</span>
+                    <span style={{ color: "var(--foreground-muted)" }}>
+                      {" "}
+                      / {totals.total}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="text-sm" style={{ color: "var(--foreground-soft)" }}>אורחים מסודרים</div>
-                <div className="text-xl font-bold ltr-num">
-                  <span className="gradient-gold">{totals.assigned}</span>
-                  <span style={{ color: "var(--foreground-muted)" }}> / {totals.total}</span>
+              <div className="text-end">
+                <div
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  התקדמות
+                </div>
+                <div className="mt-0.5 text-3xl font-extrabold ltr-num gradient-gold leading-none">
+                  {totals.total > 0
+                    ? Math.round((totals.assigned / totals.total) * 100)
+                    : 0}
+                  %
                 </div>
               </div>
             </div>
-            <div className="text-sm" style={{ color: "var(--foreground-soft)" }}>
-              <span className="ltr-num font-semibold">{state.tables.length}</span> שולחנות · <span className="ltr-num font-semibold">{unassigned.length}</span> אורחים בהמתנה
-            </div>
-          </div>
 
+            {/* Animated progress bar */}
+            <div
+              className="mt-4 h-2 rounded-full overflow-hidden"
+              style={{ background: "rgba(0,0,0,0.25)" }}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={totals.total}
+              aria-valuenow={totals.assigned}
+            >
+              <motion.div
+                className="h-full rounded-full"
+                style={{
+                  background:
+                    "linear-gradient(90deg, var(--gold-100), var(--gold-500))",
+                  boxShadow:
+                    totals.assigned > 0
+                      ? "0 0 14px -2px var(--accent-glow)"
+                      : "none",
+                }}
+                initial={{ width: 0 }}
+                animate={{
+                  width: `${
+                    totals.total > 0
+                      ? (totals.assigned / totals.total) * 100
+                      : 0
+                  }%`,
+                }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              />
+            </div>
+
+            <div
+              className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              <span>
+                <span className="ltr-num font-bold">{state.tables.length}</span>{" "}
+                שולחנות פעילים
+              </span>
+              <span>
+                <span className="ltr-num font-bold">{unassigned.length}</span>{" "}
+                אורחים ממתינים להושבה
+              </span>
+            </div>
+          </section>
+
+          {/* R135 — polished empty states. Larger headlines, clearer
+              CTAs, gold-accented icon chips that match the rest of the
+              app's visual language. */}
           {state.guests.length === 0 && (
-            <div className="card p-10 mt-8 text-center" style={{ color: "var(--foreground-muted)" }}>
-              <p>עדיין אין מוזמנים. <Link href="/guests" className="text-[--accent] hover:underline">הוסף מוזמנים</Link> כדי להתחיל לסדר.</p>
+            <div className="card p-10 md:p-14 mt-8 text-center">
+              <div
+                className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--gold-100) 12%, transparent)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+              >
+                <Users size={28} />
+              </div>
+              <h3 className="text-xl font-bold">עדיין אין מוזמנים</h3>
+              <p
+                className="mt-2 text-sm max-w-md mx-auto leading-relaxed"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                לפני שמתחילים לסדר אורחים סביב שולחנות — הוסף את רשימת המוזמנים
+                שלך. אפשר להעלות מאקסל / לייבא מאנשי קשר / להוסיף ידנית.
+              </p>
+              <Link
+                href="/guests"
+                className="btn-gold mt-6 inline-flex items-center gap-2"
+              >
+                <Plus size={16} /> הוסף מוזמנים
+              </Link>
             </div>
           )}
 
           {state.guests.length > 0 && state.tables.length === 0 && (
-            <div className="card p-12 mt-8 text-center">
-              <div className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4" style={{ background: "var(--surface-2)", border: "1px dashed var(--border-strong)", color: "var(--accent)" }}>
+            <div className="card p-10 md:p-14 mt-8 text-center">
+              <div
+                className="inline-flex w-16 h-16 rounded-2xl items-center justify-center mb-4"
+                style={{
+                  background:
+                    "color-mix(in srgb, var(--gold-100) 12%, transparent)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+              >
                 <Plus size={28} />
               </div>
-              <h3 className="text-xl font-bold">תוסיף את השולחן הראשון</h3>
-              <p className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
-                כל שולחן הוא עיגול עם כיסאות. כיסאות זהובים = אורחים שיושבים.
+              <h3 className="text-xl font-bold">בנו את השולחן הראשון</h3>
+              <p
+                className="mt-2 text-sm max-w-md mx-auto leading-relaxed"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                כל שולחן הוא עיגול עם כיסאות. כיסאות זהובים = אורחים שכבר יושבים.
+                מומלץ 10-12 מקומות לשולחן ממוצע באירוע ישראלי.
               </p>
-              <button onClick={() => setShowAddTable(true)} className="btn-gold mt-5 inline-flex items-center gap-2">
-                <Plus size={16} /> שולחן חדש
+              <button
+                onClick={() => setShowAddTable(true)}
+                className="btn-gold mt-6 inline-flex items-center gap-2"
+              >
+                <Plus size={16} /> שולחן ראשון
               </button>
+              <p
+                className="mt-4 text-xs"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                💡 אחרי שיהיו לך 2-3 שולחנות — לחץ &quot;סדר אוטומטית&quot;
+                ונבנה לך הצעה חכמה
+              </p>
             </div>
           )}
 
@@ -864,6 +1021,37 @@ function Table3DInner({
         >
           {heads} / {table.capacity}
         </div>
+
+        {/* R135 — subtle capacity utilization bar. Lives at the bottom
+            of the table surface, between the count and the chair ring.
+            Gold gradient when partial, full-bright + glow when at
+            capacity, red when overflowing. Tiny but tells the host
+            which tables still have room from across the room. */}
+        {table.capacity > 0 && (
+          <div
+            className="mt-2 mx-auto h-0.5 w-12 rounded-full overflow-hidden"
+            style={{
+              background: "rgba(0,0,0,0.25)",
+            }}
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.min(100, fullness * 100)}%`,
+                background: overCapacity
+                  ? "linear-gradient(90deg, rgb(248,113,113), rgb(220,38,38))"
+                  : fullness >= 1
+                    ? "linear-gradient(90deg, var(--gold-100), var(--gold-500))"
+                    : "linear-gradient(90deg, rgba(244,222,169,0.5), rgba(168,136,74,0.6))",
+                boxShadow:
+                  fullness >= 1 && !overCapacity
+                    ? "0 0 6px var(--accent-glow)"
+                    : "none",
+              }}
+            />
+          </div>
+        )}
       </div>
     </button>
   );
