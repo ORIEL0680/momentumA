@@ -8,20 +8,28 @@ import { LivingSpark } from "@/components/dashboard/LivingSpark";
 import { LiveCountdown } from "@/components/dashboard/LiveCountdown";
 
 /**
- * R77 (R63 follow-up) — IntimateHero shrunk + premium polish.
+ * R138 — IntimateHero, "Save-the-Date" luxury edition.
  *
- * R76 paired LivingSpark with a live countdown. The combined card felt
- * too tall (~460px min-height + 12/16 padding) and the visual
- * hierarchy was static. This pass:
- *   • drops minHeight ~460→340px and tightens vertical padding
- *   • shrinks LivingSpark 300→220 to make room for the clock
- *   • adds a soft floating gold orb behind the spark (float-slow)
- *   • adds a hairline top accent stripe + inset gold ring
- *   • upgrades the names from gradient-gold → gradient-gold-shimmer
- *   • compresses the divider rhythm
+ * The user's request: make the names + date block the most beautiful
+ * thing in the app. R77 already polished it (smaller, shimmer text,
+ * orb). R138 re-architects it as a ceremonial save-the-date card:
  *
- * The contextual caption + past/today branches and the live clock
- * itself are unchanged.
+ *   1. Layered background — slow rotating conic gold halo (~28s),
+ *      a paper-grain SVG noise overlay, layered radial gold orbs.
+ *   2. Inner double-hairline frame — "passe-partout" effect, the
+ *      printed-invitation cue your eye reads as ceremonial.
+ *   3. Corner ornaments — small SVG filigrees in all four corners.
+ *   4. Names in Frank Ruhl Libre (the Hebrew display serif used by
+ *      Haaretz + premium Israeli editorial design) with a slow gold
+ *      shimmer + soft glow text-shadow + a beating gold floret
+ *      between the partners' names.
+ *   5. Date in engraved/letterpressed style — caps + wide tracking +
+ *      gold, framed between two hairline rules + a diamond floret.
+ *   6. LivingSpark sits inside a soft breathing gold halo; the
+ *      live countdown follows, anchored by a thin gold rule.
+ *
+ * All animations gracefully fall back under prefers-reduced-motion
+ * (handled in globals.css). The CSS lives under `.hero-luxury*`.
  */
 export function IntimateHero({
   event,
@@ -34,9 +42,7 @@ export function IntimateHero({
   /** 0–100 journey progress — enriches the spark's aria description. */
   progress?: number;
 }) {
-  const names = event.partnerName
-    ? `${event.hostName} ו-${event.partnerName}`
-    : event.hostName;
+  const hasPartner = !!event.partnerName?.trim();
   const emoji = EVENT_TYPE_EMOJI[event.type] ?? "✨";
   const typeLabel = EVENT_TYPE_LABELS[event.type] ?? "אירוע";
   const dateStr = formatEventDate(event.date, "long");
@@ -45,6 +51,8 @@ export function IntimateHero({
   const today = daysLeft === 0;
 
   // R76 (R63) — contextual subtitle paired with the live countdown.
+  // Phrasing stays the same as R77; rendered with refined typography
+  // under the countdown so it reads as a quiet whisper rather than UI.
   let countdownCaption = "";
   if (daysLeft != null && daysLeft > 0) {
     if (daysLeft > 30) {
@@ -60,117 +68,201 @@ export function IntimateHero({
 
   return (
     <section
-      className="relative overflow-hidden rounded-3xl mt-4"
+      className="hero-luxury mt-4"
       style={{
-        // R77 — was min(60vh, 460px); the new layout sits comfortably
-        // around 340px even with the largest segment sizes.
-        minHeight: "min(48vh, 340px)",
+        // Base background: warm dark gradient that lets the conic
+        // halo bloom through. Border kept hairline because the
+        // inner-frame (double hairline) does the heavy visual work.
         background:
-          // R88 (R71) — theme-aware. Was hardcoded dark gradient
-          // (#0E0B07 → #07060A) that stayed dark in light mode.
-          "radial-gradient(140% 80% at 50% -20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2) 0%, var(--background) 100%)",
+          "radial-gradient(140% 80% at 50% -20%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2) 0%, var(--background) 100%)",
         border: "1px solid var(--border-gold)",
-        // Subtle inset gold ring + lifted drop shadow — extra "card"
-        // depth without growing the footprint.
         boxShadow:
-          "inset 0 1px 0 rgba(244,222,169,0.18), 0 24px 60px -28px var(--accent-glow)",
+          "inset 0 1px 0 rgba(244,222,169,0.18), 0 30px 70px -30px var(--accent-glow), 0 12px 40px -12px rgba(0,0,0,0.55)",
       }}
+      aria-label="כותרת האירוע"
     >
-      {/* Hairline gold accent at the top — premium magazine feel. */}
-      <span
-        aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 h-px w-[60%] pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, var(--accent), transparent)",
-          opacity: 0.55,
-        }}
-      />
+      {/* Background layers — order matters: conic first (lowest),
+          then grain, then frame, then ornaments. All pointer-events
+          none so the content above stays interactive (none of the
+          children of this hero are interactive today, but futureproof). */}
+      <div aria-hidden className="hero-luxury-conic" />
+      <div aria-hidden className="hero-luxury-grain" />
+      <div aria-hidden className="hero-luxury-frame" />
 
-      {/* Soft floating gold orb. float-slow respects reduced motion via
-          the global media-query in globals.css. */}
-      <div
-        aria-hidden
-        className="absolute -top-20 left-1/2 -translate-x-1/2 w-[380px] h-[380px] rounded-full opacity-50 pointer-events-none float-slow"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(244,222,169,0.22), transparent 70%)",
-          filter: "blur(40px)",
-        }}
-      />
+      {/* Four corner ornaments. Each is the same SVG path; the CSS
+          (`.tl/.tr/.bl/.br`) flips them with scaleX/scaleY so the
+          flourish always opens INTO the corner. Stroke uses
+          `currentColor` so theme accent + opacity from CSS apply. */}
+      <Ornament className="hero-luxury-ornament tl" />
+      <Ornament className="hero-luxury-ornament tr" />
+      <Ornament className="hero-luxury-ornament bl" />
+      <Ornament className="hero-luxury-ornament br" />
 
-      <div className="relative z-10 flex flex-col items-center text-center px-6 py-8 md:py-10">
+      <div className="relative z-10 flex flex-col items-center text-center px-6 sm:px-10 py-10 md:py-12">
+        {/* Eyebrow — type pill in muted gold. Caps + tracking gives it
+            the "engraved metal nameplate" vibe above the names. */}
         <span
-          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-wider font-semibold"
+          className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] font-semibold"
           style={{
             background: "rgba(0,0,0,0.35)",
             border: "1px solid var(--border-gold)",
             color: "var(--accent)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
           }}
         >
           <span aria-hidden>{emoji}</span>
           {typeLabel}
         </span>
 
-        {/* Names — gradient-gold-shimmer (slow sheen sweep) replaces the
-            static gold gradient for extra "alive" feel without flashing. */}
-        <h1
-          className="mt-4 font-extrabold tracking-tight gradient-gold-shimmer leading-[1.05]"
-          style={{ fontSize: "clamp(1.875rem, 5vw, 2.625rem)" }}
-        >
-          {names}
-        </h1>
-
-        {dateStr && (
-          <p
-            className="mt-2 text-sm md:text-base"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            {dateStr}
-          </p>
-        )}
-
-        <div className="mt-5 flex flex-col items-center w-full">
-          <LivingSpark
-            daysUntilEvent={daysLeft}
-            progress={progress}
-            size={220}
-          />
-
-          {/* Compressed divider rhythm: less air between the spark and
-              the clock, but the gold line still anchors the section. */}
-          <div
-            aria-hidden
-            className="mx-auto mt-4 mb-4 w-12 h-px"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent, var(--accent), transparent)",
-              opacity: 0.7,
-            }}
-          />
-
-          {past ? (
-            <span className="text-xl md:text-2xl font-bold gradient-gold-shimmer">
-              🎉 חגגתם! תודה שתכננתם איתנו
-            </span>
-          ) : today ? (
-            <span className="text-2xl md:text-4xl font-extrabold gradient-gold-shimmer animate-pulse">
-              🎉 היום הגדול הגיע!
+        {/* Names — the centerpiece. Frank Ruhl Libre at hero size,
+            gradient-gold-shimmer for the slow sheen, with a floret
+            ornament between partners (or just the single name when
+            it's a solo host event like a bar mitzvah). */}
+        <h1 className="hero-luxury-names gradient-gold-shimmer mt-5 mb-1">
+          {hasPartner ? (
+            <span className="inline-flex items-baseline justify-center flex-wrap">
+              <span>{event.hostName}</span>
+              <span className="hero-luxury-amp" aria-hidden>
+                <AmpFloret />
+              </span>
+              <span>{event.partnerName}</span>
             </span>
           ) : (
-            <LiveCountdown targetDate={event.date} />
+            <span>{event.hostName}</span>
           )}
+        </h1>
 
-          {countdownCaption && (
-            <div
-              className="mt-4 text-xs md:text-sm max-w-md leading-relaxed"
-              style={{ color: "var(--foreground-muted)" }}
-            >
-              {countdownCaption}
-            </div>
-          )}
+        {/* Date — engraved style, framed by two hairline rules with a
+            diamond floret. Only renders if we have a meaningful date
+            string (formatEventDate returns "" for unset dates). */}
+        {dateStr && (
+          <div className="hero-luxury-rule" aria-label={`תאריך האירוע: ${dateStr}`}>
+            <span aria-hidden className="line" />
+            <span aria-hidden className="floret" />
+            <time className="hero-luxury-date">{dateStr}</time>
+            <span aria-hidden className="floret" />
+            <span aria-hidden className="line" />
+          </div>
+        )}
+
+        {/* LivingSpark — wrapped in the halo. Size stays 220 (same as
+            R77) so the proportions read against the new larger names
+            instead of competing with them. */}
+        <div className="hero-luxury-spark-wrap mt-6">
+          <LivingSpark daysUntilEvent={daysLeft} progress={progress} size={220} />
         </div>
+
+        {/* Slim gold rule between spark and countdown — repeats the
+            ceremonial "thin line ornament" rhythm without re-using a
+            floret (one is plenty for the date). */}
+        <div
+          aria-hidden
+          className="mx-auto mt-5 mb-4 w-16 h-px"
+          style={{
+            background: "linear-gradient(90deg, transparent, var(--accent), transparent)",
+            opacity: 0.7,
+          }}
+        />
+
+        {past ? (
+          <span className="hero-luxury-date text-xl md:text-2xl gradient-gold-shimmer" style={{ letterSpacing: "0.05em" }}>
+            🎉 חגגתם! תודה שתכננתם איתנו
+          </span>
+        ) : today ? (
+          <span className="text-2xl md:text-4xl font-extrabold gradient-gold-shimmer animate-pulse">
+            🎉 היום הגדול הגיע!
+          </span>
+        ) : (
+          <LiveCountdown targetDate={event.date} />
+        )}
+
+        {countdownCaption && (
+          <div
+            className="mt-5 text-xs md:text-sm max-w-md leading-relaxed"
+            style={{ color: "var(--foreground-muted)", fontStyle: "italic" }}
+          >
+            {countdownCaption}
+          </div>
+        )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Corner filigree SVG. A small flourish that "opens" into the
+ * corner of the card. Drawn at 56×56 with stroke=currentColor so
+ * the page's accent + the wrapper's opacity control color/contrast.
+ *
+ * Geometry: a 90° arc, two inward leaf curves, and a centered dot.
+ * Reads as a printed-invitation corner ornament without being
+ * busy enough to compete with the names.
+ */
+function Ornament({ className }: { className: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 56 56"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {/* Outer 90° arc, hugs the inner-frame radius. */}
+      <path d="M 4 28 Q 4 4 28 4" opacity="0.95" />
+      {/* Secondary parallel arc — gives a "double rule" engraved feel. */}
+      <path d="M 4 36 Q 4 0 40 0" opacity="0.45" strokeWidth="0.75" />
+      {/* Inward floret — a small petal pointing toward center. */}
+      <path d="M 10 22 Q 16 18 22 22 Q 18 28 22 34 Q 16 30 10 34 Q 14 28 10 22 Z" opacity="0.7" />
+      {/* Sharp dot at the very corner — punctuation. */}
+      <circle cx="4" cy="4" r="1.6" fill="currentColor" opacity="0.9" stroke="none" />
+      {/* Tiny dot at the end of the secondary arc — finish detail. */}
+      <circle cx="40" cy="0.5" r="1" fill="currentColor" opacity="0.6" stroke="none" />
+    </svg>
+  );
+}
+
+/**
+ * Ornamental floret rendered between the two partner names —
+ * a stylized four-pointed gold star inside a soft halo. Sized via
+ * `1em` so it scales naturally with the names' clamp() font size.
+ */
+function AmpFloret() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      width="1em"
+      height="1em"
+      fill="none"
+      aria-hidden
+      style={{ display: "block" }}
+    >
+      <defs>
+        <linearGradient id="amp-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#F4DEA9" />
+          <stop offset="55%" stopColor="#D4B068" />
+          <stop offset="100%" stopColor="#A8884A" />
+        </linearGradient>
+        <radialGradient id="amp-halo">
+          <stop offset="0%" stopColor="rgba(244,222,169,0.55)" />
+          <stop offset="60%" stopColor="rgba(212,176,104,0.10)" />
+          <stop offset="100%" stopColor="rgba(168,136,74,0)" />
+        </radialGradient>
+      </defs>
+      {/* Soft halo behind the star */}
+      <circle cx="16" cy="16" r="14" fill="url(#amp-halo)" />
+      {/* Four-pointed sparkle — formed from two intersecting diamonds */}
+      <path
+        d="M 16 2 L 19 14 L 30 16 L 19 18 L 16 30 L 13 18 L 2 16 L 13 14 Z"
+        fill="url(#amp-grad)"
+        stroke="rgba(255,255,255,0.4)"
+        strokeWidth="0.4"
+      />
+      {/* Tiny center dot — keeps the star centered visually */}
+      <circle cx="16" cy="16" r="1.4" fill="rgba(255,255,255,0.7)" />
+    </svg>
   );
 }

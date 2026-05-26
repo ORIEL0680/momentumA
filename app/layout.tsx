@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Heebo } from "next/font/google";
+import { Heebo, Frank_Ruhl_Libre } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { AssistantWidget } from "@/components/AssistantWidget";
@@ -24,6 +24,20 @@ const heebo = Heebo({
   variable: "--font-heebo",
   subsets: ["hebrew", "latin"],
   weight: ["300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
+// R138 — luxury display serif. Frank Ruhl Libre is the Hebrew display
+// face used by Haaretz, premium Israeli editorial brands, and
+// wedding-invitation studios. Loaded only for the dashboard hero (and
+// any other place we opt-in via the `.font-display` utility class), so
+// we don't grow body-copy font weight unnecessarily. Latin subset
+// included so English names + Latin punctuation in mixed contexts
+// don't fall back to a clashing system serif.
+const frankRuhl = Frank_Ruhl_Libre({
+  variable: "--font-display",
+  subsets: ["hebrew", "latin"],
+  weight: ["500", "700", "900"],
   display: "swap",
 });
 
@@ -125,7 +139,7 @@ export default async function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`${heebo.variable} h-full antialiased`}
+      className={`${heebo.variable} ${frankRuhl.variable} h-full antialiased`}
     >
       <head>
         {/* R70 (R59) — `suppressHydrationWarning` on nonce'd scripts.
