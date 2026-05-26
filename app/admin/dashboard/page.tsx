@@ -23,6 +23,7 @@ import { getSupabase } from "@/lib/supabase";
 import { isFounderEmail } from "@/lib/constants";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
+import { VendorControlPanel } from "@/components/admin/VendorControlPanel";
 
 /**
  * Admin dashboard.
@@ -76,6 +77,9 @@ export default function AdminDashboardPage() {
   // the user can see immediately if Google logged them in with a
   // different Gmail than the one in admin_emails.
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+  // R129 — hold the session access token so embedded panels (e.g.
+  // VendorControlPanel) can call /api/admin/* without re-fetching it.
+  const [adminToken, setAdminToken] = useState<string | null>(null);
 
   // R64 (R79) — clear the localStorage admin-cache hint on every
   // /admin/dashboard visit so the Header's pill re-checks against the
@@ -147,6 +151,7 @@ export default function AdminDashboardPage() {
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
+        setAdminToken(session.access_token);
 
         const res = await fetch("/api/admin/stats", {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -415,6 +420,11 @@ export default function AdminDashboardPage() {
             />
           </div>
         </section>
+
+        {/* R129 — inline vendor control panel. Lists active vendors
+            directly on the dashboard with pin/delete buttons so the
+            admin can manage without leaving this page. */}
+        {adminToken && <VendorControlPanel token={adminToken} />}
 
         {projectedRevenue && (
           <section className="card-gold p-7 mb-6">

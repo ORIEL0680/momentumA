@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { Check, Lock, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { JourneyStepStatus } from "@/lib/journey";
 import { fireConfetti } from "@/lib/confetti";
 
@@ -84,54 +84,19 @@ export function JourneyPath({
             <li key={step.def.id} className="flex items-stretch gap-4">
               {/* Circle + connector column */}
               <div className="flex flex-col items-center shrink-0">
-                {/* R128 — the journey circle was rendering the step
-                    number off-center. Root cause: <span> inherited the
-                    body's line-height (~1.5), so the glyph's line-box
-                    pushed the digit visually below the flex midpoint.
-                    Fix: explicit lineHeight: 1 + wrap the number in a
-                    block <span> so it participates in the flex layout
-                    as a real centered child instead of a raw text node
-                    whose baseline depends on the parent's font metrics. */}
-                <span
-                  className="inline-flex items-center justify-center rounded-full font-extrabold ltr-num"
-                  style={{
-                    width: 64,
-                    height: 64,
-                    fontSize: 20,
-                    lineHeight: 1,
-                    background: isDone
-                      ? "rgba(52,211,153,0.15)"
-                      : isActive
-                        ? "linear-gradient(135deg, var(--gold-100), var(--gold-500))"
-                        : "var(--input-bg)",
-                    border: `1px solid ${
-                      isDone
-                        ? "rgba(52,211,153,0.45)"
-                        : isActive
-                          ? "var(--border-gold)"
-                          : "var(--border)"
-                    }`,
-                    color: isDone
-                      ? "rgb(110,231,183)"
-                      : isActive
-                        ? "var(--gold-button-text)"
-                        : "var(--foreground-muted)",
-                    boxShadow: isActive
-                      ? "0 0 0 6px rgba(212,176,104,0.16)"
-                      : "none",
-                  }}
-                  aria-hidden
-                >
-                  {isDone ? (
-                    <Check size={26} strokeWidth={2.5} />
-                  ) : isLocked ? (
-                    <Lock size={22} />
-                  ) : (
-                    <span style={{ lineHeight: 1, display: "block" }}>
-                      {step.order}
-                    </span>
-                  )}
-                </span>
+                {/* R129 — SVG-based circle. R128's CSS flex+line-height
+                    approach STILL rendered the number a few pixels above
+                    center because the Heebo font's numeric glyphs sit
+                    above the baseline-midpoint of their box. CSS
+                    `align-items: center` aligns the box, not the visible
+                    glyph. SVG <text> with `dominantBaseline="central"`
+                    is geometrically true regardless of font metrics —
+                    the number lands in the literal pixel center, every
+                    time, every browser. */}
+                <JourneyCircle
+                  state={isDone ? "done" : isActive ? "active" : isLocked ? "locked" : "upcoming"}
+                  number={step.order}
+                />
                 {i < steps.length - 1 && (
                   <span
                     className="w-px flex-1 my-1"
@@ -216,5 +181,149 @@ export function JourneyPath({
         })}
       </ol>
     </section>
+  );
+}
+
+/**
+ * R129 — Pixel-perfect step circle rendered in SVG.
+ *
+ * The CSS-flex approach (R128) still rendered the number a few pixels
+ * above the geometric center because text glyphs are positioned by
+ * baseline, and most digital fonts have a baseline that's NOT the
+ * vertical center of the glyph's bounding box. CSS `align-items:
+ * center` aligns the line-box, not the visible glyph.
+ *
+ * SVG `<text dominantBaseline="central" textAnchor="middle">` is
+ * geometrically true — it places the text's optical center at the
+ * coordinates, regardless of font metrics. Same idea works for the
+ * Check ✓ and Lock 🔒 glyphs: we hand-draw them in SVG paths so
+ * they're positioned by stroke math, not font baseline.
+ *
+ * 64px outer with 1px stroke, padded coords so the stroke stays
+ * inside the box. Active state gets a 6px soft gold halo via a
+ * second larger circle behind the main one.
+ */
+function JourneyCircle({
+  state,
+  number,
+}: {
+  state: "done" | "active" | "locked" | "upcoming";
+  number: number;
+}) {
+  const SIZE = 64;
+  const STROKE = 1;
+  const R = (SIZE - STROKE) / 2; // inner radius leaving space for stroke
+  const CX = SIZE / 2;
+  const CY = SIZE / 2;
+
+  // Palette per state.
+  const fill =
+    state === "done"
+      ? "rgba(52,211,153,0.15)"
+      : state === "active"
+        ? "url(#journey-active-gradient)"
+        : "var(--input-bg)";
+  const stroke =
+    state === "done"
+      ? "rgba(52,211,153,0.45)"
+      : state === "active"
+        ? "var(--border-gold)"
+        : "var(--border)";
+  const fg =
+    state === "done"
+      ? "rgb(110,231,183)"
+      : state === "active"
+        ? "var(--gold-button-text)"
+        : "var(--foreground-muted)";
+
+  return (
+    <svg
+      width={SIZE}
+      height={SIZE}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      aria-hidden
+      style={{ display: "block" }}
+    >
+      <defs>
+        <linearGradient
+          id="journey-active-gradient"
+          x1="0%"
+          y1="0%"
+          x2="100%"
+          y2="100%"
+        >
+          <stop offset="0%" stopColor="var(--gold-100)" />
+          <stop offset="100%" stopColor="var(--gold-500)" />
+        </linearGradient>
+      </defs>
+
+      {/* Active-state halo (rendered first so it sits behind). */}
+      {state === "active" && (
+        <circle
+          cx={CX}
+          cy={CY}
+          r={R + 4}
+          fill="rgba(212,176,104,0.16)"
+          stroke="none"
+        />
+      )}
+
+      {/* Main circle */}
+      <circle
+        cx={CX}
+        cy={CY}
+        r={R - 3}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={STROKE}
+      />
+
+      {/* Content: ✓ / 🔒 / number — all centered via SVG geometry. */}
+      {state === "done" ? (
+        // Checkmark path — coordinates relative to circle center, so
+        // it's perfectly visually centered.
+        <path
+          d={`M ${CX - 9} ${CY + 1} l 6 6 l 12 -12`}
+          stroke={fg}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      ) : state === "locked" ? (
+        // Lock body + shackle. Body is a rounded rect, shackle is a
+        // partial arc. Hand-drawn so it lines up with the circle.
+        <g stroke={fg} strokeWidth={2} fill="none" strokeLinecap="round">
+          <rect
+            x={CX - 8}
+            y={CY - 2}
+            width={16}
+            height={14}
+            rx={2}
+            fill={fg}
+            stroke="none"
+          />
+          <path
+            d={`M ${CX - 5} ${CY - 2} v -4 a 5 5 0 0 1 10 0 v 4`}
+          />
+        </g>
+      ) : (
+        <text
+          x={CX}
+          y={CY}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={20}
+          fontWeight={800}
+          fill={fg}
+          style={{
+            fontFamily: "inherit",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {number}
+        </text>
+      )}
+    </svg>
   );
 }
