@@ -61,12 +61,14 @@ export function BulkSendViaMomentumModal({
     candidates.map((g) => ({ status: "queued", guest: g })),
   );
   const cancelRef = useRef(false);
-  // R133 — pre-flight sandbox check. Hits the status endpoint once on
-  // mount; if the Twilio account is on the shared Sandbox number, we
-  // show a red banner BEFORE the host clicks send. Without this the
-  // bulk-send modal would happily report "✓ 200 נשלחו" while
-  // 0 actually reached anyone.
+  // R133/R134 — pre-flight diagnostics. Either of two configs breaks
+  // first-contact delivery silently from the host's POV:
+  //   • sandbox        — Twilio's shared sender, only joined phones get msgs
+  //   • !templateOk    — no approved Content Template SID, first messages
+  //                       fall to free-form which Meta rejects silently
+  // The UI surfaces whichever applies BEFORE the host hits send.
   const [sandbox, setSandbox] = useState(false);
+  const [templateOk, setTemplateOk] = useState(true); // assume OK until told otherwise
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -81,8 +83,12 @@ export function BulkSendViaMomentumModal({
         });
         const body = (await res.json().catch(() => ({}))) as {
           sandbox?: boolean;
+          templateConfigured?: boolean;
         };
-        if (!cancelled) setSandbox(!!body.sandbox);
+        if (!cancelled) {
+          setSandbox(!!body.sandbox);
+          setTemplateOk(body.templateConfigured !== false);
+        }
       } catch {
         /* offline / 503 — fall through to default (no banner) */
       }
@@ -91,6 +97,7 @@ export function BulkSendViaMomentumModal({
       cancelled = true;
     };
   }, []);
+  const willFail = sandbox || !templateOk;
 
   // Esc/click-out close (only when not mid-send so a slip doesn't
   // abort a 200-guest batch) + body scroll lock.
@@ -308,10 +315,10 @@ export function BulkSendViaMomentumModal({
         <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
           {phase === "confirm" && (
             <>
-              {/* R133 — sandbox warning. Show BEFORE the host hits send
-                  so they don't waste a 200-guest batch on the silent-
-                  drop sandbox path. */}
-              {sandbox && (
+              {/* R134 — diagnose-and-warn BEFORE the host hits send.
+                  Two distinct configs break first-contact delivery
+                  silently; we show whichever applies. */}
+              {willFail && (
                 <div
                   className="rounded-2xl p-3 text-sm leading-relaxed flex items-start gap-2.5"
                   style={{
@@ -323,28 +330,71 @@ export function BulkSendViaMomentumModal({
                 >
                   <AlertTriangle size={18} className="shrink-0 mt-0.5" aria-hidden />
                   <div>
-                    <div className="font-bold mb-1">
-                      ⚠️ Twilio במצב Sandbox — האורחים לא יקבלו!
-                    </div>
-                    <div
-                      className="text-xs"
-                      style={{ color: "rgba(252,165,165,0.95)" }}
-                    >
-                      רק טלפונים שביצעו &quot;join&quot; ידני מקבלים הודעות
-                      ב-Sandbox. השליחה תיראה כמוצלחת אבל ההודעות לא
-                      יגיעו לאף אורח (חוץ מהטלפון שלך, אם הצטרפת בעבר).
-                    </div>
-                    <div
-                      className="mt-2 text-[11px]"
-                      style={{ color: "rgba(252,165,165,0.85)" }}
-                    >
-                      <strong>פתרון:</strong> שדרג ל-WhatsApp Business דרך
-                      Twilio (דורש אישור Meta, 1-3 ימים).
-                      <br />
-                      <strong>בינתיים:</strong> סגור חלון זה ולחץ על
-                      כפתור ה-וואטסאפ הירוק ליד כל אורח בנפרד — זה
-                      פותח את WhatsApp במכשיר שלך ומגיע ל-100% מהאורחים.
-                    </div>
+                    {sandbox ? (
+                      <>
+                        <div className="font-bold mb-1">
+                          ⚠️ Twilio במצב Sandbox — האורחים לא יקבלו
+                        </div>
+                        <div
+                          className="text-xs"
+                          style={{ color: "rgba(252,165,165,0.95)" }}
+                        >
+                          רק טלפונים שביצעו &quot;join&quot; ידני מקבלים
+                          הודעות ב-Sandbox. השליחה תיראה כמוצלחת אבל
+                          ההודעות לא יגיעו לאף אורח.
+                        </div>
+                        <div
+                          className="mt-2 text-[11px]"
+                          style={{ color: "rgba(252,165,165,0.85)" }}
+                        >
+                          <strong>פתרון:</strong> שדרג ל-WhatsApp Business
+                          דרך Twilio (אישור Meta, 1-3 ימים).
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-bold mb-1">
+                          ⚠️ אין תבנית WhatsApp מאושרת — האורחים לא יקבלו
+                        </div>
+                        <div
+                          className="text-xs"
+                          style={{ color: "rgba(252,165,165,0.95)" }}
+                        >
+                          ה‑Sender שלך (Momentum, +972 53-362-5007) מאושר,
+                          אבל WhatsApp דורש <strong>תבנית מאושרת מ-Meta</strong>{" "}
+                          עבור הודעה ראשונה לכל אורח. בלי תבנית, ההודעה
+                          נשלחת כ-free-form ו-Meta מפילה אותה בשקט.
+                        </div>
+                        <div
+                          className="mt-2 text-[11px]"
+                          style={{ color: "rgba(252,165,165,0.85)" }}
+                        >
+                          <strong>איך לפתור:</strong>
+                          <ol className="mt-1 list-decimal list-inside space-y-0.5">
+                            <li>
+                              Twilio Console → Messaging → Content Template Builder
+                            </li>
+                            <li>צור תבנית הזמנה לחתונה עם 5 משתנים ({"{{1}}—{{5}}"})</li>
+                            <li>Submit לאישור Meta (אישור 1-24 שעות)</li>
+                            <li>
+                              העתק את ה-Content SID (HX...) והוסף ל-Vercel:
+                              <br />
+                              <code className="ltr-num bg-black/30 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                NEXT_PUBLIC_TWILIO_TEMPLATE_INVITATION_SID
+                              </code>
+                            </li>
+                          </ol>
+                        </div>
+                        <div
+                          className="mt-2 text-[11px]"
+                          style={{ color: "rgba(252,165,165,0.85)" }}
+                        >
+                          <strong>בינתיים:</strong> סגור חלון זה ולחץ על
+                          כפתור הוואטסאפ הירוק ליד כל אורח בנפרד — זה
+                          פותח WhatsApp במכשיר שלך ומגיע ל‑100% מהאורחים.
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -481,10 +531,13 @@ export function BulkSendViaMomentumModal({
               <button
                 type="button"
                 onClick={() => {
-                  if (sandbox) {
+                  if (willFail) {
+                    const reason = sandbox
+                      ? "Twilio במצב Sandbox"
+                      : "אין תבנית WhatsApp מאושרת";
                     if (
                       !confirm(
-                        "Twilio במצב Sandbox — האורחים לא יקבלו הודעות. להמשיך בכל זאת? (לרוב המקרים: ביטול ושימוש בכפתור הוואטסאפ הירוק בשורה לכל אורח)",
+                        `${reason} — האורחים לא יקבלו הודעות. להמשיך בכל זאת? (מומלץ: ביטול ושימוש בכפתור הוואטסאפ הירוק בשורה לכל אורח)`,
                       )
                     ) {
                       return;

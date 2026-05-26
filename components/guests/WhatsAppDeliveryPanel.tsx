@@ -48,10 +48,14 @@ export function WhatsAppDeliveryPanel() {
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageStatus[]>([]);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
-  // R133 — Twilio sandbox flag from the status endpoint. When true,
-  // the panel renders a prominent red banner explaining why guests
-  // aren't receiving messages even though the API reports success.
+  // R133/R134 — diagnostic flags from the status endpoint.
+  //   sandbox     = on Twilio's shared sandbox sender
+  //   templateOk  = an approved Content Template SID is configured.
+  //                 When false on a production sender, first messages
+  //                 fall to free-form which Meta silently rejects —
+  //                 the most common cause of "guests don't receive".
   const [sandbox, setSandbox] = useState(false);
+  const [templateOk, setTemplateOk] = useState(true);
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -76,14 +80,17 @@ export function WhatsAppDeliveryPanel() {
         messages?: MessageStatus[];
         error?: string;
         sandbox?: boolean;
+        templateConfigured?: boolean;
       };
       if (!res.ok || !body.ok) {
         setError(body.error ?? "fetch_failed");
         setSandbox(!!body.sandbox);
+        setTemplateOk(body.templateConfigured !== false);
         return;
       }
       setMessages(body.messages ?? []);
       setSandbox(!!body.sandbox);
+      setTemplateOk(body.templateConfigured !== false);
       setLastFetched(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "network");
@@ -185,12 +192,9 @@ export function WhatsAppDeliveryPanel() {
             </button>
           </div>
 
-          {/* R133 — sandbox banner. When TWILIO_WHATSAPP_FROM is the
-              shared sandbox number +14155238886, only phones that
-              manually sent `join <keyword>` receive messages. Everyone
-              else gets a silent drop. This is THE most common root
-              cause of "my guests don't get the invitations" and it's
-              an account-config issue, not a code bug. */}
+          {/* R133/R134 — diagnostic banners. Either condition silently
+              breaks delivery from the host's POV (Twilio API reports
+              success, Meta drops the message). */}
           {sandbox && (
             <div
               className="rounded-2xl p-3 text-xs leading-relaxed flex items-start gap-2"
@@ -204,17 +208,49 @@ export function WhatsAppDeliveryPanel() {
               <AlertTriangle size={16} className="shrink-0 mt-0.5" aria-hidden />
               <div>
                 <div className="font-bold mb-1">
-                  ⚠️ חשבון Twilio במצב Sandbox — האורחים לא יקבלו הודעות
+                  ⚠️ חשבון Twilio במצב Sandbox
                 </div>
                 <div style={{ color: "rgb(252,165,165, 0.9)" }}>
-                  זו הסיבה שרק הטלפון שלך מקבל הודעות. ה-Sandbox מספק
-                  הודעות רק לטלפונים שביצעו &quot;join&quot; ידני.
+                  ה-Sandbox מספק הודעות רק לטלפונים שביצעו
+                  &quot;join&quot; ידני. שדרג ל-WhatsApp Business דרך
+                  Twilio (אישור Meta, 1-3 ימים).
                 </div>
-                <div className="mt-2 text-[11px]" style={{ color: "rgba(252,165,165,0.85)" }}>
-                  פתרון: שדרג את חשבון ה-Twilio שלך ל-WhatsApp Business
-                  API (דרך אישור Meta). עד אז — השתמש בכפתורי
-                  &quot;שלח דרך וואטסאפ&quot; (wa.me) שעובדים מהמכשיר
-                  שלך ומגיעים לכל אורח.
+              </div>
+            </div>
+          )}
+
+          {!sandbox && !templateOk && (
+            <div
+              className="rounded-2xl p-3 text-xs leading-relaxed flex items-start gap-2"
+              style={{
+                background: "rgba(248,113,113,0.08)",
+                border: "1px solid rgba(248,113,113,0.4)",
+                color: "rgb(252,165,165)",
+              }}
+              role="alert"
+            >
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" aria-hidden />
+              <div>
+                <div className="font-bold mb-1">
+                  ⚠️ אין תבנית WhatsApp מאושרת
+                </div>
+                <div style={{ color: "rgb(252,165,165, 0.9)" }}>
+                  ה-Sender שלך מאושר ב-Twilio, אבל Meta דורש{" "}
+                  <strong>תבנית מאושרת</strong> להודעה ראשונה לאורח.
+                  בלי תבנית — Meta מפילה את ההודעה בשקט, Twilio מציג
+                  &quot;sent&quot; אבל האורח לא מקבל.
+                </div>
+                <div
+                  className="mt-2 text-[11px]"
+                  style={{ color: "rgba(252,165,165,0.85)" }}
+                >
+                  פתרון: צור תבנית ב-Twilio Console (Messaging → Content
+                  Template Builder), submit לאישור Meta, ואז הוסף את
+                  ה-Content SID (HX...) למשתנה{" "}
+                  <code className="ltr-num bg-black/30 px-1 rounded">
+                    NEXT_PUBLIC_TWILIO_TEMPLATE_INVITATION_SID
+                  </code>{" "}
+                  ב-Vercel.
                 </div>
               </div>
             </div>

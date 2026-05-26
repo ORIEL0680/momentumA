@@ -36,23 +36,38 @@ export function isWhatsAppConfigured(): boolean {
  * R133 — true when the configured sender is Twilio's shared WhatsApp
  * Sandbox number (`+14155238886`).
  *
- * Sandbox mode has a hard limitation that bit the owner: Twilio will
- * ONLY deliver messages to phones that have manually sent
- * `join <keyword>` to that number first. The owner's phone joined
- * during setup → receives messages. Guests never joined → Twilio
- * silently drops their messages (sometimes returns "queued" or
- * "sent" status, but no delivery actually happens).
+ * Sandbox mode delivers ONLY to phones that have manually sent
+ * `join <keyword>` to that number first. If you're on the sandbox,
+ * guests who never joined never receive messages.
  *
- * The only path to deliver-to-anyone is moving off the sandbox to a
- * verified WhatsApp Business sender through Twilio + Meta. Until
- * then the UI surfaces this banner so the host doesn't waste real
- * invitations on the silent-drop path.
+ * R134 update: a verified production sender (e.g. +972533625007) is
+ * also gated by approved CONTENT TEMPLATES. See `isInvitationTemplateConfigured()`.
  */
 export function isWhatsAppSandbox(): boolean {
   if (!TWILIO_WHATSAPP_FROM) return false;
   // The canonical sandbox number. Normalize for "+", spaces, dashes.
   const digits = TWILIO_WHATSAPP_FROM.replace(/\D/g, "");
   return digits === "14155238886";
+}
+
+/**
+ * R134 — true when an invitation template Content SID is configured.
+ *
+ * Even with a verified production WhatsApp sender, Meta requires an
+ * APPROVED Content Template for the FIRST message to any new recipient
+ * (or any message outside the 24-hour customer-service window). If the
+ * SID env var is empty, the bulk-send code falls through to free-form
+ * messages — which Meta silently rejects for first-contact recipients.
+ * From the host's POV: Twilio API returns "sent", Meta drops delivery,
+ * guests never see anything.
+ *
+ * The owner-reported "messages only reach my phone" symptom can be
+ * caused by either (a) sandbox sender (R133) or (b) missing template
+ * SID (R134). This function gates the second case.
+ */
+export function isInvitationTemplateConfigured(): boolean {
+  const sid = process.env.NEXT_PUBLIC_TWILIO_TEMPLATE_INVITATION_SID ?? "";
+  return sid.startsWith("HX");
 }
 
 export interface SendResult {

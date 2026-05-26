@@ -5,6 +5,7 @@ import {
   fetchRecentWhatsAppMessages,
   isWhatsAppConfigured,
   isWhatsAppSandbox,
+  isInvitationTemplateConfigured,
 } from "@/lib/twilio-whatsapp";
 import { rateLimit } from "@/lib/serverRateLimit";
 
@@ -80,22 +81,25 @@ export async function GET(req: NextRequest) {
     : 20;
 
   const result = await fetchRecentWhatsAppMessages(limit);
+  const diagnostics = {
+    sandbox: isWhatsAppSandbox(),
+    // R134 — most production senders fail FIRST-CONTACT delivery
+    // because no approved template SID is configured. UI uses this
+    // to surface the right diagnosis.
+    templateConfigured: isInvitationTemplateConfigured(),
+  };
+
   if (!result.ok) {
     const status = result.error === "not_configured" ? 503 : 502;
     return NextResponse.json(
-      { ok: false, error: result.error, sandbox: isWhatsAppSandbox() },
+      { ok: false, error: result.error, ...diagnostics },
       { status },
     );
   }
 
-  // R133 — surface `sandbox` flag so the UI can warn the host that
-  // recipients who haven't joined the Twilio sandbox keyword won't
-  // receive ANY messages. This was the root cause of "guests don't
-  // receive my invitations" — Twilio queues + accepts the request
-  // but silently drops delivery.
   return NextResponse.json({
     ok: true,
     messages: result.messages,
-    sandbox: isWhatsAppSandbox(),
+    ...diagnostics,
   });
 }
