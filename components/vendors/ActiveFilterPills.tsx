@@ -8,7 +8,7 @@ import { type SortMode, SORT_LABELS, type VendorFilters } from "@/lib/vendorRank
 interface ActiveFilterPillsProps {
   filters: VendorFilters;
   sort: SortMode;
-  onClear: (key: "region" | "type" | "search" | "maxPrice" | "catalogOnly") => void;
+  onClear: (key: "region" | "type" | "search" | "catalogOnly") => void;
   onClearAll: () => void;
 }
 
@@ -18,7 +18,7 @@ export function ActiveFilterPills({ filters, sort, onClear, onClearAll }: Active
   if (filters.region !== "all") pills.push({ key: "region", label: `אזור: ${REGION_LABELS[filters.region as Region]}` });
   if (filters.type !== "all") pills.push({ key: "type", label: `קטגוריה: ${VENDOR_TYPE_LABELS[filters.type as VendorType]}` });
   if (filters.search.trim()) pills.push({ key: "search", label: `חיפוש: "${filters.search.trim()}"` });
-  if (filters.maxPrice !== null) pills.push({ key: "maxPrice", label: `עד ₪${filters.maxPrice.toLocaleString("he-IL")}` });
+  // R132 — maxPrice pill removed alongside the filter.
   if (filters.catalogOnly) pills.push({ key: "catalogOnly", label: "בקטלוג בלבד" });
 
   if (pills.length === 0) return null;

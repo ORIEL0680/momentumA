@@ -19,8 +19,22 @@ import { useSyncExternalStore } from "react";
  * confirmed". The inbox is a feed of "what just happened".
  */
 
-const STORAGE_KEY = "momentum.notifications.v1";
+// R132 — bumped to v2 so any pre-existing inbox (which the owner
+// flagged as full of "invented" historical replays) is wiped on
+// first load. v1 entries stay in localStorage but are no longer
+// read; the next addNotification call writes under the new key.
+const STORAGE_KEY = "momentum.notifications.v2";
 const MAX_ENTRIES = 50;
+
+// Real-event freshness window. Anything older than this when the
+// notification arrives is treated as a historical replay (polling
+// re-fetching old rows, channel resubscribe after sleep, etc.) and
+// silently dropped — the bell only surfaces things the host should
+// actually care about NOW. 30 minutes is generous enough to catch
+// a vendor-side delay between the guest tapping confirm and the
+// row landing in Supabase, but tight enough that nothing from a
+// previous session leaks into the bell.
+const FRESHNESS_WINDOW_MS = 30 * 60 * 1000;
 
 export type NotificationKind =
   | "rsvp_confirmed"
@@ -89,8 +103,19 @@ function getAll(): AppNotification[] {
   return cache;
 }
 
-/** Push a new notification onto the inbox. Deduped by id when an id
- *  is passed (otherwise auto-generated). Newest-first ordering. */
+/** Push a new notification onto the inbox.
+ *
+ *  R132 — two new guard rails based on owner feedback ("ממציא התראות"):
+ *
+ *  1. Freshness window: if `createdAt` is older than 30 minutes, the
+ *     event is dropped without writing to storage. Polling fallback
+ *     loops (lib/rsvpSync.ts) can re-deliver historical rows when
+ *     the channel resubscribes after sleep — those used to show up
+ *     as new notifications. Now they're silently ignored.
+ *
+ *  2. Replace-on-dedup is unchanged (passing the same `id` collapses
+ *     into one row, idempotent on retries).
+ */
 export function addNotification(
   partial: Omit<AppNotification, "id" | "createdAt"> & {
     id?: string;
@@ -99,6 +124,17 @@ export function addNotification(
 ): void {
   const id = partial.id ?? crypto.randomUUID();
   const createdAt = partial.createdAt ?? new Date().toISOString();
+  // Freshness gate. `createdAt` is the event's real-world timestamp
+  // (RSVP responded_at, etc.) — comparing to wall clock catches both
+  // "5-day-old row replayed by poll" AND "user opens dashboard, sees
+  // a confirm from yesterday surface as if it just happened".
+  const eventTime = new Date(createdAt).getTime();
+  if (
+    !Number.isFinite(eventTime) ||
+    Date.now() - eventTime > FRESHNESS_WINDOW_MS
+  ) {
+    return;
+  }
   const next: AppNotification = {
     id,
     kind: partial.kind,
@@ -139,6 +175,16 @@ if (typeof window !== "undefined") {
     cache = null;
     listeners.forEach((l) => l());
   });
+
+  // R132 — one-time wipe of the v1 inbox. Owner reported the bell was
+  // accumulating historical replays as if they were new events. The
+  // freshness gate in addNotification stops future leakage; this
+  // sweeps whatever's already on disk so they don't see them again.
+  try {
+    localStorage.removeItem("momentum.notifications.v1");
+  } catch {
+    /* private mode / quota — best-effort */
+  }
 }
 
 // ─────────────────── React hook ───────────────────────

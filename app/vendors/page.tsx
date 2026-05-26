@@ -179,11 +179,10 @@ function VendorsInner() {
           next.type = parsed.type;
         }
         if (typeof parsed.search === "string") next.search = parsed.search;
-        if (typeof parsed.maxPrice === "number" || parsed.maxPrice === null) {
-          next.maxPrice = parsed.maxPrice ?? null;
-        }
+        // R132 — maxPrice + cheapest/expensive sort removed. Old
+        // storage entries are ignored silently.
         if (typeof parsed.catalogOnly === "boolean") next.catalogOnly = parsed.catalogOnly;
-        if (parsed.sort === "recommended" || parsed.sort === "closest" || parsed.sort === "cheapest" || parsed.sort === "expensive") {
+        if (parsed.sort === "recommended" || parsed.sort === "closest") {
           nextSort = parsed.sort;
         }
       }
@@ -198,13 +197,10 @@ function VendorsInner() {
     if (urlType && urlType in VENDOR_TYPE_LABELS) next.type = urlType;
     const urlQ = searchParams.get("q");
     if (urlQ) next.search = urlQ;
-    const urlMax = searchParams.get("max");
-    if (urlMax) {
-      const n = Number(urlMax);
-      if (Number.isFinite(n) && n > 0) next.maxPrice = n;
-    }
+    // R132 — ?max= and ?sort=cheapest/expensive no longer honored;
+    // price filtering was removed. Stale links degrade to defaults.
     const urlSort = searchParams.get("sort");
-    if (urlSort === "recommended" || urlSort === "closest" || urlSort === "cheapest" || urlSort === "expensive") {
+    if (urlSort === "recommended" || urlSort === "closest") {
       nextSort = urlSort;
     }
 
@@ -272,7 +268,7 @@ function VendorsInner() {
       if (filters.region !== "all") params.set("region", filters.region);
       if (filters.type !== "all") params.set("type", filters.type);
       if (filters.search.trim()) params.set("q", filters.search.trim());
-      if (filters.maxPrice !== null) params.set("max", String(filters.maxPrice));
+      // R132 — ?max= no longer written; price filtering removed.
       if (sort !== "recommended") params.set("sort", sort);
       // Quick Look open state stays in the URL too.
       if (quickVendor) params.set("vendor", quickVendor.id);
@@ -326,7 +322,7 @@ function VendorsInner() {
   const setFilterField = useCallback(<K extends keyof VendorFiltersShape>(key: K, value: VendorFiltersShape[K]) => {
     setFilters((f) => ({ ...f, [key]: value }));
   }, []);
-  const clearOne = useCallback((key: "region" | "type" | "search" | "maxPrice" | "catalogOnly") => {
+  const clearOne = useCallback((key: "region" | "type" | "search" | "catalogOnly") => {
     setFilters((f) => ({ ...f, [key]: EMPTY_FILTERS[key] }));
   }, []);
   const clearAll = useCallback(() => {
@@ -356,9 +352,7 @@ function VendorsInner() {
   // ONE click that would each likely surface results.
   const emptyStateActions = useMemo(() => {
     const out: Array<{ label: string; action: () => void }> = [];
-    if (filters.maxPrice !== null) {
-      out.push({ label: "הסר את מגבלת המחיר", action: () => clearOne("maxPrice") });
-    }
+    // R132 — maxPrice empty-state CTA removed alongside the filter.
     if (filters.region !== "all") {
       const adjacents = ADJACENT_REGIONS[filters.region as Region] ?? [];
       if (adjacents.length > 0) {
@@ -482,8 +476,6 @@ function VendorsInner() {
             onRegion={(r) => setFilterField("region", r)}
             sort={sort}
             onSort={setSort}
-            maxPrice={filters.maxPrice}
-            onMaxPrice={(p) => setFilterField("maxPrice", p)}
             catalogOnly={filters.catalogOnly}
             onCatalogOnly={(v) => setFilterField("catalogOnly", v)}
           />

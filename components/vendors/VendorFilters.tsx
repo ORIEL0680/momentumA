@@ -4,20 +4,17 @@ import {
   Search,
   Sparkles,
   MapPin,
-  TrendingDown,
-  TrendingUp,
   ShieldCheck,
 } from "lucide-react";
 import type { Region } from "@/lib/types";
 import { REGION_LABELS } from "@/lib/types";
 import { type SortMode, SORT_LABELS } from "@/lib/vendorRanking";
 
-const PRICE_BUCKETS: Array<{ label: string; value: number | null }> = [
-  { label: "ללא מגבלה", value: null },
-  { label: "עד ₪5,000", value: 5000 },
-  { label: "עד ₪10,000", value: 10000 },
-  { label: "עד ₪50,000", value: 50000 },
-];
+// R132 — PRICE_BUCKETS + the cheapest/expensive sort pills + the
+// "מחיר" group were removed at owner request. The catalog `priceFrom`
+// is a rough seed value (vendors quote per-event) so price-anchored
+// filtering misled more than it helped. Recommended + closest stay;
+// "בקטלוג בלבד" stays as the only non-text filter.
 
 interface VendorFiltersProps {
   search: string;
@@ -26,8 +23,6 @@ interface VendorFiltersProps {
   onRegion: (r: Region | "all") => void;
   sort: SortMode;
   onSort: (s: SortMode) => void;
-  maxPrice: number | null;
-  onMaxPrice: (p: number | null) => void;
   catalogOnly: boolean;
   onCatalogOnly: (v: boolean) => void;
 }
@@ -70,30 +65,6 @@ export function VendorFilters(props: VendorFiltersProps) {
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <SortPill icon={<Sparkles size={12} />} label={SORT_LABELS.recommended} active={props.sort === "recommended"} onClick={() => props.onSort("recommended")} />
         <SortPill icon={<MapPin size={12} />} label={SORT_LABELS.closest} active={props.sort === "closest"} onClick={() => props.onSort("closest")} />
-        <SortPill icon={<TrendingDown size={12} />} label={SORT_LABELS.cheapest} active={props.sort === "cheapest"} onClick={() => props.onSort("cheapest")} />
-        <SortPill icon={<TrendingUp size={12} />} label={SORT_LABELS.expensive} active={props.sort === "expensive"} onClick={() => props.onSort("expensive")} />
-
-        <span className="ms-2 text-white/50" aria-hidden>·</span>
-
-        <span className="text-white/50">מחיר:</span>
-        {PRICE_BUCKETS.map((p) => {
-          const active = props.maxPrice === p.value;
-          return (
-            <button
-              key={String(p.value)}
-              type="button"
-              onClick={() => props.onMaxPrice(p.value)}
-              aria-pressed={active}
-              className={`rounded-full px-3 py-2.5 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] ${
-                active
-                  ? "bg-white/10 border-white/20 text-white"
-                  : "border-white/10 text-white/60 hover:bg-white/5"
-              }`}
-            >
-              {p.value === null ? p.label : <span className="ltr-num">{p.label}</span>}
-            </button>
-          );
-        })}
         <button
           type="button"
           onClick={() => props.onCatalogOnly(!props.catalogOnly)}

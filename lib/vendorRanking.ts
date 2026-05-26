@@ -10,14 +10,20 @@
 
 import type { Region, Vendor, VendorType } from "./types";
 
-/** Sort modes the user can pick on /vendors. */
-export type SortMode = "recommended" | "closest" | "cheapest" | "expensive";
+/**
+ * Sort modes the user can pick on /vendors.
+ *
+ * R132 — owner removed `cheapest`/`expensive` (and the maxPrice filter
+ * below). The catalog priceFrom field is a rough seed value, not a
+ * reliable signal — vendors quote per-event, not per-list-price — so
+ * "cheapest first" misleads. Recommended + closest stay; both are
+ * meaningful signals.
+ */
+export type SortMode = "recommended" | "closest";
 
 export const SORT_LABELS: Record<SortMode, string> = {
   recommended: "מומלצים",
   closest: "הכי קרובים",
-  cheapest: "הזולים ביותר",
-  expensive: "היקרים ביותר",
 };
 
 /**
@@ -71,10 +77,6 @@ export function sortVendors(
         const score = proximityScore(b, userRegion) - proximityScore(a, userRegion);
         return score !== 0 ? score : b.rating - a.rating;
       });
-    case "cheapest":
-      return list.sort((a, b) => a.priceFrom - b.priceFrom);
-    case "expensive":
-      return list.sort((a, b) => b.priceFrom - a.priceFrom);
     case "recommended":
     default:
       return list.sort((a, b) => recommendedScore(b) - recommendedScore(a));
@@ -85,16 +87,17 @@ export interface VendorFilters {
   region: Region | "all";
   type: VendorType | "all";
   search: string;
-  /** Hard cap on `priceFrom`; null = no limit. */
-  maxPrice: number | null;
   catalogOnly: boolean;
 }
 
+// R132 — maxPrice filter removed. `priceFrom` is a rough seed value
+// the static catalog ships with; vendors quote per-event, so filtering
+// by a fixed ceiling silently hid plenty of relevant matches. Owner
+// asked to drop money-related filters entirely.
 export const EMPTY_FILTERS: VendorFilters = {
   region: "all",
   type: "all",
   search: "",
-  maxPrice: null,
   catalogOnly: false,
 };
 
@@ -104,7 +107,6 @@ export function filterVendors(vendors: Vendor[], f: VendorFilters): Vendor[] {
   return vendors.filter((v) => {
     if (f.region !== "all" && v.region !== f.region) return false;
     if (f.type !== "all" && v.type !== f.type) return false;
-    if (f.maxPrice !== null && v.priceFrom > f.maxPrice) return false;
     if (f.catalogOnly && !v.inCatalog) return false;
     if (q) {
       if (
