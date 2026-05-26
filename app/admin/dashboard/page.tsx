@@ -287,7 +287,35 @@ export default function AdminDashboardPage() {
     );
   }
 
-  if (!stats) return null;
+  // R126 — was `return null` (blank screen if the stats response was
+  // empty but didn't 4xx). Replace with an honest empty state + retry
+  // CTA so the admin isn't staring at a black page.
+  if (!stats) {
+    return (
+      <main className="min-h-screen flex items-center justify-center px-5">
+        <div className="card p-8 text-center max-w-md">
+          <AlertCircle
+            size={28}
+            className="mx-auto text-amber-400"
+            aria-hidden
+          />
+          <h1 className="mt-4 text-lg font-bold">לא ניתן לטעון את הנתונים</h1>
+          <p
+            className="mt-2 text-sm leading-relaxed"
+            style={{ color: "var(--foreground-soft)" }}
+          >
+            ה-API החזיר תשובה ריקה. בדוק את לוג השרת או נסה לרענן.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-gold mt-5 inline-flex items-center gap-2 text-sm"
+          >
+            <Loader2 size={14} aria-hidden /> רענן
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen pb-20" style={{ background: "var(--surface-0)" }}>

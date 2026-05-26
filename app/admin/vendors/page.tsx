@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 import { isFounderEmail } from "@/lib/constants";
@@ -13,7 +13,6 @@ import {
   ExternalLink,
   Loader2,
   Shield,
-  MoreVertical,
   Trash2,
   RotateCcw,
   AlertTriangle,
@@ -172,7 +171,15 @@ export default function AdminVendorsPage() {
         message?: string;
       };
       if (!res.ok) {
-        showToast(data.message ?? "מחיקה נכשלה", "error");
+        // R126 — log the full server response. Owner reported delete
+        // "doesn't work" with no on-screen detail; without this the
+        // diagnosis was guessing. Now any 403/404/500 lands a labeled
+        // error in the console next to the toast.
+        console.error("[admin-vendors-delete]", res.status, data);
+        showToast(
+          data.message ?? `מחיקה נכשלה (${res.status})`,
+          "error",
+        );
         return;
       }
       setApps((prev) =>
@@ -189,8 +196,9 @@ export default function AdminVendorsPage() {
       setPendingDelete(null);
       setDeleteReason("");
       showToast("✓ הספק הוסר מהקטלוג", "success");
-    } catch {
-      showToast("שגיאה ברשת", "error");
+    } catch (e) {
+      console.error("[admin-vendors-delete] network/exception:", e);
+      showToast("שגיאה ברשת — בדוק consol", "error");
     } finally {
       setBusyVendorId(null);
     }
@@ -605,26 +613,11 @@ function ApprovedVendorRow({
    *  to send based on the current row's state. */
   onFeatureToggle: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  // R126 — pin + delete are now visible bordered buttons on every row
+  // (no menu). Owner couldn't find the "..." menu, so direct action
+  // wins. menuOpen/ref state from R125 was removed in the same pass.
   const cat = VENDOR_CATEGORIES.find((c) => c.id === app.category);
   const isFeatured = !!app.featured_at;
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onPointer = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    };
-    window.addEventListener("mousedown", onPointer);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("mousedown", onPointer);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
 
   return (
     <div
@@ -671,17 +664,18 @@ function ApprovedVendorRow({
           {cat?.label} · {app.contact_name} · {app.phone}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {/* R125 — quick pin/unpin button outside the menu so it takes
-            one click instead of two. The menu still has destructive
-            actions (delete) hidden behind another click. */}
+      {/* R126 — direct action row. R125 hid the delete behind a "..."
+          menu and the owner couldn't find it. Now both pin and delete
+          are visible bordered buttons on every row — single click on
+          either, no menu to discover. */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
           onClick={onFeatureToggle}
           disabled={busy}
           aria-label={isFeatured ? "בטל הצמדה" : "הצמד לראש הקטלוג"}
           title={isFeatured ? "בטל הצמדה" : "הצמד לראש הקטלוג"}
-          className="w-9 h-9 rounded-full inline-flex items-center justify-center transition disabled:opacity-50"
+          className="h-9 rounded-full inline-flex items-center justify-center gap-1.5 px-3 text-xs font-semibold transition disabled:opacity-50"
           style={
             isFeatured
               ? {
@@ -690,8 +684,9 @@ function ApprovedVendorRow({
                   color: "var(--gold-button-text)",
                 }
               : {
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground-soft)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                  background: "rgba(212,176,104,0.05)",
                 }
           }
         >
@@ -699,76 +694,35 @@ function ApprovedVendorRow({
             <Loader2 size={14} className="animate-spin" aria-hidden />
           ) : (
             <Pin
-              size={15}
+              size={14}
               aria-hidden
               fill={isFeatured ? "currentColor" : "none"}
             />
           )}
+          <span className="hidden sm:inline">
+            {isFeatured ? "בטל" : "הצמד"}
+          </span>
         </button>
-        <div className="relative" ref={ref}>
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            disabled={busy}
-            aria-label="פעולות נוספות"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            className="w-9 h-9 rounded-full inline-flex items-center justify-center hover:bg-[var(--secondary-button-bg)] transition disabled:opacity-50"
-            style={{ border: "1px solid var(--border)" }}
-          >
-            {busy ? (
-              <Loader2 size={14} className="animate-spin" aria-hidden />
-            ) : (
-              <MoreVertical size={15} aria-hidden />
-            )}
-          </button>
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute end-0 top-full mt-2 min-w-[220px] rounded-xl z-30 py-1 overflow-hidden"
-              style={{
-                background:
-                  "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
-                border: "1px solid var(--border-gold)",
-                boxShadow: "0 16px 40px -16px rgba(0,0,0,0.55)",
-              }}
-            >
-              {/* R125 — view-public link from the menu so the admin can
-                  jump straight to the vendor's catalog card. */}
-              <a
-                role="menuitem"
-                href={`/vendors?refresh=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setMenuOpen(false)}
-                className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
-                style={{
-                  color: "var(--foreground)",
-                  width: "calc(100% - 8px)",
-                }}
-              >
-                <ExternalLink size={15} aria-hidden />
-                <span className="flex-1 text-start">צפה בקטלוג</span>
-              </a>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDeleteClick();
-                }}
-                className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
-                style={{
-                  color: "rgb(252,165,165)",
-                  width: "calc(100% - 8px)",
-                }}
-              >
-                <Trash2 size={15} aria-hidden />
-                <span className="flex-1 text-start">הסר מהקטלוג</span>
-              </button>
-            </div>
+        <button
+          type="button"
+          onClick={onDeleteClick}
+          disabled={busy}
+          aria-label="הסר מהקטלוג"
+          title="הסר את הספק מהקטלוג"
+          className="h-9 rounded-full inline-flex items-center justify-center gap-1.5 px-3 text-xs font-semibold transition disabled:opacity-50"
+          style={{
+            border: "1px solid rgba(248,113,113,0.4)",
+            color: "rgb(252,165,165)",
+            background: "rgba(248,113,113,0.06)",
+          }}
+        >
+          {busy ? (
+            <Loader2 size={14} className="animate-spin" aria-hidden />
+          ) : (
+            <Trash2 size={14} aria-hidden />
           )}
-        </div>
+          <span className="hidden sm:inline">הסר</span>
+        </button>
       </div>
     </div>
   );

@@ -116,7 +116,14 @@ function VendorsInner() {
           `[vendors-catalog] approved vendors from DB: ${mapped.length}`,
           mapped.map((v) => ({ id: v.id, name: v.name, region: v.region })),
         );
-        if (mapped.length) setApproved(mapped);
+        // R126 — was `if (mapped.length) setApproved(mapped)`. The
+        // guard was a guard against a transient empty response, but
+        // it also meant deleting the LAST approved vendor in
+        // /admin/vendors didn't propagate to the catalog: an empty
+        // RPC response was silently swallowed and the catalog kept
+        // showing the deleted vendor until a full reload. Always
+        // commit the response.
+        setApproved(mapped);
       } catch (e) {
         console.warn("[vendors-catalog] RPC threw:", e);
         /* keep [] — static catalog still works */

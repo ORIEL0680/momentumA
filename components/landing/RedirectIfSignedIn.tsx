@@ -1,0 +1,83 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { getSupabase } from "@/lib/supabase";
+
+/**
+ * R126 — Client-side companion to the SSR redirect script in
+ * `app/page.tsx`.
+ *
+ * The SSR script reads localStorage at first paint and bounces signed-in
+ * visitors to `/dashboard`. That covers fresh navigations. It does NOT
+ * cover:
+ *
+ *   • A user who signs in via OAuth on another route, then clicks back
+ *     to `/` — the SSR script already executed in this tab, the SPA
+ *     transition doesn't re-run it.
+ *   • A user who opens the landing first, signs in via the
+ *     /signup → OAuth round-trip, then auth/callback's router.replace()
+ *     fails silently or is intercepted by an extension.
+ *
+ * This component sits at the top of `LandingPage()`, queries
+ * `supabase.auth.getSession()` once on mount, and `router.replace()`s
+ * to /vendors/dashboard (vendor) or /dashboard (host) if a session is
+ * found. Side effect only — renders nothing.
+ *
+ * Owner-reported symptom this fixes:
+ *   "מישהו מתחבר זה עדיין משאיר אותו בדף הנחיתה אבל פותח את התפריט" —
+ *   the Header's logged-in state showed correctly after sign-in but no
+ *   redirect happened. Without this guard, the only way out was a manual
+ *   logo click.
+ */
+export function RedirectIfSignedIn() {
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled || !session?.user) return;
+
+      // Quick vendor check — one indexed query — so vendors land on
+      // /vendors/dashboard instead of /dashboard.
+      let isVendor = false;
+      try {
+        const { data: vl } = (await supabase
+          .from("vendor_landings")
+          .select("id")
+          .eq("owner_user_id", session.user.id)
+          .maybeSingle()) as { data: { id: string } | null };
+        isVendor = !!vl;
+      } catch {
+        /* Treat any error as "not a vendor" — they'll get bounced from
+           /dashboard back to wherever they belong via that page's gate. */
+      }
+      if (cancelled) return;
+      router.replace(isVendor ? "/vendors/dashboard" : "/dashboard");
+    })();
+
+    // Also listen for auth state changes WHILE on the landing page —
+    // catches the case where the user opens /signup in a popup or
+    // completes OAuth in another tab and BroadcastChannel pushes the
+    // session to this tab.
+    const supabase = getSupabase();
+    if (!supabase) return () => { cancelled = true; };
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      if (event === "SIGNED_IN" && session?.user) {
+        router.replace("/dashboard");
+      }
+    });
+    return () => {
+      cancelled = true;
+      sub.subscription.unsubscribe();
+    };
+  }, [router]);
+
+  return null;
+}

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { RedirectIfSignedIn } from "@/components/landing/RedirectIfSignedIn";
 import { Hero } from "@/components/landing/Hero";
 import { PainSection } from "@/components/landing/PainSection";
 import { SolutionSection } from "@/components/landing/SolutionSection";
@@ -59,6 +60,10 @@ export default async function LandingPage() {
         suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: REDIRECT_SCRIPT }}
       />
+      {/* R126 — client-side counterpart to the SSR script: catches
+          users who arrive here via SPA navigation (back button, logo
+          click) or sign in while still on this page. */}
+      <RedirectIfSignedIn />
       <Header />
       <main className="flex-1 relative">
         <Hero />
