@@ -48,7 +48,14 @@ export function Footer() {
       </div>
       <div style={{ borderTop: "1px solid var(--border)" }}>
         <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs" style={{ color: "var(--foreground-muted)" }}>
-          <span>© {new Date().getFullYear()} Momentum. כל הזכויות שמורות.</span>
+          {/* R82-4 — operator identity disclosure. Israeli law
+              requires the עוסק פטור number on every public-facing
+              channel that promotes the service. Single line, ltr-num
+              on the digits so RTL doesn't mangle them. */}
+          <span>
+            © {new Date().getFullYear()} Momentum · מופעל ע״י טל חמו, עוסק פטור{" "}
+            <span className="ltr-num">211477617</span>
+          </span>
           <span>נבנה בישראל · עברית מימין לשמאל</span>
         </div>
       </div>

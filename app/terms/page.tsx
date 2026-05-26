@@ -256,13 +256,19 @@ export default function TermsPage() {
     {
       n: "19",
       icon: <Building2 size={20} />,
-      title: "פרטי החברה",
+      title: "פרטי המפעיל",
+      // R82-4 — replaced the "בהליכי רישום" placeholder with the
+      // real operator identity. עוסק פטור number disclosed (legal
+      // requirement before charging anyone in Israel), single
+      // working email replaces the never-routed legal@/privacy@
+      // aliases. "אין מע״מ" disclosure is implicit in עוסק פטור
+      // status — explicit reminder added for billing clarity.
       body: [
-        "Momentum (בהליכי רישום).",
-        "אימייל יצירת קשר: legal@momentum.app",
-        "אימייל לתלונות: complaints@momentum.app",
-        "אימייל להגנת פרטיות: privacy@momentum.app",
-        "ייעודכן עם השלמת רישום החברה הרשמי.",
+        "מופעל ע״י טל חמו, עוסק פטור מס׳ 211477617 (ישראל).",
+        "תיק מס: עוסק פטור פטור ממע״מ — מחירים מוצגים סופיים, לא נוסף מע״מ.",
+        "אימייל יצירת קשר, פרטיות ותלונות: talhemo132@gmail.com",
+        "כתובת למשלוח דואר רשום: תיווסף עם השלמת הרישום במאגר עוסקים.",
+        "ניתן להחזיק זה את המסמך לצרכי תיעוד; גרסה מעודכנת תמיד בכתובת moomentum.events/terms.",
       ],
     },
   ];
