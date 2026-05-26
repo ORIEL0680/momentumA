@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Clock,
   ArrowLeft,
+  CheckCircle2,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { isFounderEmail } from "@/lib/constants";
@@ -304,7 +305,7 @@ export default function AdminDashboardPage() {
               >
                 Admin Dashboard
               </div>
-              <div className="font-bold text-sm">לוח הבקרה של תל</div>
+              <div className="font-bold text-sm">לוח הבקרה של טל חמו</div>
             </div>
           </div>
           <Link
@@ -318,6 +319,65 @@ export default function AdminDashboardPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-5 pt-6">
+        {/* R125 — command-center quick actions. The admin dashboard
+            used to be stats-only; getting from "I see N pending" to
+            "approve them" required two more clicks. This strip puts
+            every important admin surface one click away, with a gold
+            badge showing the live counter the admin cares about most
+            (pending applications). */}
+        <section className="mb-6">
+          <div className="text-[10px] uppercase tracking-widest mb-2 ms-1"
+               style={{ color: "var(--foreground-muted)" }}>
+            פעולות מהירות
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            <CommandTile
+              href="/admin/vendors"
+              icon={<Briefcase size={18} aria-hidden />}
+              label="ניהול ספקים"
+              hint="הצמדה · הסרה · שחזור"
+              badge={
+                stats.vendors.pending > 0
+                  ? { text: `${stats.vendors.pending} ממתינים`, kind: "warn" }
+                  : undefined
+              }
+              accent
+            />
+            <CommandTile
+              href="/admin/vendors/applications"
+              icon={<CheckCircle2 size={18} aria-hidden />}
+              label="אישור בקשות"
+              hint="הזרם בקשות חדשות"
+              badge={
+                stats.vendors.pending > 0
+                  ? {
+                      text: String(stats.vendors.pending),
+                      kind: "warn",
+                    }
+                  : undefined
+              }
+            />
+            <CommandTile
+              href="/admin/leads"
+              icon={<TrendingUp size={18} aria-hidden />}
+              label="לידים"
+              hint="פונים חדשים השבוע"
+            />
+            <CommandTile
+              href="/admin/users"
+              icon={<Users size={18} aria-hidden />}
+              label="משתמשים"
+              hint={`${stats.users.new_today} חדשים היום`}
+            />
+            <CommandTile
+              href="/admin/errors"
+              icon={<AlertCircle size={18} aria-hidden />}
+              label="שגיאות"
+              hint="לוג שגיאות שרת"
+            />
+          </div>
+        </section>
+
         {projectedRevenue && (
           <section className="card-gold p-7 mb-6">
             <div className="flex items-start justify-between flex-wrap gap-4">
@@ -512,6 +572,93 @@ export default function AdminDashboardPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * R125 — Command-center jump tile.
+ *
+ * Big tap target with an icon, primary label, and a sub-line. When
+ * the action has a "live counter" (e.g. pending applications),
+ * pass `badge` and it surfaces as a coloured pill at the top-right
+ * so the admin sees urgency without clicking through.
+ *
+ * `accent` paints the tile gold-on-dark — used for the primary
+ * vendor-management entry point.
+ */
+function CommandTile({
+  href,
+  icon,
+  label,
+  hint,
+  badge,
+  accent,
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  hint?: string;
+  badge?: { text: string; kind: "warn" | "info" };
+  accent?: boolean;
+}) {
+  const badgeStyle =
+    badge?.kind === "warn"
+      ? {
+          background: "rgba(251,191,36,0.18)",
+          color: "rgb(251,191,36)",
+          border: "1px solid rgba(251,191,36,0.4)",
+        }
+      : {
+          background: "rgba(96,165,250,0.16)",
+          color: "rgb(96,165,250)",
+          border: "1px solid rgba(96,165,250,0.35)",
+        };
+  return (
+    <Link
+      href={href}
+      className="card p-3.5 flex items-start gap-3 transition hover:translate-y-[-2px] relative"
+      style={
+        accent
+          ? {
+              borderColor: "var(--border-gold)",
+              background:
+                "linear-gradient(135deg, rgba(244,222,169,0.08), rgba(168,136,74,0.03))",
+            }
+          : undefined
+      }
+    >
+      <div
+        className="w-10 h-10 rounded-xl inline-flex items-center justify-center shrink-0"
+        style={{
+          background: accent
+            ? "linear-gradient(135deg, rgba(244,222,169,0.30), rgba(168,136,74,0.12))"
+            : "color-mix(in srgb, var(--accent) 12%, transparent)",
+          color: "var(--accent)",
+          border: accent ? "1px solid var(--border-gold)" : undefined,
+        }}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="font-bold text-sm leading-tight truncate">{label}</div>
+        {hint && (
+          <div
+            className="text-[11px] mt-0.5 truncate"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            {hint}
+          </div>
+        )}
+      </div>
+      {badge && (
+        <span
+          className="absolute top-2 end-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ltr-num"
+          style={badgeStyle}
+        >
+          {badge.text}
+        </span>
+      )}
+    </Link>
   );
 }
 

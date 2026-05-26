@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { AssistantWidget } from "@/components/AssistantWidget";
 import { ToastHost } from "@/components/Toast";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
+// R125 — MobileBottomNav removed by product call. The two-tier Header
+// already exposes the same destinations as a horizontally-scrolling pill
+// row on mobile; the bottom bar duplicated that nav AND occupied 64px of
+// vertical space below the fold. The Header is now the single nav surface
+// on every viewport. (Component file kept in case we ever want to bring it
+// back behind a feature flag — just re-add the import + mount below.)
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { validateEnv } from "@/lib/env-validate";
 import { ErrorListener } from "@/components/error-tracking/ErrorListener";
@@ -146,7 +151,6 @@ export default async function RootLayout({
         {children}
         <AssistantWidget />
         <ToastHost />
-        <MobileBottomNav />
       </body>
     </html>
   );

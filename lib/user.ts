@@ -202,6 +202,16 @@ export const userActions = {
   async signInWithOAuth(provider: "google" | "apple") {
     const supabase = getSupabase();
     if (!supabase) throw new Error("cloud-sync-disabled");
+    // R125 — force the account-chooser screen each time. By default
+    // Google silently re-uses the most-recent Google session, which
+    // meant a vendor returning to /signup got logged in as whoever was
+    // logged into Chrome — not whichever business account they wanted
+    // to switch to. `prompt=select_account` makes Google ALWAYS show
+    // the chooser; if the user wants to add another account they can.
+    // Apple doesn't honor this query param (their flow always asks)
+    // so we only set it for Google.
+    const queryParams =
+      provider === "google" ? { prompt: "select_account" } : undefined;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -209,6 +219,7 @@ export const userActions = {
         // the SAME origin the user is on (see authCallbackUrl). Falls
         // back to undefined → Supabase uses its configured Site URL.
         redirectTo: authCallbackUrl(),
+        ...(queryParams ? { queryParams } : {}),
       },
     });
     if (error) throw error;

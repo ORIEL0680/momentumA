@@ -17,6 +17,7 @@ import {
   Trash2,
   RotateCcw,
   AlertTriangle,
+  Pin,
 } from "lucide-react";
 import {
   VENDOR_CATEGORIES,
@@ -246,6 +247,66 @@ export default function AdminVendorsPage() {
     }
   };
 
+  // R125 — pin/unpin a vendor at the top of the catalog. Optimistic
+  // update + rollback on error, just like delete/restore. The catalog
+  // RPC sorts by featured_at desc nulls last, so the moment this
+  // round-trips successfully the vendor jumps to the top of /vendors.
+  const featureVendor = async (vendorId: string, featured: boolean) => {
+    setBusyVendorId(vendorId);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        showToast("Supabase לא מוגדר", "error");
+        return;
+      }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        showToast("צריך להתחבר", "error");
+        return;
+      }
+      const res = await fetch("/api/admin/vendors/feature", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ vendorId, featured }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        featuredAt?: string | null;
+      };
+      if (!res.ok) {
+        showToast(data.message ?? "הפעולה נכשלה", "error");
+        return;
+      }
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === vendorId
+            ? {
+                ...a,
+                featured_at: featured
+                  ? (data.featuredAt ?? new Date().toISOString())
+                  : null,
+                featured_rank: featured ? a.featured_rank ?? null : null,
+              }
+            : a,
+        ),
+      );
+      showToast(
+        featured ? "📌 הספק מוצמד לראש הקטלוג" : "הספק חוזר לסדר הרגיל",
+        "success",
+      );
+    } catch {
+      showToast("שגיאה ברשת", "error");
+    } finally {
+      setBusyVendorId(null);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
@@ -322,19 +383,60 @@ export default function AdminVendorsPage() {
         {/* R67 (R84) — Live approved vendors with delete affordance. */}
         {approvedLive.length > 0 && (
           <section className="mt-10">
-            <h2 className="text-lg font-semibold mb-3">פעילים בקטלוג</h2>
-            <div className="grid gap-2">
-              {approvedLive.map((app) => (
-                <ApprovedVendorRow
-                  key={app.id}
-                  app={app}
-                  busy={busyVendorId === app.id}
-                  onDeleteClick={() => {
-                    setPendingDelete(app);
-                    setDeleteReason("");
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h2 className="text-lg font-semibold">
+                פעילים בקטלוג
+                <span
+                  className="text-xs font-normal ms-2"
+                  style={{ color: "var(--foreground-muted)" }}
+                >
+                  ({approvedLive.length})
+                </span>
+              </h2>
+              {/* R125 — pinned count badge so the admin sees at a glance
+                  how many vendors are currently boosted. */}
+              {approvedLive.some((a) => !!a.featured_at) && (
+                <span
+                  className="text-xs px-2.5 py-1 rounded-full inline-flex items-center gap-1"
+                  style={{
+                    background: "rgba(212,176,104,0.12)",
+                    border: "1px solid var(--border-gold)",
+                    color: "var(--accent)",
                   }}
-                />
-              ))}
+                >
+                  📌{" "}
+                  <span className="ltr-num">
+                    {approvedLive.filter((a) => !!a.featured_at).length}
+                  </span>{" "}
+                  מוצמדים לראש
+                </span>
+              )}
+            </div>
+            <div className="grid gap-2">
+              {/* R125 — sort by featured_at desc so the same order the
+                  catalog uses also appears here. The admin sees their
+                  pinned vendors at the top of the admin panel too. */}
+              {[...approvedLive]
+                .sort((a, b) => {
+                  const af = a.featured_at ? new Date(a.featured_at).getTime() : 0;
+                  const bf = b.featured_at ? new Date(b.featured_at).getTime() : 0;
+                  if (af !== bf) return bf - af;
+                  return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+                })
+                .map((app) => (
+                  <ApprovedVendorRow
+                    key={app.id}
+                    app={app}
+                    busy={busyVendorId === app.id}
+                    onDeleteClick={() => {
+                      setPendingDelete(app);
+                      setDeleteReason("");
+                    }}
+                    onFeatureToggle={() =>
+                      featureVendor(app.id, !app.featured_at)
+                    }
+                  />
+                ))}
             </div>
           </section>
         )}
@@ -494,14 +596,19 @@ function ApprovedVendorRow({
   app,
   busy,
   onDeleteClick,
+  onFeatureToggle,
 }: {
   app: VendorApplicationRecord;
   busy: boolean;
   onDeleteClick: () => void;
+  /** R125 — toggle featured_at on/off. The parent decides which value
+   *  to send based on the current row's state. */
+  onFeatureToggle: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const cat = VENDOR_CATEGORIES.find((c) => c.id === app.category);
+  const isFeatured = !!app.featured_at;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -520,16 +627,42 @@ function ApprovedVendorRow({
   }, [menuOpen]);
 
   return (
-    <div className="card p-3 flex items-center justify-between text-sm gap-3">
+    <div
+      className="card p-3 flex items-center justify-between text-sm gap-3 transition"
+      // R125 — pinned rows get a subtle gold left-border accent so the
+      // admin sees the boost at a glance without reading the badge.
+      style={
+        isFeatured
+          ? {
+              borderInlineStartWidth: 3,
+              borderInlineStartStyle: "solid",
+              borderInlineStartColor: "var(--accent)",
+              background:
+                "linear-gradient(90deg, rgba(212,176,104,0.06), transparent 60%)",
+            }
+          : undefined
+      }
+    >
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span aria-hidden>{cat?.emoji}</span>
           <span className="font-semibold truncate">{app.business_name}</span>
-          <span
-            className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 shrink-0"
-          >
+          <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 shrink-0">
             פעיל
           </span>
+          {isFeatured && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 shrink-0"
+              style={{
+                background: "rgba(212,176,104,0.18)",
+                color: "var(--accent)",
+                border: "1px solid var(--border-gold)",
+              }}
+              title="מוצמד לראש הקטלוג"
+            >
+              📌 מוצמד
+            </span>
+          )}
         </div>
         <div
           className="text-xs truncate mt-0.5"
@@ -538,53 +671,104 @@ function ApprovedVendorRow({
           {cat?.label} · {app.contact_name} · {app.phone}
         </div>
       </div>
-      <div className="relative shrink-0" ref={ref}>
+      <div className="flex items-center gap-2 shrink-0">
+        {/* R125 — quick pin/unpin button outside the menu so it takes
+            one click instead of two. The menu still has destructive
+            actions (delete) hidden behind another click. */}
         <button
           type="button"
-          onClick={() => setMenuOpen((v) => !v)}
+          onClick={onFeatureToggle}
           disabled={busy}
-          aria-label="פעולות נוספות"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          className="w-9 h-9 rounded-full inline-flex items-center justify-center hover:bg-[var(--secondary-button-bg)] transition disabled:opacity-50"
-          style={{ border: "1px solid var(--border)" }}
+          aria-label={isFeatured ? "בטל הצמדה" : "הצמד לראש הקטלוג"}
+          title={isFeatured ? "בטל הצמדה" : "הצמד לראש הקטלוג"}
+          className="w-9 h-9 rounded-full inline-flex items-center justify-center transition disabled:opacity-50"
+          style={
+            isFeatured
+              ? {
+                  background:
+                    "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                  color: "var(--gold-button-text)",
+                }
+              : {
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground-soft)",
+                }
+          }
         >
           {busy ? (
             <Loader2 size={14} className="animate-spin" aria-hidden />
           ) : (
-            <MoreVertical size={15} aria-hidden />
+            <Pin
+              size={15}
+              aria-hidden
+              fill={isFeatured ? "currentColor" : "none"}
+            />
           )}
         </button>
-        {menuOpen && (
-          <div
-            role="menu"
-            className="absolute end-0 top-full mt-2 min-w-[200px] rounded-xl z-30 py-1 overflow-hidden"
-            style={{
-              background:
-                // R88 (R71) — theme-aware. Light mode flips automatically.
-                "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
-              border: "1px solid var(--border-gold)",
-              boxShadow: "0 16px 40px -16px rgba(0,0,0,0.55)",
-            }}
+        <div className="relative" ref={ref}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            disabled={busy}
+            aria-label="פעולות נוספות"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            className="w-9 h-9 rounded-full inline-flex items-center justify-center hover:bg-[var(--secondary-button-bg)] transition disabled:opacity-50"
+            style={{ border: "1px solid var(--border)" }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false);
-                onDeleteClick();
-              }}
-              className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+            {busy ? (
+              <Loader2 size={14} className="animate-spin" aria-hidden />
+            ) : (
+              <MoreVertical size={15} aria-hidden />
+            )}
+          </button>
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute end-0 top-full mt-2 min-w-[220px] rounded-xl z-30 py-1 overflow-hidden"
               style={{
-                color: "rgb(252,165,165)",
-                width: "calc(100% - 8px)",
+                background:
+                  "linear-gradient(170deg, var(--surface) 0%, var(--background) 100%)",
+                border: "1px solid var(--border-gold)",
+                boxShadow: "0 16px 40px -16px rgba(0,0,0,0.55)",
               }}
             >
-              <Trash2 size={15} aria-hidden />
-              <span className="flex-1 text-start">הסר מהקטלוג</span>
-            </button>
-          </div>
-        )}
+              {/* R125 — view-public link from the menu so the admin can
+                  jump straight to the vendor's catalog card. */}
+              <a
+                role="menuitem"
+                href={`/vendors?refresh=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+                style={{
+                  color: "var(--foreground)",
+                  width: "calc(100% - 8px)",
+                }}
+              >
+                <ExternalLink size={15} aria-hidden />
+                <span className="flex-1 text-start">צפה בקטלוג</span>
+              </a>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDeleteClick();
+                }}
+                className="w-full flex items-center gap-2.5 mx-1 px-3 py-2.5 text-sm rounded-lg transition hover:bg-[var(--secondary-button-bg)]"
+                style={{
+                  color: "rgb(252,165,165)",
+                  width: "calc(100% - 8px)",
+                }}
+              >
+                <Trash2 size={15} aria-hidden />
+                <span className="flex-1 text-start">הסר מהקטלוג</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

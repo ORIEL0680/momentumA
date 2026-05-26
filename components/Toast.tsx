@@ -59,10 +59,11 @@ export function ToastHost() {
 
   return (
     <div
-      // bottom-spacing: above MobileBottomNav (~58px + safe-area) on mobile
-      // since the nav is rendered on the same routes the toast is shown.
-      // Desktop: 1.5rem from bottom is plenty.
-      className="fixed inset-x-0 mx-auto z-[100] flex flex-col items-center gap-2 px-4 pointer-events-none no-print bottom-[calc(96px+env(safe-area-inset-bottom))] md:bottom-6"
+      // R125 — was pinned 96px from bottom to clear the MobileBottomNav.
+      // Bottom nav removed → toasts now sit 1.5rem from the viewport
+      // edge on every breakpoint. Safe-area inset still respected for
+      // notched devices.
+      className="fixed inset-x-0 mx-auto z-[100] flex flex-col items-center gap-2 px-4 pointer-events-none no-print bottom-[calc(1.5rem+env(safe-area-inset-bottom))]"
       role="status"
       aria-live="polite"
     >

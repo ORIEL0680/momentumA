@@ -61,4 +61,9 @@ export interface VendorApplicationRecord extends VendorApplicationInput {
   deleted_at?: string | null;
   deleted_by_email?: string | null;
   deletion_reason?: string | null;
+  // R125 — pin-to-top columns. featured_at = ISO timestamp when the
+  // admin pinned the vendor; null = not pinned. featured_rank lets
+  // the admin manually order multiple pins (lower number = higher).
+  featured_at?: string | null;
+  featured_rank?: number | null;
 }
