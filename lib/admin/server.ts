@@ -66,22 +66,25 @@ export async function requireAdmin(
   }
   const email = user.email.toLowerCase().trim();
 
-  // R64 (R79) — founder bypass. Skip the admin_emails RLS lookup
-  // entirely when the JWT email is the founder. Keeps /admin reachable
-  // even if the DB row is missing (post-truncation, RLS misconfig, …).
+  // R131 — FOUNDER-ONLY admin surface. Owner explicitly requested that
+  // /admin be locked to talhemo132@gmail.com (the FOUNDER_EMAIL in
+  // lib/constants.ts) and that admin_emails not act as a side-door.
+  // R64's "founder bypass + admin_emails fallback" pattern collapses
+  // here into "founder bypass only" — anyone else gets 403.
+  //
+  // To grant another admin later: add a new founder email to
+  // FOUNDER_EMAIL or restore the admin_emails branch below. The
+  // userClient anon-bound import is still needed for the JWT identity
+  // check above, even though we no longer query admin_emails through it.
   if (!isFounderEmail(email)) {
-    const { data: adminRow } = (await userClient
-      .from("admin_emails")
-      .select("email")
-      .eq("email", email)
-      .maybeSingle()) as { data: { email: string } | null };
-    if (!adminRow) {
-      return {
-        ok: false,
-        response: NextResponse.json({ error: "Not authorized" }, { status: 403 }),
-      };
-    }
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Not authorized" }, { status: 403 }),
+    };
   }
+  // `userClient` no longer reads from admin_emails; suppressing
+  // unused-import warning by referencing it.
+  void userClient;
 
   if (!serviceRoleKey) {
     return {

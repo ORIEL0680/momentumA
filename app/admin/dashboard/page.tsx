@@ -130,24 +130,18 @@ export default function AdminDashboardPage() {
           return;
         }
         // Surface the email up front so the "not authorized" view can
-        // show it. Lowercase for the admin_emails lookup since the DB
-        // row was inserted lowercase.
+        // show it.
         const userEmail = user.email.toLowerCase().trim();
         setSignedInEmail(userEmail);
 
-        // R64 (R79) — founder bypass before the DB lookup so the
-        // admin surface is reachable even if admin_emails was wiped.
-        if (isFounderEmail(userEmail)) {
-          setAuthorized(true);
-        } else {
-          const { data: adminRow } = (await supabase
-            .from("admin_emails")
-            .select("email")
-            .eq("email", userEmail)
-            .maybeSingle()) as { data: { email: string } | null };
-          if (!adminRow) return;
-          setAuthorized(true);
-        }
+        // R131 — FOUNDER-ONLY. Owner asked for /admin to be locked to
+        // talhemo132@gmail.com. The admin_emails fallback was removed
+        // here AND in lib/admin/server.ts so the UI gate matches the
+        // API gate. Anyone else who lands on this page sees the
+        // "not authorized" empty state below; isAuthorized stays
+        // false and the dashboard JSX never renders.
+        if (!isFounderEmail(userEmail)) return;
+        setAuthorized(true);
 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
@@ -192,14 +186,13 @@ export default function AdminDashboardPage() {
     };
   }, [router]);
 
-  // Projected revenue (theoretical ceiling — every couple + vendor paid).
-  const projectedRevenue = stats
-    ? {
-        couples_potential: stats.events.total * 99,
-        vendors_potential: stats.vendors.approved * 199,
-        total_potential: stats.events.total * 99 + stats.vendors.approved * 199,
-      }
-    : null;
+  // R131 — projectedRevenue card removed. Owner asked to keep the
+  // section visible but show ₪0 until real payments come through.
+  // The figure will become non-zero automatically when a future
+  // Stripe webhook stamps `paid_at` rows we sum here. Until then
+  // the panel honestly displays the real revenue (₪0) rather than
+  // a fantasy "if everyone paid" theoretical maximum.
+  const realRevenue = 0;
 
   if (!authChecked) {
     return (
@@ -426,43 +419,45 @@ export default function AdminDashboardPage() {
             admin can manage without leaving this page. */}
         {adminToken && <VendorControlPanel token={adminToken} />}
 
-        {projectedRevenue && (
-          <section className="card-gold p-7 mb-6">
-            <div className="flex items-start justify-between flex-wrap gap-4">
-              <div>
-                <div
-                  className="text-xs uppercase tracking-wider"
-                  style={{ color: "var(--foreground-muted)" }}
-                >
-                  הכנסה פוטנציאלית מקסימלית (אם כל המשתמשים שדרגו)
-                </div>
-                <div className="mt-2 text-5xl font-extrabold gradient-gold ltr-num">
-                  ₪{projectedRevenue.total_potential.toLocaleString("he-IL")}
-                </div>
-                <div
-                  className="mt-2 text-sm"
-                  style={{ color: "var(--foreground-soft)" }}
-                >
-                  זוגות: ₪{projectedRevenue.couples_potential.toLocaleString("he-IL")} · ספקים: ₪{projectedRevenue.vendors_potential.toLocaleString("he-IL")}
-                </div>
+        {/* R131 — real revenue card. Shows the actual ₪ that came in
+            through the system. Stays at ₪0 until a real payment
+            processor is wired in (e.g. Stripe). The number is intended
+            to grow automatically as `paid_at` events accumulate. */}
+        <section className="card-gold p-7 mb-6">
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <div
+                className="text-xs uppercase tracking-wider"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                הכנסה כוללת שהתקבלה
               </div>
-              <div className="text-end">
-                <div
-                  className="text-xs"
-                  style={{ color: "var(--foreground-muted)" }}
-                >
-                  * תאורטי, לא בפועל
-                </div>
-                <div
-                  className="mt-1 text-xs"
-                  style={{ color: "var(--foreground-muted)" }}
-                >
-                  צריך Stripe לתשלומים אמיתיים
-                </div>
+              <div className="mt-2 text-5xl font-extrabold gradient-gold ltr-num">
+                ₪{realRevenue.toLocaleString("he-IL")}
+              </div>
+              <div
+                className="mt-2 text-sm"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                מתעדכן אוטומטית עם כל תשלום שמתקבל במערכת
               </div>
             </div>
-          </section>
-        )}
+            <div className="text-end">
+              <div
+                className="text-xs"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                כאשר ייפעל מערכת סליקה
+              </div>
+              <div
+                className="mt-1 text-xs"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                הסכום יעודכן בזמן אמת
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           <MetricCard

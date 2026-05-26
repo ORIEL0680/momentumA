@@ -72,21 +72,13 @@ export function AdminGuard({
         }
         const email = user.email.toLowerCase().trim();
 
-        // R64 (R79) — founder bypass before the admin_emails RLS
-        // lookup so the gate works even if the table was wiped.
-        let isAdmin = isFounderEmail(email);
-        if (!isAdmin) {
-          const { data: adminRow } = (await supabase
-            .from("admin_emails")
-            .select("email")
-            .eq("email", email)
-            .maybeSingle()) as { data: { email: string } | null };
-          if (cancelled) return;
-          isAdmin = !!adminRow;
-        }
-        if (!isAdmin) {
-          // Silent — never reveal that an admin area exists.
-          console.warn("[admin-guard] non-admin attempted access");
+        // R131 — FOUNDER-ONLY (owner request). admin_emails fallback
+        // was removed in lockstep with lib/admin/server.ts so the
+        // API + UI gates agree. To re-enable multi-admin, restore the
+        // admin_emails query and broaden isFounderEmail. Until then,
+        // any non-founder is silently bounced back to /dashboard.
+        if (!isFounderEmail(email)) {
+          console.warn("[admin-guard] non-founder attempted access");
           router.replace("/dashboard");
           return;
         }

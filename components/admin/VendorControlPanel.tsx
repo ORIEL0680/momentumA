@@ -34,7 +34,6 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import {
   VENDOR_CATEGORIES,
@@ -51,29 +50,39 @@ export function VendorControlPanel({ token }: { token: string }) {
     null,
   );
 
-  // Load all vendor applications once. We filter client-side so the
-  // admin can also see rejected / suspended ones if we expand the
-  // panel later, and so the search bar is instant.
+  // R131 — was a direct supabase.from("vendor_applications").select("*")
+  // under the user's anon JWT. That hit "permission denied for table
+  // users" via an RLS chain we don't control. The new
+  // /api/admin/vendors/list endpoint uses service-role server-side so
+  // the load is RLS-immune.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const supabase = getSupabase();
-        if (!supabase) {
-          setError("Supabase לא מוגדר — בדוק את משתני הסביבה");
-          return;
-        }
-        const { data, error: qErr } = await supabase
-          .from("vendor_applications")
-          .select("*")
-          .order("created_at", { ascending: false });
+        const res = await fetch("/api/admin/vendors/list", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (cancelled) return;
-        if (qErr) {
-          console.error("[VendorControlPanel] select error:", qErr);
-          setError(`לא הצלחתי לטעון ספקים: ${qErr.message}`);
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            message?: string;
+            error?: string;
+          };
+          console.error(
+            "[VendorControlPanel] list endpoint failed:",
+            res.status,
+            data,
+          );
+          setError(
+            data.message ?? data.error ?? `שגיאה ${res.status} בטעינת ספקים`,
+          );
           return;
         }
-        setRows((data as VendorApplicationRecord[]) ?? []);
+        const { vendors } = (await res.json()) as {
+          vendors: VendorApplicationRecord[];
+        };
+        if (cancelled) return;
+        setRows(vendors ?? []);
       } catch (e) {
         if (cancelled) return;
         console.error("[VendorControlPanel] exception:", e);
@@ -83,7 +92,7 @@ export function VendorControlPanel({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [token]);
 
   // Filter to approved+live, then apply search + sort.
   const visible = useMemo(() => {
