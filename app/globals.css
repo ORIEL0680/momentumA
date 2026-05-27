@@ -1767,3 +1767,25 @@ select:focus-visible {
     animation: none !important;
   }
 }
+
+/* ───────────── R88 — universal reduced-motion safety net ─────────────
+   The codebase already has 5+ explicit `@media (prefers-reduced-motion:
+   reduce)` blocks targeting specific keyframe animations. This rule is
+   the defensive backstop: ANY animation or transition we forgot to
+   gate explicitly is collapsed to a near-instant duration when the
+   user has the system preference on. We use `0.01ms` rather than `0s`
+   because some Framer Motion paths require a non-zero duration to
+   fire their `onComplete` callbacks; 0.01ms is functionally instant
+   but still resolves the promise chain. `scroll-behavior: auto`
+   prevents the smooth-scroll polyfill from animating page scrolls
+   for vestibular-sensitive users. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
