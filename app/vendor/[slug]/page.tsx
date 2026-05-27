@@ -24,6 +24,15 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+// R86 — re-fetch every 30s on a public-page hit so a vendor who
+// just updated their logo / cover / gallery sees the change appear
+// to couples within ~30s (vs. the indefinite CDN cache Next defaults
+// to for static-tagged SSR responses). 30 is the sweet spot: fresh
+// enough that the vendor doesn't feel "stuck on the old version"
+// after saving, slow enough that the public URL still hits CDN for
+// most requests.
+export const revalidate = 30;
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   // R11 P0 #1 — empty / whitespace-only slug short-circuits before we hit

@@ -58,11 +58,30 @@ export function LuxuriousTemplate({
   onSendInterest,
 }: TemplateProps) {
   const [activePhoto, setActivePhoto] = useState(0);
-  const heroImg = vendor.hero_photo_path
-    ? getVendorPhotoUrl(vendor.hero_photo_path)
+  // R86 — three distinct visual roles, with fallback chains:
+  //   • coverImg: full-bleed hero background. Prefers cover_image_url
+  //     (wide aspect, set explicitly by the vendor) → falls back to
+  //     hero_photo_path (legacy single image).
+  //   • logoImg: optional small overlay logo. Prefers logo_url → falls
+  //     back to nothing (we don't double-use the same image as both
+  //     logo AND cover — that would be visually redundant).
+  //   • galleryUrls: vendor.gallery_paths as before.
+  // Cache-bust via ?v=image_updated_at so a re-uploaded same-path
+  // file actually refreshes in the browser.
+  const ts = vendor.image_updated_at
+    ? Date.parse(vendor.image_updated_at)
     : null;
+  const bust = (url: string | null): string | null => {
+    if (!url) return null;
+    if (!ts || !Number.isFinite(ts)) return url;
+    return url.includes("?") ? url : `${url}?v=${ts}`;
+  };
+  const rawCover = vendor.cover_image_url || vendor.hero_photo_path;
+  const rawLogo = vendor.logo_url;
+  const coverImg = bust(rawCover ? getVendorPhotoUrl(rawCover) : null);
+  const logoImg = bust(rawLogo ? getVendorPhotoUrl(rawLogo) : null);
   const galleryUrls = vendor.gallery_paths
-    .map(getVendorPhotoUrl)
+    .map((p) => bust(getVendorPhotoUrl(p)))
     .filter((u): u is string => Boolean(u));
 
   return (
@@ -79,18 +98,18 @@ export function LuxuriousTemplate({
           the hero with one swipe. */}
       <section
         className={`relative overflow-hidden flex ${
-          heroImg
+          coverImg
             ? "min-h-[60vh] md:min-h-[80vh] items-end"
             : "min-h-[50vh] md:min-h-[55vh] items-center justify-center"
         }`}
       >
-        {heroImg && (
+        {coverImg && (
           <div className="absolute inset-0">
             {/* Public Supabase Storage URL — next/image needs an allow-list
                 for remote patterns we don't manage. <img> is intentional. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={heroImg}
+              src={coverImg}
               alt={vendor.name}
               className="w-full h-full object-cover"
             />
@@ -98,9 +117,44 @@ export function LuxuriousTemplate({
           </div>
         )}
 
+        {/* R86 — logo overlay. Premium gold ring + soft drop shadow,
+            top-center (or top-left when no cover so the title gets
+            visual weight first). Only renders when logo_url is set
+            AND is distinct from coverImg (no double-image redundancy). */}
+        {logoImg && logoImg !== coverImg && (
+          <div
+            className="absolute top-6 start-1/2 -translate-x-1/2 z-20"
+            style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
+          >
+            <div
+              className="rounded-2xl p-[2px]"
+              style={{
+                background:
+                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+              }}
+            >
+              <div
+                className="rounded-2xl overflow-hidden flex items-center justify-center"
+                style={{
+                  background: "var(--surface-1)",
+                  width: 88,
+                  height: 88,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoImg}
+                  alt={`${vendor.name} — לוגו`}
+                  className="w-full h-full object-contain p-2"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div
           className={`relative max-w-5xl mx-auto px-5 w-full ${
-            heroImg ? "pb-16 pt-32" : "py-12 text-center"
+            coverImg ? "pb-16 pt-32" : "py-12 text-center"
           }`}
         >
           <div className="absolute top-6 end-5 flex items-center gap-2">
@@ -116,7 +170,7 @@ export function LuxuriousTemplate({
           {/* When there's no hero image, center the title block on the
               horizontal axis (it's a card-style introduction rather than
               an overlay on a photo). */}
-          <div className={`max-w-2xl ${heroImg ? "" : "mx-auto"}`}>
+          <div className={`max-w-2xl ${coverImg ? "" : "mx-auto"}`}>
             <div
               className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4"
               style={{
@@ -140,7 +194,7 @@ export function LuxuriousTemplate({
 
             <div
               className={`mt-6 flex items-center gap-5 flex-wrap text-sm ${
-                heroImg ? "" : "justify-center"
+                coverImg ? "" : "justify-center"
               }`}
               style={{ color: "var(--foreground-soft)" }}
             >
@@ -159,7 +213,7 @@ export function LuxuriousTemplate({
 
             <div
               className={`mt-8 flex flex-wrap gap-3 ${
-                heroImg ? "" : "justify-center"
+                coverImg ? "" : "justify-center"
               }`}
             >
               {/* R14 §G — primary lead capture. Higher prominence than

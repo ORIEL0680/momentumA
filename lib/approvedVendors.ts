@@ -30,8 +30,22 @@ export interface ApprovedVendorRow {
    *  R146 — also now reflects landing edits: business_name, category,
    *  city, about, website, instagram, facebook are all COALESCE'd
    *  landing-first in the RPC, so this row shape stays the same but
-   *  the data behind it is the live editable value. */
+   *  the data behind it is the live editable value.
+   *
+   *  R86 — legacy. Prefer the explicit `logo_url` + `cover_image_url`
+   *  fields below; we keep this in the row so old vendors who
+   *  haven't migrated to the new fields still render. */
   hero_photo_path: string | null;
+  /** R86 — explicit logo URL (or Storage path). Optional in the RPC
+   *  return because old DBs (pre-2026-05-28 migration) won't have
+   *  the column. */
+  logo_url?: string | null;
+  /** R86 — explicit cover URL (or Storage path). Same optional shape
+   *  as logo_url. */
+  cover_image_url?: string | null;
+  /** R86 — touched by the DB trigger whenever any image field
+   *  changes. Used as a cache-buster on image URLs. */
+  image_updated_at?: string | null;
   created_at: string | null;
 }
 
@@ -86,13 +100,26 @@ function cleanHandle(v: string | null | undefined): string | undefined {
 export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
   const type = CATEGORY_TO_TYPE[row.category] ?? "entertainment";
   const city = (row.city ?? "").trim();
-  // R117 — resolve the storage path to a full public URL ONCE here, so
-  // the VendorCard can render <img src={photoUrl} /> without each card
-  // re-doing the URL math (and without leaking Supabase URL formatting
-  // into the UI layer). Empty string when there's no photo — falsy
-  // check in the card hides the avatar block cleanly.
-  const photoUrl = row.hero_photo_path
-    ? getVendorPhotoUrl(row.hero_photo_path)
+  // R117 / R86 — resolve to a full public URL ONCE here. Priority:
+  //   1. cover_image_url (the wide-aspect cover, ideal for the
+  //      catalog tile's 16/10 frame)
+  //   2. logo_url (smaller brand mark, used as fallback)
+  //   3. hero_photo_path (legacy single image — used by every
+  //      vendor pre-2026-05-28 migration)
+  // The first non-empty wins.
+  //
+  // Cache-bust: append `?v=image_updated_at` so a browser that
+  // cached the URL for `/storage/v1/.../logo-1234.jpg` doesn't
+  // serve the old version after the vendor reuploads. Skipped for
+  // URLs that already carry a query string.
+  const rawPhoto =
+    (row.cover_image_url && row.cover_image_url.trim()) ||
+    (row.logo_url && row.logo_url.trim()) ||
+    (row.hero_photo_path && row.hero_photo_path.trim()) ||
+    "";
+  const resolved = rawPhoto ? getVendorPhotoUrl(rawPhoto) : "";
+  const photoUrl = resolved
+    ? appendCacheBuster(resolved, row.image_updated_at ?? row.created_at)
     : "";
   return {
     // `app-` prefix keeps DB-backed ids distinct from the static seed.
@@ -118,6 +145,22 @@ export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
     facebook: cleanHandle(row.facebook),
     photoUrl: photoUrl || undefined,
   };
+}
+
+/**
+ * R86 — appends a `?v=` query so browsers re-fetch when the vendor
+ * uploads a new image to a stable URL (same Storage path, replaced
+ * content). The version stamp comes from `image_updated_at` (or
+ * `created_at` as fallback). No-op if the URL already carries a
+ * query string — Supabase Storage public URLs don't, but we
+ * future-proof in case a vendor pastes one that does.
+ */
+function appendCacheBuster(url: string, stamp: string | null | undefined): string {
+  if (!stamp) return url;
+  if (url.includes("?")) return url;
+  const v = Date.parse(stamp);
+  if (!Number.isFinite(v)) return url;
+  return `${url}?v=${v}`;
 }
 
 export function mapApprovedRows(rows: ApprovedVendorRow[]): Vendor[] {

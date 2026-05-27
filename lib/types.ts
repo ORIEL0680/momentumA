@@ -572,6 +572,21 @@ export interface VendorLandingData {
   gallery_paths: string[];
   video_url: string | null;
 
+  // R86 — explicit logo + cover fields. `hero_photo_path` (legacy)
+  // doubled as both — vendors with a clean brand mark wanted to
+  // separate the catalog-tile logo from the large public-page
+  // background. Either field stores a full URL OR a Storage path;
+  // getVendorPhotoUrl(value) short-circuits when the value starts
+  // with http(s) so both shapes work. The renderer falls back to
+  // hero_photo_path when these are null.
+  logo_url: string | null;
+  cover_image_url: string | null;
+  /** Auto-bumped by the touch_vendor_image_updated_at trigger
+   *  whenever any image field changes. Used as a cache-buster
+   *  (`?v=ms`) to invalidate browser-cached image responses for
+   *  paths that didn't change name. */
+  image_updated_at: string | null;
+
   service_areas: string[];
   price_range: PriceRange | null;
   years_experience: number | null;
