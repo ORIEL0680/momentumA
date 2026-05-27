@@ -104,7 +104,7 @@ export function Header() {
   const { theme, toggle, mounted } = useTheme();
   const { user, hydrated } = useUser();
   const isAdmin = useIsAdmin();
-  const { isVendor } = useVendorContext();
+  const { isVendor, vendorLanding } = useVendorContext();
   const { state } = useAppState();
   const nowMs = useNow();
   const unread = useChatUnread();
@@ -273,11 +273,22 @@ export function Header() {
           )}
         </div>
 
-        {/* Center — event date + countdown OR EventSwitcher (multi-event).
-            Hidden on landing / anonymous to avoid the empty state. */}
+        {/* Center — for vendors, the business-name brand chip (R145);
+            for hosts, the event date + countdown OR EventSwitcher.
+            Hidden on landing / anonymous to avoid the empty state.
+
+            R145 — vendors used to see the host's "X ימים לאירוע"
+            countdown at the top of every page. That countdown is
+            meaningless for a vendor (they don't HAVE an event date —
+            they have lots of weddings on their calendar). Now they
+            see THEIR OWN BUSINESS NAME in gold serif, on every page,
+            as the brand anchor. Hosts continue to see the countdown
+            as before. */}
         {!isLanding && hydrated && user && (
           <div className="hidden md:flex items-center min-w-0 max-w-[40%]">
-            {slots.length > 1 ? (
+            {(isVendor || onVendorOwnerPath) && vendorLanding?.name ? (
+              <VendorBrandChip name={vendorLanding.name} />
+            ) : slots.length > 1 ? (
               <EventSwitcher />
             ) : validEventDate ? (
               <EventChip date={validEventDate} days={days} />
@@ -630,6 +641,65 @@ function EventChip({ date, days }: { date: Date; days: number | null }) {
           🌟 <span>{days}</span> ימים
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * R145 — VendorBrandChip
+ *
+ * Shows the vendor's business name in the same horizontal slot the
+ * host's EventChip occupies. Serif (Frank Ruhl Libre) + gold-shimmer
+ * gradient + hairline gold border + a subtle inner sheen — same
+ * visual language as the dashboard hero, just sized for the header.
+ *
+ * Why a separate component (vs. inline conditional in Header):
+ *   - Encapsulates the premium styling so future tweaks live in one
+ *     place.
+ *   - Keeps the main Header function body focused on routing /
+ *     visibility logic.
+ *
+ * Visible on every page a vendor lands on, so they always see THEIR
+ * brand at the top of the app — not a countdown that belongs to
+ * someone else's wedding.
+ */
+function VendorBrandChip({ name }: { name: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-3.5 py-1.5 rounded-full min-w-0"
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 5%, transparent))",
+        border: "1px solid var(--border-gold)",
+        boxShadow:
+          "inset 0 1px 0 rgba(244,222,169,0.18), 0 2px 10px -4px var(--accent-glow)",
+      }}
+      title={name}
+      aria-label={`עמוד הספק של ${name}`}
+    >
+      {/* Tiny gold dot — acts as a "brand bullet". Catches the eye
+          without competing with the name itself. */}
+      <span
+        aria-hidden
+        className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+          boxShadow: "0 0 6px var(--accent-glow)",
+        }}
+      />
+      <span
+        className="font-bold gradient-gold-shimmer truncate"
+        style={{
+          fontFamily: "var(--font-display), Georgia, serif",
+          fontSize: "clamp(0.9rem, 1.6vw, 1.05rem)",
+          letterSpacing: "0.005em",
+          lineHeight: 1.1,
+          maxWidth: "32ch",
+        }}
+      >
+        {name}
+      </span>
     </div>
   );
 }
