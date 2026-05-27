@@ -40,6 +40,17 @@ export type NotificationKind =
   | "rsvp_confirmed"
   | "rsvp_declined"
   | "rsvp_maybe"
+  // R146 — vendor-side kinds. The bell is shared between hosts and
+  // vendors; the icon + copy switches per kind so the same component
+  // renders the right card for either role.
+  //   • vendor_new_lead     — a couple opened a lead with the vendor
+  //   • vendor_new_review   — a couple posted a review
+  //   • vendor_chat_message — a couple sent a chat message
+  //   • vendor_milestone    — usage milestones (e.g., "10 views today")
+  | "vendor_new_lead"
+  | "vendor_new_review"
+  | "vendor_chat_message"
+  | "vendor_milestone"
   | "system";
 
 export interface AppNotification {
@@ -51,12 +62,15 @@ export interface AppNotification {
   createdAt: string;
   /** ISO timestamp when the host opened/marked it; absent = unread. */
   readAt?: string;
-  /** Optional structured payload — guests page can use guestId to
-   *  scroll to / highlight the row. */
+  /** Optional structured payload. Host: guestId to scroll to a row.
+   *  Vendor: leadId to deep-link into the leads inbox. */
   meta?: {
     guestId?: string;
     eventId?: string;
     attendingCount?: number;
+    leadId?: string;
+    reviewId?: string;
+    href?: string; // explicit click destination override
   };
 }
 

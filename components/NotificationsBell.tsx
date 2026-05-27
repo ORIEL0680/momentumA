@@ -9,6 +9,10 @@ import {
   HelpCircle,
   Info,
   Trash2,
+  Inbox as InboxIcon,
+  Star as StarIcon,
+  MessageCircle as MessageIcon,
+  TrendingUp,
 } from "lucide-react";
 import {
   useNotifications,
@@ -21,6 +25,12 @@ import {
 } from "@/lib/notifications";
 import { subscribeRsvpUpdates, type RsvpUpdate } from "@/lib/rsvpSync";
 import { useAppState } from "@/lib/store";
+// R146 — vendor-side realtime subscriber (new leads / reviews /
+// chats) that pushes into the same notifications inbox the host
+// uses. Mounted via a hook below; opts out for non-vendors.
+import { useVendorNotificationsSubscription } from "@/lib/useVendorNotifications";
+import { useVendorContext } from "@/lib/useVendorContext";
+import { getSupabase } from "@/lib/supabase";
 
 /**
  * R111 — premium notifications bell + dropdown panel.
@@ -38,6 +48,35 @@ import { useAppState } from "@/lib/store";
 export function NotificationsBell() {
   const { items, unreadCount, mounted } = useNotifications();
   const { state } = useAppState();
+  const { isVendor, vendorLanding } = useVendorContext();
+  // R146 — current auth user id (for the chat-messages subscription).
+  // We don't import useUser here because it pulls in the cloud-sync
+  // localStorage layer; supabase.auth.getUser() directly is cheaper.
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setUserId(data.user?.id ?? null);
+    });
+    // Also re-read on auth state changes (sign-in / sign-out).
+    const sub = supabase.auth.onAuthStateChange((_evt, sess) => {
+      if (!cancelled) setUserId(sess?.user?.id ?? null);
+    });
+    return () => {
+      cancelled = true;
+      sub.data.subscription.unsubscribe();
+    };
+  }, []);
+  // R146 — vendor-side realtime subscriber. No-ops for hosts (both
+  // args become null when isVendor is false). For vendors, opens
+  // three Supabase channels (leads / reviews / chats) and pushes
+  // any fresh INSERT into the shared notifications inbox.
+  useVendorNotificationsSubscription({
+    vendorSlug: isVendor ? vendorLanding?.slug ?? null : null,
+    userId: isVendor ? userId : null,
+  });
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -235,7 +274,7 @@ export function NotificationsBell() {
             style={{ maxHeight: "calc(80vh - 130px)" }}
           >
             {items.length === 0 ? (
-              <EmptyState />
+              <EmptyState isVendor={isVendor} />
             ) : (
               <ul className="py-2">
                 {items.map((n) => (
@@ -245,6 +284,18 @@ export function NotificationsBell() {
                     onClick={() => {
                       markRead(n.id);
                       setOpen(false);
+                      // R146 — if the notification carries an explicit
+                      // href (e.g., a vendor lead linking to
+                      // /vendors/dashboard/leads), navigate to it. Hosts
+                      // notifications usually don't set href; clicking
+                      // them just marks-as-read.
+                      const href = n.meta?.href;
+                      if (href) {
+                        // Use location.assign so React Router / Next
+                        // Link interception doesn't get in the way of
+                        // the popover close animation.
+                        window.location.assign(href);
+                      }
                     }}
                   />
                 ))}
@@ -252,7 +303,9 @@ export function NotificationsBell() {
             )}
           </div>
 
-          {/* Footer */}
+          {/* Footer — R146: vendor-aware. Hosts get "צפה ברשימת
+              האורחים", vendors get "פתח את הלידים". The clearAll
+              action stays the same on both sides. */}
           {items.length > 0 && (
             <div
               className="px-4 py-3 flex items-center justify-between gap-2"
@@ -262,12 +315,12 @@ export function NotificationsBell() {
               }}
             >
               <Link
-                href="/guests"
+                href={isVendor ? "/vendors/dashboard/leads" : "/guests"}
                 onClick={() => setOpen(false)}
                 className="text-xs font-semibold inline-flex items-center gap-1"
                 style={{ color: "var(--accent)" }}
               >
-                צפה ברשימת האורחים →
+                {isVendor ? "פתח את הלידים →" : "צפה ברשימת האורחים →"}
               </Link>
               <button
                 type="button"
@@ -406,7 +459,7 @@ function NotificationRow({
 
 // ─────────────────── Empty state ───────────────────────
 
-function EmptyState() {
+function EmptyState({ isVendor }: { isVendor: boolean }) {
   return (
     <div className="px-6 py-10 flex flex-col items-center text-center gap-3">
       <div
@@ -420,11 +473,15 @@ function EmptyState() {
         <Bell size={22} aria-hidden />
       </div>
       <div className="text-sm font-semibold">אין התראות חדשות</div>
+      {/* R146 — copy switches per role. Hosts care about RSVPs;
+          vendors care about leads / reviews / chats. */}
       <div
         className="text-xs leading-relaxed max-w-[260px]"
         style={{ color: "var(--foreground-muted)" }}
       >
-        כל אישור הגעה, סירוב או עדכון מאורח יופיע כאן בזמן אמת.
+        {isVendor
+          ? "כל ליד חדש, ביקורת או הודעה מזוג יופיעו כאן בזמן אמת."
+          : "כל אישור הגעה, סירוב או עדכון מאורח יופיע כאן בזמן אמת."}
       </div>
     </div>
   );
@@ -458,6 +515,34 @@ const KIND_UI: Record<
     color: "rgb(252,211,77)",
     bg: "rgba(251,191,36,0.10)",
     border: "rgba(251,191,36,0.30)",
+  },
+  // R146 — vendor-side notification visuals. Same gold language as
+  // the rest of the vendor area; each kind gets a distinct icon so a
+  // vendor can scan the list and instantly know "new lead vs. new
+  // review vs. new chat".
+  vendor_new_lead: {
+    icon: <InboxIcon size={18} />,
+    color: "var(--accent)",
+    bg: "color-mix(in srgb, var(--accent) 12%, transparent)",
+    border: "var(--border-gold)",
+  },
+  vendor_new_review: {
+    icon: <StarIcon size={18} />,
+    color: "rgb(252,211,77)",
+    bg: "rgba(251,191,36,0.12)",
+    border: "rgba(251,191,36,0.30)",
+  },
+  vendor_chat_message: {
+    icon: <MessageIcon size={18} />,
+    color: "rgb(110,231,183)",
+    bg: "rgba(52,211,153,0.10)",
+    border: "rgba(52,211,153,0.30)",
+  },
+  vendor_milestone: {
+    icon: <TrendingUp size={18} />,
+    color: "var(--accent)",
+    bg: "rgba(212,176,104,0.10)",
+    border: "var(--border-gold)",
   },
   system: {
     icon: <Info size={18} />,

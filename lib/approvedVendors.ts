@@ -16,12 +16,21 @@ export interface ApprovedVendorRow {
   category: string;
   city: string | null;
   about: string | null;
+  /** R146 — vendor's one-line tagline from vendor_landings. Null when
+   *  the vendor never set one in the editor. Shown above the
+   *  description in the catalog card when present. */
+  tagline?: string | null;
   website: string | null;
   instagram: string | null;
   facebook: string | null;
   /** R117 — Storage path (vendor-studio bucket) for the vendor's
    *  profile photo / logo, joined in from vendor_landings via the
-   *  auth user's email. Null when the vendor hasn't uploaded yet. */
+   *  auth user's email. Null when the vendor hasn't uploaded yet.
+   *
+   *  R146 — also now reflects landing edits: business_name, category,
+   *  city, about, website, instagram, facebook are all COALESCE'd
+   *  landing-first in the RPC, so this row shape stays the same but
+   *  the data behind it is the live editable value. */
   hero_photo_path: string | null;
   created_at: string | null;
 }
@@ -94,7 +103,11 @@ export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
     rating: 0,
     reviews: 0, // 0 → VendorCard shows the honest "ספק חדש" badge (R37)
     priceFrom: 0, // applications don't capture price; UI handles 0
+    // R146 — tagline (one-liner from the editor) wins over the longer
+    // `about` text in the catalog card, since the card has limited
+    // space. Falls back to about → generic copy.
     description:
+      (row.tagline ?? "").trim() ||
       (row.about ?? "").trim() ||
       `ספק מאומת${city ? ` · ${city}` : ""} שהצטרף דרך Momentum.`,
     phone: "", // never expose applicant phone here (PII) — contact via site/IG

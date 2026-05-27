@@ -207,19 +207,23 @@ export function Header() {
     userActions.signOutAndRedirect("/");
   };
 
-  // R89 — was `hydrated && user ? "/dashboard" : "/"`. The
-  // hydrated/user pair briefly flips back to false during route
-  // transitions, which meant clicking the logo from /balance (or any
-  // inner page) sometimes sent the user to the landing page instead
-  // of the dashboard — exactly the bug reported.
+  // R89 / R146 — vendor-aware logo destination.
   //
-  // Pathname-based check is deterministic: if you're already on the
-  // landing page, the logo just refreshes it (no jarring nav). From
-  // anywhere else, it goes to /dashboard. Anon users on /signup,
-  // /vendors, etc. who somehow click the logo go through /dashboard,
-  // which has its own auth gate that bounces them to /signup — no
-  // worse than the previous behaviour.
-  const headerHome = pathname === "/" ? "/" : "/dashboard";
+  // R89: pathname-based check (signed-out users on the landing page
+  //      just refresh "/"; everyone else goes home).
+  // R146: vendors should NEVER bounce through /dashboard (the host
+  //       "events" page). Pre-R146, a vendor clicking the logo from
+  //       any inner page hit /dashboard for ~150ms before
+  //       useVendorRedirect kicked them to /vendors/dashboard —
+  //       visible as a flash of host UI ("פתאום זה לוקח אותי לדף
+  //       אירועים"). Now: if isVendor OR we're on a vendor-owner
+  //       path, logo points directly to /vendors/dashboard.
+  const headerHome =
+    pathname === "/"
+      ? "/"
+      : isVendor || onVendorOwnerPath
+        ? "/vendors/dashboard"
+        : "/dashboard";
 
   return (
     <header
