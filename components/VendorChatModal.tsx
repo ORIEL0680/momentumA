@@ -3,9 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppState, actions } from "@/lib/store";
 import type { Vendor } from "@/lib/types";
-import { X, Send, ShieldCheck, Phone, Star } from "lucide-react";
+import { Send, ShieldCheck, Phone, Star } from "lucide-react";
 import { Avatar } from "./Avatar";
-import { useFocusTrap } from "@/lib/useFocusTrap";
+import { Sheet } from "./ui/Sheet";
+
+/**
+ * R87 — VendorChatModal rebuilt on the unified `<Sheet>` primitive.
+ *
+ * Pre-R87 the modal was a custom `fixed inset-0` block that opened
+ * "low" on mobile (bottom-sheet aspect) and the input got obscured
+ * by the on-screen keyboard. R87 swaps the chrome to `<Sheet>` with
+ * `position="center"` + `maxHeight="85dvh"` so:
+ *   • Desktop: centered modal, 560px wide.
+ *   • Mobile: still centered (not a bottom-sheet — too cramped for
+ *     a real conversation).
+ *   • `dvh` sizing contracts when the iOS keyboard rises so the
+ *     input stays on screen.
+ *   • Sticky composer row at the bottom with `modal-safe-bottom`
+ *     class for safe-area padding.
+ *
+ * The chat itself is still a localStorage-backed mock for the
+ * STATIC catalog seed (vendor.id without "app-" prefix). DB-backed
+ * vendor chat (real `vendor_chat_messages` rows) flows through
+ * `VendorChatLauncher` / `<ChatWindow>` on `/vendor/[slug]` (R148).
+ */
 
 const QUICK_REPLIES = [
   "האם פנוי בתאריך שלי?",
@@ -27,20 +48,12 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap({ containerRef: dialogRef, active: true, onClose });
 
   // Track in-flight mock-reply timeout. Closing the modal mid-reply used to
   // call setTyping(false) on a torn-down component.
   const replyTimeoutRef = useRef<number | null>(null);
   useEffect(() => {
-    // Lock background scroll while the chat modal is open — prevents the
-    // page behind the bottom-sheet from scrolling when the user pans
-    // through the message list on mobile.
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prevOverflow;
       if (replyTimeoutRef.current !== null) {
         window.clearTimeout(replyTimeoutRef.current);
         replyTimeoutRef.current = null;
@@ -59,7 +72,6 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
     actions.sendVendorMessage(vendor.id, text, true);
     setInput("");
     setTyping(true);
-    // Mock vendor response
     if (replyTimeoutRef.current !== null) {
       window.clearTimeout(replyTimeoutRef.current);
     }
@@ -72,19 +84,24 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`שיחה עם ${vendor.name}`}
-        className="card glass-strong w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl flex flex-col overflow-hidden h-[85vh] sm:h-[640px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between gap-3" style={{ borderColor: "var(--border)" }}>
+    <Sheet
+      open
+      onClose={onClose}
+      position="center"
+      maxWidth="640px"
+      maxHeight="85dvh"
+      ariaLabel={`שיחה עם ${vendor.name}`}
+    >
+      <div className="flex flex-col h-full min-h-0">
+        {/* Custom header — vendor avatar + rating + phone + close button
+            (rendered inline because we want richer than the standard Sheet
+            title bar). */}
+        <header
+          className="px-4 py-3 flex items-center justify-between gap-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Avatar name={vendor.name} id={vendor.id} size={48} className="rounded-2xl" />
+            <Avatar name={vendor.name} id={vendor.id} size={44} className="rounded-2xl" />
             <div className="min-w-0">
               <div className="font-bold flex items-center gap-1.5">
                 <span className="truncate">{vendor.name}</span>
@@ -92,7 +109,8 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
               </div>
               <div className="text-xs flex items-center gap-2" style={{ color: "var(--foreground-muted)" }}>
                 <span className="flex items-center gap-1">
-                  <Star size={11} className="text-[--accent]" /> <span className="ltr-num">{vendor.rating}</span>
+                  <Star size={11} className="text-[--accent]" />{" "}
+                  <span className="ltr-num">{vendor.rating}</span>
                 </span>
                 <span>·</span>
                 <span className="flex items-center gap-1 text-emerald-400">
@@ -103,19 +121,32 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
           </div>
           <a
             href={`tel:${vendor.phone}`}
-            className="w-9 h-9 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)]"
+            className="w-9 h-9 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)] shrink-0"
             style={{ border: "1px solid var(--border)", color: "var(--foreground-soft)" }}
             aria-label={`התקשר ל${vendor.name}`}
           >
             <Phone size={14} />
           </a>
-          <button onClick={onClose} aria-label="סגור" className="p-2 rounded-full hover:bg-[var(--secondary-button-bg)]">
-            <X size={18} />
+          {/* Close handled by Sheet — but Sheet's X is only when title
+              prop is set. We provided ariaLabel instead (custom header),
+              so add a discreet close button here. */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="סגור"
+            className="w-9 h-9 rounded-full flex items-center justify-center transition hover:bg-[var(--secondary-button-bg)] shrink-0"
+            style={{ border: "1px solid var(--border)", color: "var(--foreground-soft)" }}
+          >
+            ✕
           </button>
-        </div>
+        </header>
 
-        {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+        {/* Messages — flex-1 + min-h-0 + overflow-y-auto so the row
+            scrolls while the composer stays pinned to the bottom. */}
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3"
+        >
           {messages.length === 0 && (
             <div className="text-center py-8 px-4" style={{ color: "var(--foreground-muted)" }}>
               <div className="text-sm mb-3">התחל שיחה עם {vendor.name}</div>
@@ -129,8 +160,16 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
                 className="rounded-2xl px-4 py-2.5 text-sm max-w-[80%] whitespace-pre-line leading-relaxed"
                 style={
                   m.fromUser
-                    ? { background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))", color: "var(--gold-button-text)" }
-                    : { background: "var(--input-bg)", border: "1px solid var(--border)", color: "var(--foreground)" }
+                    ? {
+                        background:
+                          "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                        color: "var(--gold-button-text)",
+                      }
+                    : {
+                        background: "var(--input-bg)",
+                        border: "1px solid var(--border)",
+                        color: "var(--foreground)",
+                      }
                 }
               >
                 {m.text}
@@ -153,9 +192,10 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
           )}
         </div>
 
-        {/* Quick replies */}
+        {/* Quick replies (shown only on empty thread) — between messages
+            and the composer, also non-sticky. */}
         {messages.length === 0 && (
-          <div className="px-4 pb-2 flex flex-wrap gap-2">
+          <div className="px-4 pb-2 flex flex-wrap gap-2 shrink-0">
             {QUICK_REPLIES.map((q) => (
               <button
                 key={q}
@@ -169,10 +209,15 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
           </div>
         )}
 
-        {/* Input */}
+        {/* R87 — composer: STICKY at the bottom of the sheet body. Even
+            when the iOS keyboard rises and shortens the viewport, the
+            send row stays visible because the sheet's `maxHeight: 85dvh`
+            contracts together with the keyboard. `modal-safe-bottom`
+            adds `env(safe-area-inset-bottom)` padding for the home
+            indicator on iPhone X+. */}
         <form
-          className="p-3 border-t flex items-center gap-2"
-          style={{ borderColor: "var(--border)" }}
+          className="shrink-0 px-3 pt-3 pb-3 modal-safe-bottom flex items-center gap-2"
+          style={{ borderTop: "1px solid var(--border)", background: "var(--surface-1)" }}
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
@@ -190,13 +235,16 @@ export function VendorChatModal({ vendor, onClose }: { vendor: Vendor; onClose: 
             type="submit"
             disabled={!input.trim() || typing}
             aria-label="שלח"
-            className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40 transition hover:scale-105"
-            style={{ background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))", color: "var(--gold-button-text)" }}
+            className="w-10 h-10 rounded-full flex items-center justify-center disabled:opacity-40 transition hover:scale-105 shrink-0"
+            style={{
+              background: "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+              color: "var(--gold-button-text)",
+            }}
           >
             <Send size={16} />
           </button>
         </form>
       </div>
-    </div>
+    </Sheet>
   );
 }

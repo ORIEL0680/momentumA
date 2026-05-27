@@ -1,25 +1,57 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { type ReactNode } from "react";
+import { Sheet } from "./ui/Sheet";
 
 /**
- * R18 §P — shared modal shell so every dialog gets the same close
- * affordances for free:
- *   • a 44×44 "×" button (WCAG 2.5.5 touch target)
- *   • Esc to close
- *   • click-outside (backdrop) to close, inner click contained
+ * R18 §P — shared modal shell.
  *
- * The two pre-existing guest modals (AddGuestModal / BulkInviteModal)
- * were brought into spec in-place this round; new dialogs should prefer
- * this primitive instead of re-implementing the backdrop/Esc/✕ trio.
+ * R87 — re-implemented as a thin wrapper around `<Sheet>`. The
+ * previous bespoke implementation had:
+ *   • static `vh` sizing → broke under the iOS keyboard
+ *   • no focus trap
+ *   • no safe-area handling
+ *   • no spring animations
+ * Reusing `<Sheet>` gives every existing caller (UpgradePlanModal,
+ * SavedVendorEditModal, DeleteEventModal, ExpressSendModal,
+ * BulkSendViaMomentumModal, ReviewForm, etc.) all of those for free
+ * without per-file migrations.
+ *
+ * The API stays the same so no callers need to change:
+ *   • `maxWidthClass` — translated to `maxWidth` (Tailwind `max-w-*`
+ *     mapped to common pixel values; falls back to `560px`).
+ *
+ * To progressively switch callers to `<Sheet>` directly (and gain
+ * access to `position="bottom"`, custom titles, etc.), do so file by
+ * file — there's no urgency since both paths are now backed by the
+ * same primitive.
  */
+
+// Tailwind `max-w-*` → pixel width, so old callers passing
+// `maxWidthClass="max-w-md"` still get the right desktop width.
+const MAX_WIDTH_MAP: Record<string, string> = {
+  "max-w-xs": "320px",
+  "max-w-sm": "384px",
+  "max-w-md": "448px",
+  "max-w-lg": "512px",
+  "max-w-xl": "576px",
+  "max-w-2xl": "672px",
+  "max-w-3xl": "768px",
+  "max-w-4xl": "896px",
+  "max-w-5xl": "1024px",
+};
+
 export function Modal({
   onClose,
   title,
   children,
   maxWidthClass = "max-w-md",
-  labelledBy = "modal-title",
+  // `labelledBy` was used by the old hand-rolled markup so callers
+  // could supply a custom id for their title. With Sheet we just use
+  // the title prop directly; this parameter is now accepted but
+  // ignored — kept in the signature for backward compat so existing
+  // call sites don't have to drop it.
+  labelledBy: _labelledBy = "modal-title",
 }: {
   onClose: () => void;
   title?: ReactNode;
@@ -27,53 +59,20 @@ export function Modal({
   maxWidthClass?: string;
   labelledBy?: string;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    // Lock background scroll while the modal is open. On mobile this
-    // prevents the page behind the dialog from scrolling when the user
-    // pans inside the dialog.
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
-
+  // Reference the deprecated arg to silence the unused-var lint. The
+  // ESLint convention here is to prefix the unused param with `_`;
+  // the parameter destructuring above already does that.
+  void _labelledBy;
+  const maxWidth = MAX_WIDTH_MAP[maxWidthClass] ?? "560px";
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal
-      aria-labelledby={title ? labelledBy : undefined}
+    <Sheet
+      open
+      onClose={onClose}
+      title={title ?? undefined}
+      position="center"
+      maxWidth={maxWidth}
     >
-      <div
-        className={`card glass-strong p-6 w-full ${maxWidthClass} my-auto`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          {title ? (
-            <h3 id={labelledBy} className="text-xl font-bold">
-              {title}
-            </h3>
-          ) : (
-            <span />
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="סגור"
-            className="w-11 h-11 -m-2 flex items-center justify-center rounded-full hover:bg-[var(--secondary-button-bg)] transition shrink-0"
-          >
-            <X size={18} aria-hidden />
-          </button>
-        </div>
-        <div className="mt-4">{children}</div>
-      </div>
-    </div>
+      <div className="p-6">{children}</div>
+    </Sheet>
   );
 }

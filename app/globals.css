@@ -306,6 +306,44 @@ body {
 
 .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border-strong), transparent); }
 
+/* ─────────────── R87 — iOS Modal / Sheet hardening ─────────────── */
+
+/* `.modal-open` on <body> when a sheet is up — locks scroll. The
+ * `position: fixed; width: 100%` combo is the canonical iOS
+ * scroll-lock recipe (just setting `overflow: hidden` lets iOS
+ * scroll the page underneath). The `<Sheet>` component sets/unsets
+ * this class via its open effect. */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* Universal: when an input/textarea inside a modal gets focus, the
+ * browser tries to scroll-into-view. Margin-bottom of 16px makes
+ * sure the input doesn't end up flush against the keyboard top.
+ * Applied globally (not just inside .modal-safe) so vanilla input
+ * focuses on every page benefit too. */
+input:focus,
+textarea:focus {
+  scroll-margin-bottom: 16px;
+}
+
+/* Helper class for any modal body that wants to capture
+ * `env(safe-area-inset-bottom)` padding for sticky inputs. The
+ * <Sheet> primitive applies it automatically for `position="bottom"`
+ * variants; callers using inline sticky footers can opt in via this
+ * class on their wrapper. */
+.modal-safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Optional explicit hint: max-height 85dvh for any old-school modal
+ * that hasn't migrated to <Sheet> yet but wants the iOS-keyboard
+ * fix. Use sparingly — prefer migrating to <Sheet>. */
+.modal-safe {
+  max-height: 85dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* Glow orbs (decorative) */
 .glow-orb { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; opacity: 0.5; }
 .glow-orb-gold { background: radial-gradient(circle, rgba(212,176,104,0.6), transparent 70%); }

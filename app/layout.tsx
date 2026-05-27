@@ -87,6 +87,13 @@ export const viewport: Viewport = {
   themeColor: "#0A0A0B",
   width: "device-width",
   initialScale: 1,
+  // R87 — `viewport-fit: "cover"` is required for
+  // `env(safe-area-inset-*)` to return non-zero values on iPhone X+
+  // (notch + home indicator). Sheet/Modal footers use
+  // `env(safe-area-inset-bottom)` for sticky composer rows; without
+  // this, the inset evaluates to 0 and the row sits on top of the
+  // home indicator.
+  viewportFit: "cover",
   // Note: we intentionally do NOT set `maximumScale` or `userScalable: false` —
   // blocking pinch-zoom violates WCAG 2.1 SC 1.4.4 (Resize Text) and excludes
   // users with low vision. The small UX win on iOS double-tap-to-zoom isn't
