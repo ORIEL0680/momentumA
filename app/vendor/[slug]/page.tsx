@@ -228,8 +228,22 @@ export default async function VendorLandingPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: jsonLdSafe(jsonLd) }}
       />
       <VendorLandingClient vendor={vendor} />
-      {/* R43 — couple chat entry; self-hides unless an active lead exists. */}
-      <VendorChatLauncher slug={slug} />
+      {/* R85-0 — spacer reserves room for the mobile sticky bottom
+          bar so the page's last paragraph isn't covered by the CTA.
+          Hidden on md+ where the contact sidebar lives top-right. */}
+      <div aria-hidden className="h-24 md:hidden" />
+      {/* R43 / R148 / R85-0 — couple-side multichannel contact bar.
+          Mobile = sticky bottom bar across the screen.
+          Desktop = floating sidebar card top-right.
+          Wraps the existing chat infra (vendor_leads + ChatWindow)
+          plus WhatsApp + tel links so a couple sees ALL contact
+          options in one premium gold card. */}
+      <VendorChatLauncher
+        slug={slug}
+        vendorName={vendor.name}
+        vendorPhone={vendor.phone}
+        ownerUserId={vendor.owner_user_id}
+      />
     </>
   );
 }
