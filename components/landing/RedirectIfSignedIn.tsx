@@ -65,13 +65,33 @@ export function RedirectIfSignedIn() {
     // catches the case where the user opens /signup in a popup or
     // completes OAuth in another tab and BroadcastChannel pushes the
     // session to this tab.
+    //
+    // R143 — the listener used to unconditionally redirect to
+    // /dashboard. For a vendor signing in via a popup that put a
+    // /dashboard transition kicked off useVendorRedirect on the
+    // host dashboard, which bounced them back here to /vendors/
+    // dashboard — visible as a flash and (when network is slow) an
+    // extra page load. Now we do the same one-query vendor check
+    // here as on initial mount, so the redirect lands directly on
+    // the right surface.
     const supabase = getSupabase();
     if (!supabase) return () => { cancelled = true; };
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, sess) => {
       if (cancelled) return;
-      if (event === "SIGNED_IN" && session?.user) {
-        router.replace("/dashboard");
+      if (event !== "SIGNED_IN" || !sess?.user) return;
+      let isVendor = false;
+      try {
+        const { data: vl } = (await supabase
+          .from("vendor_landings")
+          .select("id")
+          .eq("owner_user_id", sess.user.id)
+          .maybeSingle()) as { data: { id: string } | null };
+        isVendor = !!vl;
+      } catch {
+        /* Treat error as "not a vendor" — /dashboard's gate handles it. */
       }
+      if (cancelled) return;
+      router.replace(isVendor ? "/vendors/dashboard" : "/dashboard");
     });
     return () => {
       cancelled = true;

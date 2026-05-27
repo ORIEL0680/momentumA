@@ -63,13 +63,22 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
  * budget / seating" surfaces don't apply to vendors, and showing them
  * confuses brand-new vendors who can't tell whether they're in the
  * right app. This nav keeps them inside the vendor area.
+ *
+ * R143 — "הדף שלי" originally pointed to `/vendors/my`, but that
+ * route is the HOST's "saved-vendor list" page (where a wedding host
+ * tracks the vendors they're talking to). A vendor clicking it saw
+ * an empty saved-vendor list with a "go to catalog" CTA — total
+ * dead-end. Replaced with "עריכת הדף" pointing to the actual landing
+ * editor (`/dashboard/vendor-studio`). The vendor's public-profile
+ * preview button lives on the dashboard hero, so a separate nav
+ * entry isn't needed.
  */
 export const VENDOR_HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/vendors/dashboard", label: "דשבורד" },
   { href: "/vendors/dashboard/leads", label: "לידים" },
   { href: "/vendors/dashboard/inbox", label: "הודעות" },
   { href: "/vendors/dashboard/analytics", label: "אנליטיקס" },
-  { href: "/vendors/my", label: "הדף שלי" },
+  { href: "/dashboard/vendor-studio", label: "עריכת הדף" },
   { href: "/vendors", label: "הקטלוג" },
 ] as const;
 

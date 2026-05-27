@@ -3,6 +3,11 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { actions, useAppState } from "@/lib/store";
+// R143 — vendors who land here (e.g. from the old "הדף שלי" nav entry,
+// a stale bookmark, or a search result) used to see the HOST's
+// "saved vendor list" empty-state — completely unrelated to their
+// own profile. Bounce them to their actual dashboard.
+import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import { VENDORS } from "@/lib/vendors";
 import {
   SAVED_VENDOR_STATUS_LABELS,
@@ -44,6 +49,12 @@ interface EnrichedSavedVendor {
 }
 
 export default function MyVendorsPage() {
+  // R143 — guard the host-only page from vendor accounts. If the
+  // current user is a vendor, this hook calls router.replace
+  // ("/vendors/dashboard") immediately after the vendor context
+  // resolves. The render below still runs once for hosts (and for the
+  // tick during which the context is still loading), which is fine.
+  useVendorRedirect();
   const { state, hydrated } = useAppState();
   const [editingId, setEditingId] = useState<string | null>(null);
 

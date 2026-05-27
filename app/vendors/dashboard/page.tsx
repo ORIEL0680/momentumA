@@ -586,15 +586,29 @@ export default function VendorDashboardPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {publicUrl && (
+              {publicUrl ? (
                 <a
                   href={publicUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn-secondary text-xs py-2 px-3 inline-flex items-center gap-1.5"
+                  title="פותח את הדף בלשונית חדשה — זה מה שמוזמנים רואים"
                 >
                   <Eye size={13} aria-hidden /> צפה בדף הציבורי
                 </a>
+              ) : (
+                // R143 — landing has no slug yet (orphan / never-saved
+                // record). Show a disabled affordance + tooltip rather
+                // than letting the user click a button that takes them
+                // to "" (= current URL, looks broken). Pointing them at
+                // the editor is the actionable next step.
+                <span
+                  className="btn-secondary text-xs py-2 px-3 inline-flex items-center gap-1.5 opacity-50 cursor-not-allowed"
+                  title="הדף שלך עוד לא פורסם. עבור ל'ערוך דף נחיתה' כדי להגדיר שם וכתובת."
+                  aria-disabled
+                >
+                  <Eye size={13} aria-hidden /> דף ציבורי לא פורסם
+                </span>
               )}
               <Link
                 href="/dashboard/vendor-studio"
