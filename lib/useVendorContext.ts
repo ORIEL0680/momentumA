@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "./supabase";
 import { STORAGE_KEYS } from "./storage-keys";
 import type { VendorLandingData } from "./types";
@@ -16,6 +16,13 @@ import type { VendorLandingData } from "./types";
  * Caches the answer in module scope + localStorage so we don't re-hit
  * Supabase on every Header/Sidebar mount. The cache stores the slug too,
  * because navigating between vendor pages needs it without a re-fetch.
+ *
+ * R142 — re-runs on auth-state changes (SIGNED_IN / SIGNED_OUT /
+ * USER_UPDATED) so a returning vendor who logged in after a previous
+ * host session immediately sees vendor UI instead of the stale host
+ * cache. Pre-R142, the hook only ran once on mount; signing in after a
+ * sign-out kept the previous user's vendor flag forever (until full
+ * page refresh), trapping returning vendors in the host nav.
  */
 
 /** R114 — surface the vendor's application status separately from
@@ -88,21 +95,22 @@ function writeCache(c: CachedContext) {
   }
 }
 
-/** Clear the vendor context — call from signOut paths so the next render
- *  doesn't show stale vendor UI for a now-anonymous user. */
+/** Clear the vendor context — call from signOut paths (and from the
+ *  auth-state listener on SIGNED_IN / SIGNED_OUT) so the next render
+ *  doesn't show stale vendor UI for a different user. */
 export function clearVendorContextCache() {
   moduleCache = null;
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(STORAGE_KEYS.vendorContext);
-  } catch {}
+  } catch {
+    // ignore
+  }
 }
 
 export function useVendorContext(): VendorContextValue {
   // R14 bugfix — lazy initializer so localStorage parsing only happens
-  // on mount (was firing on every render). The non-lazy form re-parsed
-  // ~50 times per session navigation, showing up as visible jank on the
-  // home page where Header re-renders on theme/scroll changes.
+  // on mount (was firing on every render).
   const [isVendor, setIsVendor] = useState<boolean>(
     () => readCache()?.isVendor ?? false,
   );
@@ -118,6 +126,143 @@ export function useVendorContext(): VendorContextValue {
     status: "none",
   });
 
+  /** R142 — single re-runnable refresh. Called on mount AND on every
+   *  auth state change so signing in / out / switching accounts
+   *  immediately reflects in the UI without a hard refresh. */
+  const refresh = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      // R14 bugfix — short-circuit anonymous users via getSession()
+      // (a synchronous local-storage check) instead of getUser() (a
+      // network round-trip to /auth/v1/user). The home page is the
+      // hottest page in the app; an unauthenticated visitor was
+      // paying for a vendor-id lookup they never needed.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setIsVendor(false);
+        setVendorLanding(null);
+        setHasPaidTier(false);
+        setApplication({ status: "none" });
+        writeCache({ isVendor: false, vendorSlug: null, lastChecked: Date.now() });
+        return;
+      }
+
+      // R114 — fetch both in parallel: the landing (source of truth
+      // for "approved vendor"), and the most recent application row
+      // matching this user's email (lets us show "pending review" UI
+      // for applicants who haven't been approved yet).
+      //
+      // R122 — explicit `.ilike("email", ...)` filter is defense in
+      // depth: even though RLS already gates by email, an explicit
+      // filter (a) makes the query plan obvious, (b) fails closed
+      // if RLS ever misconfigures, (c) is case-insensitive so a
+      // legacy row inserted before the apply route normalized to
+      // lowercase still matches.
+      const userEmail = (session.user.email ?? "").trim().toLowerCase();
+      const [landingRes, appRes] = await Promise.all([
+        supabase
+          .from("vendor_landings")
+          .select("*")
+          .eq("owner_user_id", session.user.id)
+          .maybeSingle(),
+        supabase
+          .from("vendor_applications")
+          .select(
+            "status, business_name, category, created_at, rejection_reason",
+          )
+          .ilike("email", userEmail)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const data = landingRes.data as VendorLandingData | null;
+      const appRow = appRes.data as {
+        status?: string;
+        business_name?: string;
+        category?: string;
+        created_at?: string;
+        rejection_reason?: string;
+      } | null;
+
+      let found = !!data;
+      let landing = data;
+
+      const appStatus: VendorApplicationStatus =
+        appRow?.status === "approved" ||
+        appRow?.status === "pending" ||
+        appRow?.status === "rejected"
+          ? appRow.status
+          : "none";
+
+      // R123 — self-provision the landing if the application is
+      // approved but no landing row exists yet. This covers the
+      // common case of a vendor who filled the form BEFORE signing
+      // up to the app: at approval time there was no auth.users
+      // row, so the admin route logged "no-auth-user" and skipped
+      // landing creation. Now, the moment the vendor opens the
+      // dashboard (= first time we have their JWT in this hook),
+      // we POST to the server endpoint that lazily creates the
+      // landing under service role.
+      if (appStatus === "approved" && !landing) {
+        try {
+          const res = await fetch("/api/vendors/self-provision-landing", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          if (res.ok) {
+            const { data: refreshed } = await supabase
+              .from("vendor_landings")
+              .select("*")
+              .eq("owner_user_id", session.user.id)
+              .maybeSingle();
+            if (refreshed) {
+              landing = refreshed as VendorLandingData;
+              found = true;
+            }
+          }
+        } catch (provErr) {
+          console.error("[useVendorContext] self-provision failed:", provErr);
+        }
+      }
+
+      setIsVendor(found);
+      setVendorLanding(landing);
+      setHasPaidTier(
+        !!landing &&
+          (landing.price_range === "premium" ||
+            landing.price_range === "luxury"),
+      );
+      if (appRow && appRow.status) {
+        setApplication({
+          status: appStatus,
+          businessName: appRow.business_name,
+          category: appRow.category,
+          submittedAt: appRow.created_at,
+          rejectionReason: appRow.rejection_reason,
+        });
+      } else {
+        setApplication({ status: "none" });
+      }
+      writeCache({
+        isVendor: found,
+        vendorSlug: landing?.slug ?? null,
+        lastChecked: Date.now(),
+      });
+    } catch (e) {
+      console.error("[useVendorContext]", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) {
@@ -126,148 +271,29 @@ export function useVendorContext(): VendorContextValue {
       return;
     }
 
-    let cancelled = false;
-    (async () => {
-      try {
-        // R14 bugfix — short-circuit anonymous users via getSession()
-        // (a synchronous local-storage check) instead of getUser() (a
-        // network round-trip to /auth/v1/user). The home page is the
-        // hottest page in the app; an unauthenticated visitor was
-        // paying for a vendor-id lookup they never needed.
-        const { data: { session } } = await supabase.auth.getSession();
-        if (cancelled) return;
-        if (!session?.user) {
-          setIsVendor(false);
-          setVendorLanding(null);
-          setHasPaidTier(false);
-          writeCache({ isVendor: false, vendorSlug: null, lastChecked: Date.now() });
-          return;
-        }
+    void refresh();
 
-        // R114 — fetch both in parallel: the landing (source of truth
-        // for "approved vendor"), and the most recent application row
-        // matching this user's email (lets us show "pending review" UI
-        // for applicants who haven't been approved yet).
-        //
-        // R122 — explicit `.ilike("email", ...)` filter is defense in
-        // depth: even though RLS already gates by email, an explicit
-        // filter (a) makes the query plan obvious, (b) fails closed
-        // if RLS ever misconfigures, (c) is case-insensitive so a
-        // legacy row inserted before the apply route normalized to
-        // lowercase still matches. The `??` falls back to literal
-        // "" so the chain still type-checks for an authenticated user
-        // (whose email is always set).
-        const userEmail = (session.user.email ?? "").trim().toLowerCase();
-        const [landingRes, appRes] = await Promise.all([
-          supabase
-            .from("vendor_landings")
-            .select("*")
-            .eq("owner_user_id", session.user.id)
-            .maybeSingle(),
-          supabase
-            .from("vendor_applications")
-            .select("status, business_name, category, created_at, rejection_reason")
-            .ilike("email", userEmail)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]);
-        const data = landingRes.data as VendorLandingData | null;
-        const appRow = appRes.data as {
-          status?: string;
-          business_name?: string;
-          category?: string;
-          created_at?: string;
-          rejection_reason?: string;
-        } | null;
-
-        if (cancelled) return;
-        let found = !!data;
-        let landing = data;
-
-        // Map the row → typed application status. If no row exists,
-        // the user never applied; default to "none".
-        const appStatus: VendorApplicationStatus =
-          appRow?.status === "approved" ||
-          appRow?.status === "pending" ||
-          appRow?.status === "rejected"
-            ? appRow.status
-            : "none";
-
-        // R123 — self-provision the landing if the application is
-        // approved but no landing row exists yet. This covers the
-        // common case of a vendor who filled the form BEFORE signing
-        // up to the app: at approval time there was no auth.users
-        // row, so the admin route logged "no-auth-user" and skipped
-        // landing creation. Now, the moment the vendor opens the
-        // dashboard (= first time we have their JWT in this hook),
-        // we POST to the server endpoint that lazily creates the
-        // landing under service role. The endpoint verifies the
-        // caller's identity from the JWT — they can only provision
-        // their OWN landing.
-        if (appStatus === "approved" && !landing) {
-          try {
-            const res = await fetch("/api/vendors/self-provision-landing", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            if (res.ok) {
-              // Re-query the landing — the insert happened server-side.
-              const { data: refreshed } = await supabase
-                .from("vendor_landings")
-                .select("*")
-                .eq("owner_user_id", session.user.id)
-                .maybeSingle();
-              if (refreshed) {
-                landing = refreshed as VendorLandingData;
-                found = true;
-              }
-            }
-          } catch (provErr) {
-            // Soft failure — the dashboard's "no landing yet" panel
-            // (R122) still gives the vendor a retry path.
-            console.error("[useVendorContext] self-provision failed:", provErr);
-          }
-        }
-
-        if (cancelled) return;
-        setIsVendor(found);
-        setVendorLanding(landing);
-        setHasPaidTier(
-          !!landing &&
-            (landing.price_range === "premium" ||
-              landing.price_range === "luxury"),
-        );
-        if (appRow && appRow.status) {
-          setApplication({
-            status: appStatus,
-            businessName: appRow.business_name,
-            category: appRow.category,
-            submittedAt: appRow.created_at,
-            rejectionReason: appRow.rejection_reason,
-          });
-        } else {
-          setApplication({ status: "none" });
-        }
-        writeCache({
-          isVendor: found,
-          vendorSlug: landing?.slug ?? null,
-          lastChecked: Date.now(),
-        });
-      } catch (e) {
-        // Soft failure — UI just doesn't show vendor surfaces.
-        console.error("[useVendorContext]", e);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+    // R142 — re-check vendor status on every auth state change.
+    // Pre-R142, this hook ran ONCE on mount; if a host signed out and
+    // a vendor signed in on the same browser without a hard refresh,
+    // the vendor saw the host nav forever. SIGNED_IN/OUT/USER_UPDATED
+    // all force a cache flush + re-fetch so the UI reflects the new
+    // identity within ~200ms.
+    const sub = supabase.auth.onAuthStateChange((evt) => {
+      if (
+        evt === "SIGNED_IN" ||
+        evt === "SIGNED_OUT" ||
+        evt === "USER_UPDATED"
+      ) {
+        clearVendorContextCache();
+        void refresh();
       }
-    })();
+    });
 
     return () => {
-      cancelled = true;
+      sub.data.subscription.unsubscribe();
     };
-  }, []);
+  }, [refresh]);
 
   return { isVendor, vendorLanding, application, hasPaidTier, isLoading };
 }

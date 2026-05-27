@@ -70,13 +70,23 @@ export function mintVendorSlug(
  * "already-exists" with the existing slug. The service-role client
  * is required (RLS would normally block the insert from an
  * arbitrary caller).
+ *
+ * R142 — also adopts ORPHAN landings: rows where `email` matches the
+ * application email but `owner_user_id IS NULL`. This is the case when
+ * an admin created a landing manually before the vendor signed up; the
+ * landing carries the vendor's email but no auth-user link. Without
+ * adoption, the next self-provision call tried to INSERT a brand-new
+ * row, hit the slug-uniqueness or email constraint, and returned
+ * `insert-failed` — leaving the vendor with the host nav forever.
+ * Adoption only ever links a NULL owner; a landing already owned by a
+ * different user is never touched, so this can't be used to hijack.
  */
 export async function createVendorLandingForApplication(
   adminClient: SupabaseClient,
   application: ApplicationSnapshot,
   ownerUserId: string,
 ): Promise<LandingOutcome> {
-  // Already-exists check first — keeps the helper idempotent.
+  // 1. Already-owned check first — keeps the helper idempotent.
   const { data: existing } = await adminClient
     .from("vendor_landings")
     .select("slug")
@@ -87,6 +97,45 @@ export async function createVendorLandingForApplication(
     return { status: "already-exists", slug };
   }
 
+  // 2. R142 — orphan adoption: a landing exists for this email but
+  // has no owner_user_id set. Common when an admin pre-created the
+  // landing from the application before the vendor signed up to the
+  // app. Link it to the verified caller (who has been authenticated
+  // against the same email upstream — see /api/vendors/self-
+  // provision-landing). Returns "already-exists" so the caller treats
+  // it the same as the idempotent case above.
+  const normalizedEmail = application.email.trim().toLowerCase();
+  if (normalizedEmail) {
+    const { data: orphan } = await adminClient
+      .from("vendor_landings")
+      .select("id, slug, owner_user_id")
+      .ilike("email", normalizedEmail)
+      .is("owner_user_id", null)
+      .maybeSingle();
+    if (orphan) {
+      const { id: orphanId, slug: orphanSlug } = orphan as {
+        id: string;
+        slug: string;
+        owner_user_id: string | null;
+      };
+      const { error: linkErr } = await adminClient
+        .from("vendor_landings")
+        .update({ owner_user_id: ownerUserId })
+        .eq("id", orphanId);
+      if (!linkErr) {
+        return { status: "already-exists", slug: orphanSlug };
+      }
+      // Link failed (rare — RLS misconfig or column constraint).
+      // Fall through to the insert path; the unique constraints will
+      // catch any real duplicate.
+      console.error(
+        "[createVendorLandingForApplication] orphan link failed:",
+        linkErr,
+      );
+    }
+  }
+
+  // 3. Otherwise insert a brand-new landing.
   const slug = mintVendorSlug(application.business_name, application.id);
   const { error } = await adminClient.from("vendor_landings").insert({
     slug,

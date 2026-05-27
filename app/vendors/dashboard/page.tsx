@@ -11,7 +11,6 @@ import {
   Inbox,
   Star,
   ArrowUpRight,
-  ArrowLeft,
   Sparkles,
   CheckCircle2,
   Copy,
@@ -21,6 +20,9 @@ import {
   Image as ImageIcon,
   Clock,
 } from "lucide-react";
+// ArrowLeft was used by the old sticky header (removed in R142 in
+// favor of the vendor hero) but is still imported by some sibling
+// pages — kept in the lucide list above only when needed there.
 import { getSupabase } from "@/lib/supabase";
 import { VendorInboxCard } from "@/components/chat/VendorInboxCard";
 import { Logo } from "@/components/Logo";
@@ -482,6 +484,13 @@ export default function VendorDashboardPage() {
     }
   };
 
+  // R142 — vendor hero. Replaces the thin sticky header with a
+  // premium "save-the-business-card" identity strip: a gold-bordered
+  // hero pulling the vendor's name + category + city + status, plus
+  // the most actionable CTAs (view public page, edit landing).
+  const categoryLabelStr = categoryLabel(vendorLanding.category ?? undefined);
+  const tierLabel = hasPaidTier ? "מסלול פרימיום" : "מסלול חינמי";
+
   return (
     <main
       className="min-h-screen pb-24 md:pb-20 md:pe-64"
@@ -489,34 +498,114 @@ export default function VendorDashboardPage() {
     >
       <VendorNav publicSlug={vendorLanding.slug} />
 
-      <header
-        className="sticky top-0 z-30 backdrop-blur-md border-b"
-        style={{ background: "rgba(20,16,12,0.92)", borderColor: "var(--border)" }}
-      >
-        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Logo size={20} />
-            <div>
-              <div
-                className="text-[10px] uppercase tracking-wider"
-                style={{ color: "var(--foreground-muted)" }}
+      <div className="max-w-5xl mx-auto px-5 pt-6 space-y-6">
+        {/* R142 — premium vendor hero. Pre-R142 the page opened with
+            a thin grey "Vendor Dashboard" band that gave zero
+            identity. The new hero anchors the page with the vendor's
+            brand: name in serif, category + city + tier as gold
+            chips, and the two most-clicked CTAs (view public page,
+            edit landing) right at the top. */}
+        <section
+          className="relative overflow-hidden rounded-3xl"
+          style={{
+            background:
+              "radial-gradient(120% 70% at 50% -20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2), var(--background))",
+            border: "1px solid var(--border-gold)",
+            boxShadow:
+              "inset 0 1px 0 rgba(244,222,169,0.18), 0 24px 60px -28px var(--accent-glow)",
+          }}
+        >
+          <span
+            aria-hidden
+            className="absolute top-0 left-1/2 -translate-x-1/2 h-px w-[60%] pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(90deg, transparent, var(--accent), transparent)",
+              opacity: 0.55,
+            }}
+          />
+          <div className="relative z-10 px-6 sm:px-8 py-7 md:py-8 flex flex-wrap items-start gap-5 justify-between">
+            <div className="min-w-0">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em] font-semibold"
+                style={{
+                  background: "rgba(0,0,0,0.32)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
+                }}
               >
-                Vendor Dashboard
+                <Sparkles size={11} aria-hidden /> דשבורד ספק
+              </span>
+              <h1
+                className="mt-3 font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+                style={{
+                  fontFamily: "var(--font-display), Georgia, serif",
+                  fontSize: "clamp(1.75rem, 4.4vw, 2.5rem)",
+                }}
+              >
+                {vendorLanding.name}
+              </h1>
+              <div
+                className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block w-1.5 h-1.5 rounded-full"
+                    style={{ background: "var(--accent)" }}
+                  />
+                  {categoryLabelStr}
+                </span>
+                {vendorLanding.city && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full"
+                      style={{ background: "var(--accent)", opacity: 0.5 }}
+                    />
+                    {vendorLanding.city}
+                  </span>
+                )}
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full"
+                  style={{
+                    background: hasPaidTier
+                      ? "linear-gradient(135deg, rgba(244,222,169,0.20), rgba(168,136,74,0.10))"
+                      : "rgba(255,255,255,0.04)",
+                    border: hasPaidTier
+                      ? "1px solid var(--border-gold)"
+                      : "1px solid var(--border)",
+                    color: hasPaidTier
+                      ? "var(--accent)"
+                      : "var(--foreground-muted)",
+                  }}
+                >
+                  {tierLabel}
+                </span>
               </div>
-              <div className="font-bold text-sm">{vendorLanding.name}</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {publicUrl && (
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary text-xs py-2 px-3 inline-flex items-center gap-1.5"
+                >
+                  <Eye size={13} aria-hidden /> צפה בדף הציבורי
+                </a>
+              )}
+              <Link
+                href="/dashboard/vendor-studio"
+                className="btn-gold text-xs py-2 px-3 inline-flex items-center gap-1.5"
+              >
+                <ImageIcon size={13} aria-hidden /> ערוך דף נחיתה
+              </Link>
             </div>
           </div>
-          <Link
-            href="/dashboard"
-            className="text-xs inline-flex items-center gap-1.5 px-3 py-2 rounded-lg"
-            style={{ color: "var(--foreground-soft)" }}
-          >
-            <ArrowLeft size={12} aria-hidden /> אזור הלקוחות
-          </Link>
-        </div>
-      </header>
+        </section>
 
-      <div className="max-w-5xl mx-auto px-5 pt-6 space-y-6">
         {/* R43 — vendor chat inbox entry (unread count). */}
         <VendorInboxCard />
 
@@ -658,29 +747,44 @@ export default function VendorDashboardPage() {
           )}
         </section>
 
-        {/* Quick actions — 4 big buttons */}
-        <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <QuickAction
-            href="/dashboard/vendor-studio"
-            icon={<ImageIcon size={22} aria-hidden />}
-            label="ערוך פרופיל"
-            sub="עיצוב, תמונות, תיאור"
-          />
+        {/* R142 — quick actions, expanded from 4 → 6 to surface every
+            primary vendor task explicitly: leads, messages, active
+            events, edit landing, reviews, upgrade. Three columns on
+            desktop so the grid stays readable; two on tablet; one on
+            mobile. Each card keeps the same visual rhythm — icon
+            chip, big label, small subline. The `highlight` flag adds
+            the gold border + accent text when there's something
+            actionable (pending leads, free tier with upgrade prompt). */}
+        <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <QuickAction
             href="/vendors/dashboard/leads"
             icon={<Inbox size={22} aria-hidden />}
-            label="נהל לידים"
-            sub={`${metrics.activeLeads} ממתינים`}
+            label="לידים"
+            sub={
+              metrics.activeLeads > 0
+                ? `${metrics.activeLeads} ממתינים לתגובה`
+                : "כל הלידים שהזוגות שלחו"
+            }
             highlight={metrics.activeLeads > 0}
           />
-          {/* R123 — keep Reviews + Billing INSIDE the vendor dashboard
-              instead of bouncing the host out to the public landing
-              page (`/vendor/<slug>#reviews`) or the homepage pricing
-              section. Reviews route into the analytics page, which
-              already aggregates the rating + review feed. Billing
-              stays at `/#pricing` for now because there's no dedicated
-              vendor billing page yet, but we open it in a new tab so
-              the dashboard stays put. */}
+          <QuickAction
+            href="/vendors/dashboard/inbox"
+            icon={<Inbox size={22} aria-hidden />}
+            label="הודעות"
+            sub="שיחות פעילות עם זוגות"
+          />
+          <QuickAction
+            href="/vendors/dashboard/leads?filter=active"
+            icon={<Sparkles size={22} aria-hidden />}
+            label="אירועים פעילים"
+            sub="לידים שאתה כבר עובד עליהם"
+          />
+          <QuickAction
+            href="/dashboard/vendor-studio"
+            icon={<ImageIcon size={22} aria-hidden />}
+            label="עריכת דף הנחיתה"
+            sub="עיצוב, תמונות, תיאור"
+          />
           <QuickAction
             href="/vendors/dashboard/analytics#reviews"
             icon={<Star size={22} aria-hidden />}
@@ -691,8 +795,8 @@ export default function VendorDashboardPage() {
             href="/#pricing"
             externalTab
             icon={<CreditCard size={22} aria-hidden />}
-            label={hasPaidTier ? "מסלול פרימיום" : "שדרג מסלול"}
-            sub={hasPaidTier ? "פעיל" : "פתח פיצ׳רים מתקדמים"}
+            label={hasPaidTier ? "מסלול פרימיום" : "שדרוג מסלול"}
+            sub={hasPaidTier ? "פעיל — תודה" : "פתח פיצ׳רים מתקדמים"}
             highlight={!hasPaidTier}
           />
         </section>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Loader2,
   AlertCircle,
@@ -38,8 +39,15 @@ import {
  * client-side here for now since vendor_quotes INSERT is allowed by RLS).
  */
 
-const STATUS_FILTERS: ReadonlyArray<{ id: VendorLeadStatus | "all"; label: string }> = [
+// R142 — "active" is a synthetic filter that means "leads I'm currently
+// working on": contacted OR quoted. Separate from "won" (deal closed)
+// and "lost" (deal dead). The dashboard's "אירועים פעילים" quick
+// action deep-links here with `?filter=active`.
+type LeadFilterId = VendorLeadStatus | "all" | "active";
+
+const STATUS_FILTERS: ReadonlyArray<{ id: LeadFilterId; label: string }> = [
   { id: "all", label: "הכל" },
+  { id: "active", label: "אירועים פעילים" },
   { id: "pending", label: "ממתינים" },
   { id: "contacted", label: "יצרתי קשר" },
   { id: "quoted", label: "נשלחה הצעה" },
@@ -48,11 +56,43 @@ const STATUS_FILTERS: ReadonlyArray<{ id: VendorLeadStatus | "all"; label: strin
 ];
 
 export default function VendorLeadsPage() {
+  // Wrap in Suspense — useSearchParams requires it during pre-render.
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center">
+          <Loader2 className="animate-spin text-[--accent]" size={32} aria-hidden />
+        </main>
+      }
+    >
+      <VendorLeadsInner />
+    </Suspense>
+  );
+}
+
+function VendorLeadsInner() {
+  const searchParams = useSearchParams();
+  const initialFilter: LeadFilterId = (() => {
+    const f = searchParams.get("filter");
+    if (
+      f === "active" ||
+      f === "all" ||
+      f === "pending" ||
+      f === "contacted" ||
+      f === "quoted" ||
+      f === "won" ||
+      f === "lost"
+    ) {
+      return f;
+    }
+    return "all";
+  })();
+
   const { isVendor, vendorLanding, isLoading: ctxLoading } = useVendorContext();
   const [leads, setLeads] = useState<VendorLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<VendorLeadStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<LeadFilterId>(initialFilter);
   const [quotingLead, setQuotingLead] = useState<VendorLead | null>(null);
 
   // React 19's compiler insists the dep array match the actual values
@@ -121,6 +161,14 @@ export default function VendorLeadsPage() {
 
   const filtered = useMemo(() => {
     if (statusFilter === "all") return leads;
+    // R142 — synthetic "active" filter: contacted + quoted (vendor is
+    // currently working the deal; pending = not yet touched, won/lost
+    // = closed).
+    if (statusFilter === "active") {
+      return leads.filter(
+        (l) => l.status === "contacted" || l.status === "quoted",
+      );
+    }
     return leads.filter((l) => l.status === statusFilter);
   }, [leads, statusFilter]);
 
@@ -213,8 +261,17 @@ export default function VendorLeadsPage() {
           <Filter size={14} className="shrink-0 text-[--accent]" aria-hidden />
           {STATUS_FILTERS.map((f) => {
             const active = statusFilter === f.id;
+            // R142 — count factors in the new synthetic "active"
+            // filter (contacted + quoted) so the chip shows the
+            // accurate number alongside the rest.
             const count =
-              f.id === "all" ? leads.length : leads.filter((l) => l.status === f.id).length;
+              f.id === "all"
+                ? leads.length
+                : f.id === "active"
+                  ? leads.filter(
+                      (l) => l.status === "contacted" || l.status === "quoted",
+                    ).length
+                  : leads.filter((l) => l.status === f.id).length;
             return (
               <button
                 key={f.id}

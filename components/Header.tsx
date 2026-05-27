@@ -123,7 +123,21 @@ export function Header() {
   // catalog) instead of the host's "guests / budget / seating" set,
   // which doesn't apply to them. Stays as HEADER_NAV for everyone
   // else (anon visitors, hosts, admins).
-  const effectiveNav = isVendor ? VENDOR_HEADER_NAV : HEADER_NAV;
+  //
+  // R142 — path-based fallback. While `useVendorContext` is still
+  // resolving (or if its lookup misfires — e.g., a vendor whose
+  // landing row's owner_user_id was never linked), a vendor browsing
+  // the vendor dashboard / their own profile editor would briefly
+  // see the HOST nav (אורחים / תקציב / הושבה) — confusing AND wrong.
+  // Anyone actively inside a vendor-OWNER surface gets the vendor
+  // nav unconditionally. `/vendors` (catalog) and `/vendors/[slug]`
+  // (public profile) stay isVendor-driven so an anon visitor sees
+  // the marketing nav, not the dashboard nav.
+  const onVendorOwnerPath =
+    pathname.startsWith("/vendors/dashboard") ||
+    pathname.startsWith("/vendors/my") ||
+    pathname.startsWith("/vendors/join");
+  const effectiveNav = isVendor || onVendorOwnerPath ? VENDOR_HEADER_NAV : HEADER_NAV;
 
   // Boot the cloud sync writer + event-slot snapshot listener exactly
   // once, just like the previous Header did. These run as side effects
