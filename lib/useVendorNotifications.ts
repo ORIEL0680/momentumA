@@ -38,15 +38,23 @@ import { addNotification } from "./notifications";
 interface Args {
   /** vendor_leads.vendor_id + vendor_reviews.vendor_id (the landing slug). */
   vendorSlug: string | null;
+  /** vendor_landings.id (UUID) — used by vendor_page_actions.vendor_id.
+   *  Distinct from `vendorSlug` because the page-actions table stores
+   *  the landing UUID, not the slug. */
+  vendorLandingId: string | null;
   /** Auth user id — used by chat_messages.recipient_id when a couple
    *  sends a chat to the vendor. */
   userId: string | null;
 }
 
-export function useVendorNotificationsSubscription({ vendorSlug, userId }: Args): void {
+export function useVendorNotificationsSubscription({
+  vendorSlug,
+  vendorLandingId,
+  userId,
+}: Args): void {
   useEffect(() => {
     // Need at least one identifier to subscribe.
-    if (!vendorSlug && !userId) return;
+    if (!vendorSlug && !userId && !vendorLandingId) return;
     const supabase = getSupabase();
     if (!supabase) return;
 
@@ -136,6 +144,55 @@ export function useVendorNotificationsSubscription({ vendorSlug, userId }: Args)
       channels.push(reviewsCh);
     }
 
+    // ─── Page actions ───────────────────────────────────────
+    // R147 — when a couple taps WhatsApp / phone / website / saves
+    // the vendor from the catalog or landing, an INSERT lands in
+    // `vendor_page_actions` with the landing UUID. We surface this
+    // as a soft "someone's checking you out" notification so the
+    // vendor can reach out proactively even without a formal lead.
+    if (vendorLandingId) {
+      const ACTION_LABELS: Record<string, string> = {
+        whatsapp: "מישהו לחץ על WhatsApp",
+        phone: "מישהו לחץ על הטלפון",
+        website: "מישהו לחץ על האתר",
+        save: "מישהו שמר אותך לרשימה",
+        contact: "מישהו פתח את כפתור יצירת קשר",
+      };
+      const actionsCh = supabase
+        .channel(`vendor_notif_actions_${vendorLandingId}`)
+        .on(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          "postgres_changes" as any,
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "vendor_page_actions",
+            filter: `vendor_id=eq.${vendorLandingId}`,
+          },
+          (payload: { new: Record<string, unknown> }) => {
+            const row = payload.new as {
+              id?: string;
+              action_type?: string;
+              action_at?: string;
+            };
+            const actionType = row.action_type ?? "interaction";
+            const title = ACTION_LABELS[actionType] ?? `פעולה חדשה (${actionType})`;
+            addNotification({
+              id: `vendor_action:${row.id ?? crypto.randomUUID()}`,
+              kind: "vendor_page_action",
+              title,
+              body: "פעולה בדף הציבורי שלך — שווה לפנות אליהם",
+              createdAt: row.action_at ?? new Date().toISOString(),
+              meta: {
+                href: "/vendors/dashboard/analytics",
+              },
+            });
+          },
+        )
+        .subscribe();
+      channels.push(actionsCh);
+    }
+
     // ─── Chat messages ──────────────────────────────────────
     // Vendor receives a chat from a couple. The chat_messages table
     // uses recipient_id (= the auth user receiving the message). We
@@ -187,5 +244,5 @@ export function useVendorNotificationsSubscription({ vendorSlug, userId }: Args)
         }
       }
     };
-  }, [vendorSlug, userId]);
+  }, [vendorSlug, vendorLandingId, userId]);
 }

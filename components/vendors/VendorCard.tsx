@@ -96,7 +96,19 @@ function VendorCardImpl({
   const reducedMotion = useReducedMotion();
   const router = useRouter();
   const meshClass = `mesh-${(meshIndex % 6) + 1}`;
-  const imageUrl = vendorImageFor(vendor.type, meshIndex);
+  // R147 — the vendor's OWN logo / hero photo is the catalog tile's
+  // primary visual when it exists. Pre-R147 we showed a generic stock
+  // image from `vendorImageFor()` and tucked the real logo into a
+  // small circular avatar at the corner. That made every "מטעמי
+  // שרביט" tile look the same as every other catering tile —
+  // commodity. Now the vendor's brand IS the tile; stock falls back
+  // for vendors who haven't uploaded yet.
+  //
+  // `usesVendorPhoto` switches object-cover → object-contain so a
+  // square logo isn't cropped to landscape; the stock fallback path
+  // stays object-cover because those images ARE landscape.
+  const usesVendorPhoto = !!vendor.photoUrl;
+  const imageUrl = vendor.photoUrl || vendorImageFor(vendor.type, meshIndex);
 
   // R95 — every approved-vendor card has its own /vendor/<id> landing
   // page (built in R85). Click should open that page directly. The
@@ -195,16 +207,33 @@ function VendorCardImpl({
       onKeyDown={handleCardKey}
     >
       <div className={`aspect-[16/10] relative ${meshClass} overflow-hidden`}>
-        {/* R20 — next/image (same visual: fill + object-cover + the
-            existing hover-scale / ken-burns classes are preserved). */}
+        {/* R147 — when the image IS the vendor's logo, we layer a
+            blurred copy underneath as a colored backdrop and show
+            the contained logo on top. Gives the tile depth without
+            cropping the logo. For stock fallbacks we keep the
+            classic object-cover treatment. */}
+        {usesVendorPhoto && (
+          <Image
+            src={imageUrl}
+            alt=""
+            aria-hidden
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            quality={50}
+            className="absolute inset-0 w-full h-full object-cover scale-110"
+            style={{ filter: "blur(28px) saturate(1.1)", opacity: 0.55 }}
+          />
+        )}
         <Image
           src={imageUrl}
           alt={vendor.name}
           fill
           sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
           quality={70}
-          className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105 ${
-            kenBurns ? "ken-burns" : ""
+          className={`absolute inset-0 w-full h-full ${
+            usesVendorPhoto ? "object-contain p-6" : "object-cover"
+          } transition-transform duration-700 ease-out hover:scale-105 ${
+            kenBurns && !usesVendorPhoto ? "ken-burns" : ""
           }`}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
@@ -284,16 +313,12 @@ function VendorCardImpl({
           )}
         </div>
 
-        {/* R117 — vendor profile photo / logo. Premium gold-bordered
-            circular avatar that overlaps the image's bottom-right
-            corner, sitting half-on-half-off the mesh + the card body.
-            Falls back to a clean gold-gradient placeholder with the
-            vendor's initial when there's no photo. The placeholder
-            keeps the layout visually balanced regardless. */}
-        <VendorAvatar
-          photoUrl={vendor.photoUrl}
-          name={vendor.name}
-        />
+        {/* R147 — VendorAvatar (small gold circle over the bottom-right
+            corner) removed. The vendor's logo is now the FULL tile
+            image, so a separate avatar was redundant and made the
+            tile feel cluttered ("עיגול הקטן שנמצא בפנים איפה
+            שהלוגו"). If the vendor never uploaded a logo, the stock
+            mesh image is shown alone — same calm composition. */}
       </div>
 
       <div className="p-5 flex flex-col flex-1">
@@ -422,82 +447,10 @@ function SocialRow({ vendor }: { vendor: Vendor }) {
 }
 
 /** "+1" that floats up + fades. Pure CSS, hosts inside the action button. */
-/**
- * R117 — premium circular avatar that sits at the seam between the
- * mesh image and the card body. ~64px wide, gold gradient ring, soft
- * shadow underneath so it appears to lift off the card. When the
- * vendor has uploaded a photo, we render it filled. When they haven't,
- * we fall back to a tasteful gold→black gradient placeholder showing
- * the first letter of the business name in a serif gold-text style —
- * still feels intentional, never a broken-image icon.
- *
- * Positioned absolutely so the image area doesn't have to allocate
- * vertical room; the bottom 32px of the avatar bleeds into the body's
- * top padding, which the body already has room for.
- */
-function VendorAvatar({
-  photoUrl,
-  name,
-}: {
-  photoUrl?: string;
-  name: string;
-}) {
-  const initial = (name.trim().charAt(0) || "M").toUpperCase();
-  return (
-    <div
-      aria-hidden
-      className="absolute -bottom-7 end-5 z-10"
-      style={{
-        filter: "drop-shadow(0 6px 18px rgba(0,0,0,0.45))",
-      }}
-    >
-      {/* Gold gradient ring — single element using padding + background
-          so the inner circle inherits the card's surface and we don't
-          need a stacked DOM for the border effect. */}
-      <div
-        className="w-16 h-16 rounded-full p-[2px] overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--gold-100), var(--gold-500) 60%, var(--gold-100))",
-        }}
-      >
-        <div
-          className="w-full h-full rounded-full overflow-hidden flex items-center justify-center"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(244,222,169,0.20), rgba(0,0,0,0.85))",
-          }}
-        >
-          {photoUrl ? (
-            // Plain <img> on purpose — these are Supabase public URLs
-            // (origin not in next.config remotePatterns by default), so
-            // <Image> would block them. The avatar is small enough
-            // that we don't need next/image optimizations here.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt={`${name} — לוגו`}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <span
-              className="font-extrabold text-2xl gradient-gold ltr-num"
-              style={{
-                fontFamily:
-                  "ui-serif, 'Heebo', Georgia, 'Times New Roman', serif",
-                lineHeight: 1,
-              }}
-            >
-              {initial}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// R147 — VendorAvatar removed. The vendor's logo now fills the full
+// catalog tile image; a separate corner avatar duplicated the brand
+// and made every tile feel cluttered. See R117 in git history for
+// the original component if we ever want a hybrid layout back.
 
 function FloatingPlusOne() {
   return (

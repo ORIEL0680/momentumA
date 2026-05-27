@@ -71,6 +71,33 @@ const MORE_ICONS: Record<string, LucideIcon> = {
   Settings,
 };
 
+/**
+ * R147 — Decide whether a nav item is the active one for the current
+ * pathname. Active iff:
+ *   • EXACT match (pathname === item.href), OR
+ *   • prefix match (pathname starts with item.href + "/") AND no
+ *     other nav item is a LONGER prefix match for this pathname.
+ *
+ * The longest-matching nav item wins. Used by both the desktop and
+ * mobile pill rows so the gold-glowing state always identifies
+ * exactly one pill — the one that maps to the user's current page.
+ */
+function isMostSpecificMatch(
+  pathname: string,
+  href: string,
+  all: ReadonlyArray<{ href: string }>,
+): boolean {
+  if (pathname === href) return true;
+  if (!pathname.startsWith(`${href}/`)) return false;
+  // Some other nav entry is a deeper-prefix → it should win, not this one.
+  return !all.some(
+    (other) =>
+      other.href !== href &&
+      other.href.startsWith(`${href}/`) &&
+      (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+  );
+}
+
 interface MoreItemContext {
   isAdmin: boolean;
   isVendor: boolean;
@@ -387,8 +414,21 @@ export function Header() {
         >
           <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
             {effectiveNav.map((n) => {
-              const active =
-                pathname === n.href || pathname.startsWith(`${n.href}/`);
+              // R147 — only the MOST-SPECIFIC match lights up gold.
+              //
+              // Pre-R147 logic: `pathname === n.href || pathname.startsWith(n.href + "/")`.
+              // On `/vendors/dashboard/leads`, BOTH "/vendors/dashboard"
+              // AND "/vendors/dashboard/leads" matched (the leads
+              // pathname starts with the parent's href), so two pills
+              // glowed gold simultaneously. Same on host pages where
+              // `/dashboard` matched everything under it.
+              //
+              // New logic: a pill is active iff (a) exact match, OR
+              // (b) prefix match AND no other nav item is a longer
+              // prefix match. The longest-prefix wins, so navigating
+              // to `/vendors/dashboard/leads` only highlights "לידים";
+              // the dashboard pill returns to its normal muted style.
+              const active = isMostSpecificMatch(pathname, n.href, effectiveNav);
               return <NavPill key={n.href} href={n.href} label={n.label} active={active} />;
             })}
           </div>
@@ -486,8 +526,8 @@ export function Header() {
             aria-label="ניווט ראשי"
           >
             {effectiveNav.map((n) => {
-              const active =
-                pathname === n.href || pathname.startsWith(`${n.href}/`);
+              // R147 — same most-specific-match logic as the desktop pill row.
+              const active = isMostSpecificMatch(pathname, n.href, effectiveNav);
               return (
                 <NavPill
                   key={n.href}

@@ -51,6 +51,13 @@ export type NotificationKind =
   | "vendor_new_review"
   | "vendor_chat_message"
   | "vendor_milestone"
+  // R147 — fired when a couple takes an explicit action on the
+  // vendor's public landing page (WhatsApp click, phone tap, save,
+  // website outbound). Different from "lead" — no message
+  // attached, but the couple expressed interest by tapping a
+  // contact button. The bell shows it as a soft signal: "someone is
+  // checking out your page, consider reaching out".
+  | "vendor_page_action"
   | "system";
 
 export interface AppNotification {

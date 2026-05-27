@@ -75,6 +75,7 @@ export function NotificationsBell() {
   // any fresh INSERT into the shared notifications inbox.
   useVendorNotificationsSubscription({
     vendorSlug: isVendor ? vendorLanding?.slug ?? null : null,
+    vendorLandingId: isVendor ? vendorLanding?.id ?? null : null,
     userId: isVendor ? userId : null,
   });
   const [open, setOpen] = useState(false);
@@ -543,6 +544,16 @@ const KIND_UI: Record<
     color: "var(--accent)",
     bg: "rgba(212,176,104,0.10)",
     border: "var(--border-gold)",
+  },
+  // R147 — soft signal that a couple interacted with the public
+  // landing (WhatsApp tap, save, etc.). Same visual chip as a
+  // milestone, slightly different icon so vendors can tell them
+  // apart at a glance.
+  vendor_page_action: {
+    icon: <TrendingUp size={18} />,
+    color: "rgb(167,139,250)",
+    bg: "rgba(167,139,250,0.10)",
+    border: "rgba(167,139,250,0.30)",
   },
   system: {
     icon: <Info size={18} />,
