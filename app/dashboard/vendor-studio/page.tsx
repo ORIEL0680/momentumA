@@ -418,7 +418,12 @@ export default function VendorStudioEditor() {
     // isDirty flips back to false. Without this, beforeunload would
     // still nag the vendor right after a successful save.
     setSavedSnapshot(currentSnapshot);
-    showToast("השינויים נשמרו בהצלחה!", "success");
+    showToast("השינויים נשמרו בהצלחה! התעדכן בקטלוג תוך מספר שניות.", "success");
+    // R84-4 — kick the server-rendered routes (/vendor/[slug] +
+    // /vendors via its RSC layer) so the new logo / name / tagline
+    // surface immediately. router.refresh re-runs server queries
+    // without losing client state.
+    router.refresh();
     setSaving(false);
   };
 

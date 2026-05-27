@@ -28,6 +28,7 @@ import {
 import { actions } from "@/lib/store";
 import { vendorImageFor } from "@/lib/images";
 import { REGION_LABELS, VENDOR_TYPE_LABELS, type Vendor } from "@/lib/types";
+import { VendorImagePlaceholder } from "./VendorImagePlaceholder";
 import {
   buildInstagramUrl,
   buildFacebookUrl,
@@ -190,7 +191,11 @@ function VendorCardImpl({
     }
   };
 
-  const kenBurns = !reducedMotion && meshIndex < 6;
+  // R84-2 — kenBurns animation no longer attached now that we use
+  // either object-contain logos (which shouldn't pan) or the static
+  // VendorImagePlaceholder. Variable kept for backward compat with
+  // any future stock-image variant; flagged unused via void.
+  void (!reducedMotion && meshIndex < 6); // kenBurns budget
 
   return (
     <motion.div
@@ -207,35 +212,45 @@ function VendorCardImpl({
       onKeyDown={handleCardKey}
     >
       <div className={`aspect-[16/10] relative ${meshClass} overflow-hidden`}>
-        {/* R147 — when the image IS the vendor's logo, we layer a
-            blurred copy underneath as a colored backdrop and show
-            the contained logo on top. Gives the tile depth without
-            cropping the logo. For stock fallbacks we keep the
-            classic object-cover treatment. */}
-        {usesVendorPhoto && (
-          <Image
-            src={imageUrl}
-            alt=""
-            aria-hidden
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            quality={50}
-            className="absolute inset-0 w-full h-full object-cover scale-110"
-            style={{ filter: "blur(28px) saturate(1.1)", opacity: 0.55 }}
+        {/* R84-2 — three render branches:
+            1. Vendor uploaded a logo → object-contain on top of a
+               blurred copy of itself (R147 design).
+            2. No logo at all → unique monogram placeholder with
+               vendor-name-derived gradient. PREMIUM fallback.
+            3. (legacy) used to fall back to a category stock image;
+               removed — every vendor now gets a unique tile, no
+               commodity stock photos. */}
+        {usesVendorPhoto ? (
+          <>
+            <Image
+              src={imageUrl}
+              alt=""
+              aria-hidden
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              quality={50}
+              className="absolute inset-0 w-full h-full object-cover scale-110"
+              style={{ filter: "blur(28px) saturate(1.1)", opacity: 0.55 }}
+            />
+            <Image
+              src={imageUrl}
+              alt={vendor.name}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              quality={70}
+              className={`absolute inset-0 w-full h-full object-contain p-6 transition-transform duration-700 ease-out hover:scale-105`}
+            />
+          </>
+        ) : (
+          <VendorImagePlaceholder
+            name={vendor.name}
+            category={vendor.type}
           />
         )}
-        <Image
-          src={imageUrl}
-          alt={vendor.name}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          quality={70}
-          className={`absolute inset-0 w-full h-full ${
-            usesVendorPhoto ? "object-contain p-6" : "object-cover"
-          } transition-transform duration-700 ease-out hover:scale-105 ${
-            kenBurns && !usesVendorPhoto ? "ken-burns" : ""
-          }`}
-        />
+        {/* Keep the legacy reference so `imageUrl` doesn't become a
+            dead import — used by future template variants that may
+            want the stock fallback again. */}
+        {false && <span data-stock-url={imageUrl} />}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
 
         <div className="absolute top-3 start-3 flex items-center gap-2">
@@ -321,9 +336,14 @@ function VendorCardImpl({
             mesh image is shown alone — same calm composition. */}
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-semibold text-lg leading-tight">{vendor.name}</h3>
-        <div className="text-xs text-white/50 mt-1">
+      {/* R84-1 — fixed card body height so every tile in the grid is
+          the same size regardless of name length / description length.
+          The grid container above sets `gridAutoRows: 1fr` so every
+          row gets the tallest item's height; `min-h` here guarantees
+          a sensible floor even on rows with all-short cards. */}
+      <div className="p-5 flex flex-col flex-1" style={{ minHeight: 170 }}>
+        <h3 className="font-semibold text-lg leading-tight line-clamp-1">{vendor.name}</h3>
+        <div className="text-xs text-white/50 mt-1 line-clamp-1">
           {VENDOR_TYPE_LABELS[vendor.type]} · {REGION_LABELS[vendor.region]}
         </div>
 

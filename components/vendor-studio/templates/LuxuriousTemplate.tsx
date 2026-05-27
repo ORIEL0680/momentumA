@@ -17,6 +17,10 @@ import { safeHttpUrl } from "@/lib/safeUrl";
 import { Logo } from "@/components/Logo";
 import { VendorRatingSummary } from "@/components/vendors/VendorRatingSummary";
 import { ReviewCard } from "@/components/vendors/ReviewCard";
+// R84-3 — inline "rate this vendor" CTA. Opens the existing
+// ReviewForm modal (3-step ratings → details → media) so the couple
+// can publish a review without leaving the public page.
+import { VendorRateLauncher } from "@/components/vendors/VendorRateLauncher";
 import {
   InstagramGlyph,
   FacebookGlyph,
@@ -324,6 +328,18 @@ export function LuxuriousTemplate({
           </div>
 
           <VendorRatingSummary vendorId={vendor.id} />
+
+          {/* R84-3 — inline rate-this-vendor CTA. Wraps the existing
+              ReviewForm (used in catalog QuickLook) so the couple can
+              publish a review straight from the public page. Hidden
+              for the vendor themselves; routes signed-out visitors
+              to /signup with a returnTo. */}
+          <VendorRateLauncher
+            vendorId={vendor.id}
+            vendorName={vendor.name}
+            ownerUserId={vendor.owner_user_id}
+            returnTo={`/vendor/${vendor.slug}`}
+          />
 
           {reviews.length > 0 && (
             <div className="mt-8 space-y-4">

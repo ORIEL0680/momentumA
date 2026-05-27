@@ -524,6 +524,11 @@ function VendorsInner() {
             <>
               <motion.div
                 layout={!reducedMotion}
+                // R84-1 — `grid-auto-rows: 1fr` makes every row the
+                // same height regardless of which card is the tallest
+                // in that row. Combined with min-h + line-clamp on
+                // the card body, every tile is EXACTLY the same size.
+                style={{ gridAutoRows: "1fr" }}
                 className="mt-4 grid gap-5 md:grid-cols-2 lg:grid-cols-3"
               >
                 <AnimatePresence mode="popLayout">
