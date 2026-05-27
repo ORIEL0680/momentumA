@@ -43,7 +43,12 @@ interface TableProbe {
  */
 const TABLES: TableProbe[] = [
   { name: "app_states", publicReadable: false },
-  { name: "profiles", publicReadable: false },
+  // R85: `profiles` removed from the inventory — the only code path
+  // that references it (`/api/assistant/chat` for subscription_tier
+  // lookup) uses .maybeSingle() and gracefully defaults to "free"
+  // tier when the table is missing. The table is a stub for a
+  // future Stripe-backed pricing migration; flagging it as broken
+  // in the health probe would always show red.
   { name: "vendor_applications", publicReadable: false },
   { name: "vendor_landings", publicReadable: true },
   { name: "vendor_leads", publicReadable: false },
