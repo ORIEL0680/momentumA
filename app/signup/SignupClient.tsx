@@ -8,6 +8,10 @@ import { userActions, type SignupMethod } from "@/lib/user";
 import { track } from "@/lib/analytics";
 import { useAuthProviders } from "@/lib/auth-providers";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+// R141 — persist the chosen role (host/vendor) before any auth
+// roundtrip so /auth/callback can route the user to the right
+// post-signup destination. See lib/pendingRole.ts for the rationale.
+import { setPendingRole } from "@/lib/pendingRole";
 import { Phone, Mail, ArrowLeft, ArrowRight, Sparkles, ShieldCheck, CheckCircle2, Loader2 } from "lucide-react";
 // R140 — diagnostic panel shown when a user reports they didn't get
 // the email confirmation / SMS code. Calls /api/auth/diagnose and
@@ -174,6 +178,12 @@ function SignupPageInner() {
     setError(null);
     if (!requireConsent()) return;
     persistConsent();
+    // R141 — persist the chosen role BEFORE the OAuth redirect so
+    // /auth/callback can read it back when Google/Apple bounce the
+    // user home. Without this, vendor signups always landed in the
+    // host onboarding flow because the React state was destroyed
+    // by the redirect.
+    if (authMode === "signup") setPendingRole(signupRole);
     track("signup_started", { method: m });
     if (cloudEnabled) {
       try {
@@ -210,6 +220,13 @@ function SignupPageInner() {
     if (!requireConsent()) return;
     if (!identifier.trim() || identifier.replace(/\D/g, "").length < 9) return;
     persistConsent();
+    // R141 — phone OTP usually completes in-page (verifyOtp calls
+    // router.push(returnTo) directly), so the localStorage role isn't
+    // strictly needed for the happy path. But the user can close the
+    // tab between sending and verifying — persisting now means the
+    // role is still right when they return through /auth/callback
+    // (rare, but real). Cheap insurance.
+    if (authMode === "signup") setPendingRole(signupRole);
     track("signup_started", { method: "phone" });
     if (cloudEnabled) {
       try {
@@ -269,6 +286,12 @@ function SignupPageInner() {
       return;
     }
     persistConsent();
+    // R141 — for email signup the user clicks a confirmation link from
+    // their inbox, which routes through /auth/confirm → /auth/callback.
+    // The callback must know the user picked "vendor" to send them to
+    // /vendors/join instead of /onboarding. Persist before signUp so the
+    // role survives the multi-minute round-trip.
+    if (authMode === "signup") setPendingRole(signupRole);
     track("signup_started", { method: "email", mode: emailMode });
     setBusy(true);
     try {

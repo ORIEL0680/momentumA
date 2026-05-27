@@ -10,6 +10,12 @@ import { logError } from "@/lib/error-tracker";
 import { track } from "@/lib/analytics";
 import { syncOnLogin } from "@/lib/sync";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+// R141 — read the pre-auth role choice so new vendors land in
+// /vendors/join (application form) instead of /onboarding (host flow).
+// Without this, every vendor signed up via OAuth or email-confirmation
+// was bucketed into the host journey because no vendor_landings row
+// existed yet at the moment of callback.
+import { getPendingRole, clearPendingRole } from "@/lib/pendingRole";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 export default function CallbackPage() {
@@ -179,12 +185,30 @@ function CallbackInner() {
         console.error("[auth/callback] vendor lookup", e);
       }
 
+      // R141 — new vendor signups don't have a vendor_landings row YET
+      // (they create one on /vendors/join). Read the role they picked
+      // on /signup before the auth roundtrip. If they chose "vendor"
+      // but no landing exists, route to /vendors/join. Clear the
+      // pending role immediately either way so a later host signup on
+      // the same browser doesn't inherit it.
+      const pendingRole = getPendingRole();
+      clearPendingRole();
+
       if (isVendor) {
         router.replace("/vendors/dashboard");
         return;
       }
 
-      // Couple side. Parse the AppState properly — substring matching
+      // No vendor_landings row but user explicitly chose vendor on
+      // /signup → send them to the application form. This is THE fix
+      // for "I signed up as a vendor but landed in the host flow".
+      if (pendingRole === "vendor") {
+        track("signup_completed", { method: provider, role: "vendor" });
+        router.replace("/vendors/join");
+        return;
+      }
+
+      // Couple / host side. Parse the AppState properly — substring matching
       // could false-match a guest name like '"event":{...}'.
       let hasEvent = false;
       try {

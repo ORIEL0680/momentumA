@@ -58,6 +58,16 @@ export const STORAGE_KEYS = {
   // R39 — Express Bulk Send resume state ({queueIds, completedIds,
   // skippedIds, currentId, savedAt}). Offered as "continue?" for 2h.
   expressSendState: "momentum.expressSend.v1",
+
+  // R141 — pending signup role. Written when the user picks "vendor"
+  // on /signup BEFORE the auth roundtrip (OAuth redirect / email
+  // confirmation), read by /auth/callback to route the user to
+  // /vendors/join (vendor application) instead of /onboarding (host
+  // flow). Pre-R141 the role was kept in React state only — it was
+  // lost on every redirect, and every vendor ended up in the host
+  // onboarding. Stores `{ role:"vendor", at: ISO }`; entries older
+  // than 30 minutes are ignored on read.
+  pendingRole: "momentum.pendingRole.v1",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
