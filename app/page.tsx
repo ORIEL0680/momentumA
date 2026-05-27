@@ -32,16 +32,51 @@ import { FinalCTA } from "@/components/landing/FinalCTA";
  * `script-src 'nonce-…' 'strict-dynamic'` policy. The nonce attribute
  * below lets this inline script execute under that policy.
  */
+// R148 — runs BEFORE the body paints. Two-step process:
+//   1. Synchronously check if a Supabase session token exists in
+//      localStorage. If yes → hide the body INSTANTLY (so no landing
+//      content flashes through) and pick the right destination using
+//      the cached vendor flag (set by useVendorContext on every
+//      successful auth check). Then redirect. The user never sees /.
+//   2. If no session → do nothing; landing renders normally.
+//
+// Pre-R148 the script used `location.replace("/dashboard")`
+// unconditionally and waited until the redirect committed. That's
+// "fast" in absolute terms but leaves a visible flash of the
+// landing hero for one paint cycle — especially noticeable when the
+// user hits the browser back button from /vendors/dashboard. The
+// hide-then-redirect pattern (used on github.com, vercel.com, etc.)
+// guarantees zero flash regardless of how fast the redirect commits.
 const REDIRECT_SCRIPT = `
 (function(){
   try {
+    var hasSession = false;
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
       if (k && /^sb-.*-auth-token$/.test(k)) {
         var v = localStorage.getItem(k);
-        if (v && v.length > 10) { location.replace("/dashboard"); return; }
+        if (v && v.length > 10) { hasSession = true; break; }
       }
     }
+    if (!hasSession) return;
+    // Hide the body immediately so no landing content shows through
+    // during the redirect commit.
+    var html = document.documentElement;
+    if (html && html.style) html.style.visibility = "hidden";
+    // Vendor-aware destination. We read the same cached flag that
+    // useVendorContext writes after every successful auth check
+    // (see lib/storage-keys.ts vendorContext key). Falls back to
+    // /dashboard if no cache yet — useVendorRedirect will handle
+    // the second hop, same as before the SSR script existed.
+    var dest = "/dashboard";
+    try {
+      var raw = localStorage.getItem("momentum.vendor.context.v1");
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.isVendor === true) dest = "/vendors/dashboard";
+      }
+    } catch (e) {}
+    location.replace(dest);
   } catch (e) {}
 })();
 `;

@@ -34,6 +34,10 @@ import { VendorCard } from "@/components/vendors/VendorCard";
 import { VendorFilters } from "@/components/vendors/VendorFilters";
 import { CategoryRail } from "@/components/vendors/CategoryRail";
 import { SelectedBar } from "@/components/vendors/CompareBar";
+// R148 — hide the host-only "המשך לתקציב" floating bar from vendors
+// who browse the public catalog. Budget is a host feature; the bar
+// shouldn't appear for a signed-in vendor account.
+import { useVendorContext } from "@/lib/useVendorContext";
 import { ActiveFilterPills } from "@/components/vendors/ActiveFilterPills";
 import { VendorQuickLook } from "@/components/vendors/VendorQuickLook";
 
@@ -72,6 +76,9 @@ function VendorsInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const reducedMotion = useReducedMotion();
+  // R148 — used below to hide the "המשך לתקציב" floating bar from
+  // vendor accounts browsing their own catalog. Hosts still see it.
+  const { isVendor } = useVendorContext();
 
   // ─── State (filters, sort, modal targets) ───
   // We seed each piece in turn from URL → sessionStorage → defaults. The seed
@@ -577,7 +584,13 @@ function VendorsInner() {
                 `compareVendors` for the heart-toggle on cards (cheap),
                 but the floating bar is gone. */}
             <AnimatePresence>
-              {state.selectedVendors.length > 0 && <SelectedBar count={state.selectedVendors.length} />}
+              {/* R148 — hide the "המשך לתקציב" bar for vendors. The
+                  budget tool is host-only; surfacing it for a vendor
+                  browsing the catalog leads them into a part of the
+                  app that has no meaning for their account. */}
+              {!isVendor && state.selectedVendors.length > 0 && (
+                <SelectedBar count={state.selectedVendors.length} />
+              )}
             </AnimatePresence>
           </div>
         </div>

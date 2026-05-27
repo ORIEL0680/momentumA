@@ -53,6 +53,10 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/guests", label: "אורחים" },
   { href: "/budget", label: "תקציב" },
   { href: "/vendors", label: "ספקים" },
+  // R148 — new "צ׳אטים" hub: shows every host↔vendor conversation
+  // in one place. The vendor side has /vendors/dashboard/inbox for
+  // the same data; this is the host's equivalent.
+  { href: "/chats", label: "צ׳אטים" },
   { href: "/seating", label: "הושבה" },
   { href: "/balance", label: "מאזן" },
 ] as const;
