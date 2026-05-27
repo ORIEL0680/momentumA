@@ -6,6 +6,9 @@ import { ArrowRight, Inbox as InboxIcon, Loader2 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { useVendorContext } from "@/lib/useVendorContext";
 import { ChatWindow } from "@/components/chat/ChatWindow";
+// R144 — global Header replaces the custom sticky band so the inbox
+// matches every other vendor surface (and the host dashboard's nav).
+import { Header } from "@/components/Header";
 
 interface LeadRow {
   id: string;
@@ -175,13 +178,18 @@ export default function VendorInboxPage() {
     u === "urgent" ? "🔴" : u === "waiting" ? "🟡" : u === "ok" ? "🟢" : "";
 
   return (
-    <main
-      className="min-h-screen"
-      style={{ background: "var(--surface-0)" }}
-    >
-      <header
-        className="sticky top-0 z-30 backdrop-blur-md border-b px-5 py-3 flex items-center justify-between"
-        style={{ background: "rgba(20,16,12,0.92)", borderColor: "var(--border)" }}
+    <>
+      <Header />
+      <main
+        className="min-h-screen"
+        style={{ background: "var(--surface-0)" }}
+      >
+      {/* R144 — calmer page identity row replaces the custom sticky
+          band. The global Header above provides the nav pills and
+          brand chrome. */}
+      <div
+        className="border-b px-5 sm:px-8 py-3 flex items-center justify-between max-w-6xl mx-auto"
+        style={{ borderColor: "var(--border)" }}
       >
         <div className="flex items-center gap-2 font-bold">
           <InboxIcon size={18} className="text-[--accent]" />
@@ -206,9 +214,9 @@ export default function VendorInboxPage() {
         >
           לדשבורד <ArrowRight size={14} />
         </Link>
-      </header>
+      </div>
 
-      <div className="md:grid md:grid-cols-[330px_1fr] md:h-[calc(100vh-57px)]">
+      <div className="md:grid md:grid-cols-[330px_1fr] md:h-[calc(100vh-220px)] max-w-6xl mx-auto">
         {/* List */}
         <aside
           className={`${selected ? "hidden md:block" : "block"} md:border-e overflow-y-auto`}
@@ -303,6 +311,7 @@ export default function VendorInboxPage() {
           )}
         </section>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

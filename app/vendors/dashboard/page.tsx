@@ -27,7 +27,12 @@ import { getSupabase } from "@/lib/supabase";
 import { VendorInboxCard } from "@/components/chat/VendorInboxCard";
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
-import { VendorNav } from "@/components/vendors/VendorNav";
+// R144 — vendor pages now use the SAME premium global Header as the
+// host dashboard (with VENDOR_HEADER_NAV pills since R142). The old
+// VendorNav sidebar + sticky band combo made the vendor area feel
+// like a settings panel; the global Header keeps the brand consistent
+// across the app.
+import { Header } from "@/components/Header";
 import { QrCanvas } from "@/components/QrCanvas";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { useNow } from "@/lib/useNow";
@@ -492,13 +497,13 @@ export default function VendorDashboardPage() {
   const tierLabel = hasPaidTier ? "מסלול פרימיום" : "מסלול חינמי";
 
   return (
-    <main
-      className="min-h-screen pb-24 md:pb-20 md:pe-64"
-      style={{ background: "var(--surface-0)" }}
-    >
-      <VendorNav publicSlug={vendorLanding.slug} />
-
-      <div className="max-w-5xl mx-auto px-5 pt-6 space-y-6">
+    <>
+      <Header />
+      <main
+        className="min-h-screen pb-20"
+        style={{ background: "var(--surface-0)" }}
+      >
+        <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-8 space-y-6">
         {/* R142 — premium vendor hero. Pre-R142 the page opened with
             a thin grey "Vendor Dashboard" band that gave zero
             identity. The new hero anchors the page with the vendor's
@@ -860,8 +865,9 @@ export default function VendorDashboardPage() {
             </div>
           )}
         </section>
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }
 

@@ -16,10 +16,11 @@ import {
   Filter,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
-import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
 import { showToast } from "@/components/Toast";
-import { VendorNav } from "@/components/vendors/VendorNav";
+// R144 — global Header replaces the VendorNav sidebar + custom sticky
+// band. See app/vendors/dashboard/page.tsx for the rationale.
+import { Header } from "@/components/Header";
 import { MoneyInput } from "@/components/inputs/MoneyInput";
 import { useVendorContext } from "@/lib/useVendorContext";
 import {
@@ -222,40 +223,42 @@ function VendorLeadsInner() {
   }
 
   return (
-    <main
-      className="min-h-screen pb-24 md:pb-20 md:pe-64"
-      style={{ background: "var(--surface-0)" }}
-    >
-      <VendorNav publicSlug={vendorLanding?.slug ?? null} />
-
-      <header
-        className="sticky top-0 z-30 backdrop-blur-md border-b"
-        style={{ background: "rgba(20,16,12,0.92)", borderColor: "var(--border)" }}
+    <>
+      <Header />
+      <main
+        className="min-h-screen pb-20"
+        style={{ background: "var(--surface-0)" }}
       >
-        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center gap-3">
-          <Link
-            href="/vendors/dashboard"
-            aria-label="חזרה לדשבורד"
-            className="p-2 rounded-lg hover:bg-white/5"
-          >
-            <ArrowRight size={20} aria-hidden />
-          </Link>
-          <Logo size={20} />
-          <div className="flex-1">
-            <div
-              className="text-[10px] uppercase tracking-wider"
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-8 space-y-4">
+        {/* R144 — page identity strip. Replaces the old sticky band with
+            a calmer "where am I" header that sits inside the content
+            flow (the global Header handles the sticky nav). */}
+        <div className="flex items-end justify-between gap-3 flex-wrap mb-4">
+          <div>
+            <Link
+              href="/vendors/dashboard"
+              className="text-xs inline-flex items-center gap-1.5 mb-2"
               style={{ color: "var(--foreground-muted)" }}
             >
+              <ArrowRight size={12} aria-hidden /> חזרה לדשבורד
+            </Link>
+            <h1
+              className="font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+              }}
+            >
               לידים
-            </div>
-            <div className="font-bold text-sm">
-              <span className="ltr-num">{leads.length}</span> לידים סה״כ
-            </div>
+            </h1>
+            <p
+              className="mt-1 text-sm"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              <span className="ltr-num font-bold">{leads.length}</span> לידים סה״כ
+            </p>
           </div>
         </div>
-      </header>
-
-      <div className="max-w-5xl mx-auto px-5 pt-6 space-y-4">
         {/* Status filter chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
           <Filter size={14} className="shrink-0 text-[--accent]" aria-hidden />
@@ -359,6 +362,7 @@ function VendorLeadsInner() {
         />
       )}
     </main>
+    </>
   );
 }
 
