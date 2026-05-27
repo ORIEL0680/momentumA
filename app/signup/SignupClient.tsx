@@ -9,6 +9,11 @@ import { track } from "@/lib/analytics";
 import { useAuthProviders } from "@/lib/auth-providers";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Phone, Mail, ArrowLeft, ArrowRight, Sparkles, ShieldCheck, CheckCircle2, Loader2 } from "lucide-react";
+// R140 — diagnostic panel shown when a user reports they didn't get
+// the email confirmation / SMS code. Calls /api/auth/diagnose and
+// surfaces actionable hints in Hebrew. Adds zero weight when not
+// rendered (the import is tree-shaken into a small client chunk).
+import { DeliveryDiagnosticPanel } from "@/components/signup/DeliveryDiagnosticPanel";
 
 type Step = "choose" | "phone" | "email" | "email-confirmation" | "name";
 
@@ -982,6 +987,11 @@ function EmailConfirmationStep({
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [resendError, setResendError] = useState<string | null>(null);
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  // R140 — toggle for the deliverability diagnostic. Off by default so
+  // the happy path stays clean; the user opens it manually if no email
+  // arrives. Hits /api/auth/diagnose which reads Supabase's public
+  // /auth/v1/settings — no secrets touched.
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
 
   const handleResend = async () => {
     if (resendState === "sending" || cooldownLeft > 0) return;
@@ -1081,6 +1091,23 @@ function EmailConfirmationStep({
         <div className="mt-3 text-xs text-red-300">{resendError}</div>
       )}
 
+      {/* R140 — opt-in deliverability diagnostic. Surfaces real
+          config issues (mailer_autoconfirm:true, missing SMTP, missing
+          NEXT_PUBLIC_SITE_URL, etc.) instead of leaving the user
+          guessing why no mail arrived. */}
+      {!showDiagnostic ? (
+        <button
+          type="button"
+          onClick={() => setShowDiagnostic(true)}
+          className="mt-3 text-xs underline decoration-dotted underline-offset-4"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          המייל עדיין לא הגיע אחרי 2 דקות? בדוק הגדרות
+        </button>
+      ) : (
+        <DeliveryDiagnosticPanel channel="email" />
+      )}
+
       <button onClick={onBack} className="mt-3 btn-secondary text-sm py-2.5 px-6">
         חזרה
       </button>
@@ -1115,6 +1142,10 @@ function PhoneStep({
   // re-arms after every resend. 30s matches the SMS-gateway soft limit.
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const [resending, setResending] = useState(false);
+  // R140 — same opt-in diagnostic panel as EmailConfirmationStep. Off
+  // by default; if no SMS arrives the user can open it for a config
+  // checklist (most common cause: Twilio not connected at Supabase).
+  const [showDiagnostic, setShowDiagnostic] = useState(false);
 
   useEffect(() => {
     // Documented "sync to external trigger" pattern: the cooldown starts
@@ -1218,6 +1249,23 @@ function PhoneStep({
               {resending && <Loader2 className="animate-spin" size={14} aria-hidden />}
               {resendLabel}
             </button>
+
+            {/* R140 — opt-in deliverability diagnostic. Same component
+                + endpoint as EmailConfirmationStep, but channel="phone"
+                so the actionable hint targets the SMS path (Twilio
+                missing / phone_autoconfirm:true / provider disabled). */}
+            {!showDiagnostic ? (
+              <button
+                type="button"
+                onClick={() => setShowDiagnostic(true)}
+                className="w-full text-xs underline decoration-dotted underline-offset-4 py-1.5"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                ה-SMS עדיין לא הגיע? בדוק הגדרות
+              </button>
+            ) : (
+              <DeliveryDiagnosticPanel channel="phone" />
+            )}
           </>
         )}
 
