@@ -16,7 +16,9 @@ import {
 import { getSupabase } from "@/lib/supabase";
 import { showToast } from "@/components/Toast";
 import {
-  TEMPLATE_LABELS,
+  // R102 — TEMPLATE_LABELS no longer rendered (chooser removed),
+  // but `LandingTemplate` type is still used by the persisted
+  // `template` state + save payload for forward compat.
   type LandingTemplate,
   type VendorLandingData,
 } from "@/lib/types";
@@ -680,43 +682,13 @@ export default function VendorStudioEditor() {
             </div>
           </section>
 
-          {/* Template */}
-          <section className="card p-5">
-            <h2 className="font-bold mb-3">בחר עיצוב</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {(Object.keys(TEMPLATE_LABELS) as LandingTemplate[]).map((t) => {
-                const active = template === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTemplate(t)}
-                    className="rounded-2xl p-3 transition text-center border"
-                    style={
-                      active
-                        ? {
-                            background: "rgba(212,176,104,0.15)",
-                            borderColor: "var(--border-gold)",
-                            borderWidth: 2,
-                          }
-                        : {
-                            background: "var(--input-bg)",
-                            borderColor: "var(--border)",
-                          }
-                    }
-                  >
-                    <div className="font-bold text-sm">{TEMPLATE_LABELS[t].label}</div>
-                    <div
-                      className="text-[10px] mt-1"
-                      style={{ color: "var(--foreground-muted)" }}
-                    >
-                      {TEMPLATE_LABELS[t].description}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          {/* R102 — template chooser removed. The three options
+              (Modern / Luxurious / Rustic) all delegated to the
+              same LuxuriousTemplate, so the choice was cosmetic
+              UI with no effect. The `template` state still exists
+              + still saves to `landing_template` for forward
+              compat (if we ever ship distinct templates), but the
+              vendor doesn't pick it. */}
 
           {/* Hero / Profile photo — R117 surfaces this as the "face of
               the business" that appears as a gold-bordered avatar on
