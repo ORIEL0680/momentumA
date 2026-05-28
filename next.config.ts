@@ -57,11 +57,16 @@ const nextConfig: NextConfig = {
     "/**": ["./assets/**/*"],
   },
 
-  // R20 — enable next/image optimization for our Unsplash-backed
-  // catalog/gallery imagery. Scoped tightly to the exact host so it
-  // can't be abused as an open image proxy. User-uploaded vendor media
-  // (Supabase storage / arbitrary domains) intentionally stays on plain
-  // <img> — see docs/tasklists/TASKLIST.R20.md.
+  // R112 — Next.js Image needs to know every remote host it's allowed
+  // to optimize. Pre-R112 only Unsplash was listed, so when VendorCard
+  // started rendering vendor-uploaded photos via <Image /> their URLs
+  // (Supabase Storage public objects) got blocked and the catalog tile
+  // showed Next's broken-image fallback (the small "?" tile we saw on
+  // מטעמי שרביט's card).
+  //
+  // The Supabase pattern is scoped to the public Storage path so this
+  // can't be abused as an open image proxy — only objects already
+  // exposed via the `public/...` Storage policy are reachable.
   images: {
     remotePatterns: [
       {
@@ -69,6 +74,16 @@ const nextConfig: NextConfig = {
         hostname: "images.unsplash.com",
         port: "",
         pathname: "/**",
+      },
+      {
+        // *.supabase.co covers every Supabase project; the pathname
+        // restriction confines us to public Storage objects (the
+        // `/storage/v1/object/public/...` prefix is what Supabase
+        // serves the bucket's public files under).
+        protocol: "https",
+        hostname: "*.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**",
       },
     ],
   },
