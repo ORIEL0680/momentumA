@@ -78,50 +78,63 @@ export function LuxuriousTemplate({
   };
   const rawCover = vendor.cover_image_url || vendor.hero_photo_path;
   const rawLogo = vendor.logo_url;
+  // R109 — `coverImg` is kept around but NEVER drives the hero
+  // background anymore. The user explicitly preferred the editorial
+  // centered-card hero look (the way דפוס אומן rendered) over the
+  // full-bleed photo hero (the way מטעמי שרביט rendered) and asked
+  // for both vendors to look identical. Solution: every vendor gets
+  // the centered editorial hero; the cover photo gets folded into
+  // the gallery below so it isn't lost, just downsized.
   const coverImg = bust(rawCover ? getVendorPhotoUrl(rawCover) : null);
   const logoImg = bust(rawLogo ? getVendorPhotoUrl(rawLogo) : null);
-  const galleryUrls = vendor.gallery_paths
+  const galleryFromVendor = vendor.gallery_paths
     .map((p) => bust(getVendorPhotoUrl(p)))
     .filter((u): u is string => Boolean(u));
+  // R109 — prepend the hero/cover image to the gallery (when set and
+  // not already present). This way vendors who uploaded a hero still
+  // see their photo on the page, just inside the gallery section
+  // rather than as a full-bleed background that broke layout parity
+  // between vendors.
+  const galleryUrls = coverImg && !galleryFromVendor.includes(coverImg)
+    ? [coverImg, ...galleryFromVendor]
+    : galleryFromVendor;
 
   return (
     <main className="min-h-screen" style={{ background: "var(--surface-0)" }}>
       {/* === HERO ===
-          Layout pivots on whether the vendor uploaded a hero image:
-          - WITH image  → tall (80vh) + content pinned to bottom over the
-            gradient overlay (classic "billboard" look).
-          - WITHOUT image → shorter (auto height) + content vertically
-            centered, so the title doesn't hug the bottom of a black void
-            and the page feels "open in the middle of the screen" rather
-            than stuck at the bottom.
-          On mobile we cap at 60vh either way so the user can scroll past
-          the hero with one swipe. */}
+          R109 — uniform editorial layout for every vendor. The
+          previous "billboard" variant (full-bleed photo hero +
+          content pinned to bottom) created two visually distinct
+          page designs depending on whether the vendor had uploaded
+          a hero photo. The user asked for identical pages across
+          all vendors and preferred the centered editorial look —
+          so this is now the only hero variant. */}
       <section
-        className={`relative overflow-hidden flex ${
-          coverImg
-            ? "min-h-[60vh] md:min-h-[80vh] items-end"
-            : "min-h-[50vh] md:min-h-[55vh] items-center justify-center"
-        }`}
+        className="relative overflow-hidden flex min-h-[50vh] md:min-h-[55vh] items-center justify-center"
+        style={{
+          background:
+            // Premium radial gold halo + warm gradient that anchors
+            // the title without competing with it. Matches the
+            // R88/R71 hero language used elsewhere in the app.
+            "radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%), linear-gradient(180deg, var(--background-2) 0%, var(--surface-0) 100%)",
+        }}
       >
-        {coverImg && (
-          <div className="absolute inset-0">
-            {/* Public Supabase Storage URL — next/image needs an allow-list
-                for remote patterns we don't manage. <img> is intentional. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={coverImg}
-              alt={vendor.name}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-          </div>
-        )}
+        {/* Soft floating gold orb behind the title — purely
+            decorative, replaces what the photo background used to
+            do (give the hero weight). */}
+        <div
+          aria-hidden
+          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full pointer-events-none float-slow"
+          style={{
+            background:
+              "radial-gradient(circle, rgba(244,222,169,0.16), transparent 70%)",
+            filter: "blur(60px)",
+          }}
+        />
 
-        {/* R86 — logo overlay. Premium gold ring + soft drop shadow,
-            top-center (or top-left when no cover so the title gets
-            visual weight first). Only renders when logo_url is set
-            AND is distinct from coverImg (no double-image redundancy). */}
-        {logoImg && logoImg !== coverImg && (
+        {/* R86 / R109 — optional logo overlay, top-center, only
+            when distinct from any other image (no double-rendering). */}
+        {logoImg && (
           <div
             className="absolute top-6 start-1/2 -translate-x-1/2 z-20"
             style={{ filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.55))" }}
@@ -152,11 +165,7 @@ export function LuxuriousTemplate({
           </div>
         )}
 
-        <div
-          className={`relative max-w-5xl mx-auto px-5 w-full ${
-            coverImg ? "pb-16 pt-32" : "py-12 text-center"
-          }`}
-        >
+        <div className="relative max-w-5xl mx-auto px-5 w-full py-12 text-center">
           <div className="absolute top-6 end-5 flex items-center gap-2">
             <Logo size={18} />
             <span
@@ -167,18 +176,12 @@ export function LuxuriousTemplate({
             </span>
           </div>
 
-          {/* When there's no hero image, center the title block on the
-              horizontal axis (it's a card-style introduction rather than
-              an overlay on a photo). */}
-          <div className={`max-w-2xl ${coverImg ? "" : "mx-auto"}`}>
+          <div className="max-w-2xl mx-auto">
             {/* R95 — eyebrow above the title for editorial rhythm,
                 matches R138/R93 luxury hero language. */}
             <span
               className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold mb-4"
-              style={{
-                color: "var(--accent)",
-                textShadow: coverImg ? "0 2px 8px rgba(0,0,0,0.5)" : "none",
-              }}
+              style={{ color: "var(--accent)" }}
             >
               <Sparkles size={11} aria-hidden /> {vendor.category ?? "ספק"}
             </span>
@@ -210,9 +213,8 @@ export function LuxuriousTemplate({
                 under tagline. Mirrors R93 catalog hero and R138
                 IntimateHero. Subtle visual continuity. */}
             <div
-              className={`hero-luxury-rule mt-6 ${coverImg ? "" : "justify-center"}`}
+              className="hero-luxury-rule mt-6 justify-center"
               aria-hidden
-              style={coverImg ? { color: "var(--accent)" } : undefined}
             >
               <span className="line" />
               <span className="floret" />
@@ -220,9 +222,7 @@ export function LuxuriousTemplate({
             </div>
 
             <div
-              className={`mt-6 flex items-center gap-5 flex-wrap text-sm ${
-                coverImg ? "" : "justify-center"
-              }`}
+              className="mt-6 flex items-center gap-5 flex-wrap text-sm justify-center"
               style={{ color: "var(--foreground-soft)" }}
             >
               {vendor.city && (
@@ -238,11 +238,7 @@ export function LuxuriousTemplate({
               <VendorRatingSummary vendorId={vendor.id} compact />
             </div>
 
-            <div
-              className={`mt-8 flex flex-wrap gap-3 ${
-                coverImg ? "" : "justify-center"
-              }`}
-            >
+            <div className="mt-8 flex flex-wrap gap-3 justify-center">
               {/* R14 §G — primary lead capture. Higher prominence than
                   WhatsApp because it creates a trackable lead in the
                   vendor's dashboard (SMS / WhatsApp clicks don't). */}
