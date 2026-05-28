@@ -171,26 +171,53 @@ export function LuxuriousTemplate({
               horizontal axis (it's a card-style introduction rather than
               an overlay on a photo). */}
           <div className={`max-w-2xl ${coverImg ? "" : "mx-auto"}`}>
-            <div
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4"
+            {/* R95 — eyebrow above the title for editorial rhythm,
+                matches R138/R93 luxury hero language. */}
+            <span
+              className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] font-semibold mb-4"
               style={{
-                background: "linear-gradient(135deg, #F4DEA9, #A8884A)",
-                color: "#1A1310",
+                color: "var(--accent)",
+                textShadow: coverImg ? "0 2px 8px rgba(0,0,0,0.5)" : "none",
               }}
             >
               <Sparkles size={11} aria-hidden /> {vendor.category ?? "ספק"}
-            </div>
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight gradient-gold leading-[1.05]">
+            </span>
+            {/* R95 — title in Frank Ruhl Libre (the luxury display
+                serif used across the app's hero surfaces). Slightly
+                tighter clamp + shimmer treatment for the brand mark
+                feel. */}
+            <h1
+              className="font-extrabold tracking-tight gradient-gold-shimmer leading-[1.02]"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(2.75rem, 7vw, 4.75rem)",
+              }}
+            >
               {vendor.name}
             </h1>
             {vendor.tagline && (
               <p
-                className="mt-4 text-xl md:text-2xl font-light"
-                style={{ color: "var(--foreground-soft)" }}
+                className="mt-5 text-lg md:text-2xl font-light italic"
+                style={{
+                  color: "var(--foreground-soft)",
+                  fontFamily: "var(--font-display), Georgia, serif",
+                }}
               >
                 {vendor.tagline}
               </p>
             )}
+            {/* R95 — ornamental rule (line + diamond floret + line)
+                under tagline. Mirrors R93 catalog hero and R138
+                IntimateHero. Subtle visual continuity. */}
+            <div
+              className={`hero-luxury-rule mt-6 ${coverImg ? "" : "justify-center"}`}
+              aria-hidden
+              style={coverImg ? { color: "var(--accent)" } : undefined}
+            >
+              <span className="line" />
+              <span className="floret" />
+              <span className="line" />
+            </div>
 
             <div
               className={`mt-6 flex items-center gap-5 flex-wrap text-sm ${
@@ -260,25 +287,51 @@ export function LuxuriousTemplate({
       </section>
 
       {/* === ABOUT === */}
+      {/* R95 — editorial about. Centered eyebrow + serif h2 +
+          slightly larger leading on the body for the long-form
+          reading-friendly feel. Service-area / language pills get
+          a gold-bordered treatment matching the catalog tile
+          chrome. */}
       {vendor.about_long && (
-        <section className="max-w-3xl mx-auto px-5 py-16">
-          <h2 className="text-3xl font-extrabold mb-6 gradient-gold">קצת עליי</h2>
+        <section className="max-w-3xl mx-auto px-5 py-20">
+          <div className="text-center mb-8">
+            <span
+              className="text-[11px] uppercase tracking-[0.22em] font-semibold"
+              style={{ color: "var(--accent)" }}
+            >
+              קצת עליי
+            </span>
+            <h2
+              className="mt-3 font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(1.875rem, 4vw, 2.5rem)",
+              }}
+            >
+              הסיפור שלנו
+            </h2>
+            <div className="hero-luxury-rule mt-5 justify-center" aria-hidden>
+              <span className="line" />
+              <span className="floret" />
+              <span className="line" />
+            </div>
+          </div>
           <p
-            className="text-lg leading-relaxed whitespace-pre-wrap"
+            className="text-lg leading-[1.85] whitespace-pre-wrap"
             style={{ color: "var(--foreground-soft)" }}
           >
             {vendor.about_long}
           </p>
 
           {(vendor.service_areas.length > 0 || vendor.languages.length > 0) && (
-            <div className="mt-8 grid sm:grid-cols-2 gap-6">
+            <div className="mt-10 grid sm:grid-cols-2 gap-6">
               {vendor.service_areas.length > 0 && (
                 <div>
                   <h3
-                    className="text-xs uppercase tracking-wider mb-2"
-                    style={{ color: "var(--foreground-muted)" }}
+                    className="text-[10px] uppercase tracking-[0.18em] font-semibold mb-3 inline-flex items-center gap-1.5"
+                    style={{ color: "var(--accent)" }}
                   >
-                    איזורי שירות
+                    <MapPin size={11} aria-hidden /> איזורי שירות
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {vendor.service_areas.map((area) => (
@@ -286,8 +339,10 @@ export function LuxuriousTemplate({
                         key={area}
                         className="text-sm px-3 py-1.5 rounded-full"
                         style={{
-                          background: "var(--input-bg)",
-                          border: "1px solid var(--border)",
+                          background:
+                            "linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 4%, transparent))",
+                          border: "1px solid var(--border-gold)",
+                          color: "var(--accent)",
                         }}
                       >
                         {area}
@@ -299,8 +354,8 @@ export function LuxuriousTemplate({
               {vendor.languages.length > 0 && (
                 <div>
                   <h3
-                    className="text-xs uppercase tracking-wider mb-2 inline-flex items-center gap-1"
-                    style={{ color: "var(--foreground-muted)" }}
+                    className="text-[10px] uppercase tracking-[0.18em] font-semibold mb-3 inline-flex items-center gap-1.5"
+                    style={{ color: "var(--accent)" }}
                   >
                     <Languages size={11} aria-hidden /> שפות
                   </h3>
@@ -310,8 +365,10 @@ export function LuxuriousTemplate({
                         key={lang}
                         className="text-sm px-3 py-1.5 rounded-full"
                         style={{
-                          background: "var(--input-bg)",
-                          border: "1px solid var(--border)",
+                          background:
+                            "linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 4%, transparent))",
+                          border: "1px solid var(--border-gold)",
+                          color: "var(--accent)",
                         }}
                       >
                         {lang}
@@ -326,20 +383,49 @@ export function LuxuriousTemplate({
       )}
 
       {/* === GALLERY === */}
+      {/* R95 — gallery polish: centered editorial header, larger
+          main viewer with a gold ring, thumbnail strip with smooth
+          opacity + scale transitions. */}
       {galleryUrls.length > 0 && (
-        <section className="py-16" style={{ background: "var(--surface-1)" }}>
+        <section className="py-20" style={{ background: "var(--surface-1)" }}>
           <div className="max-w-6xl mx-auto px-5">
-            <h2 className="text-3xl font-extrabold mb-2 gradient-gold">תיק עבודות</h2>
-            <p
-              className="text-sm mb-8"
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              רגעים אמיתיים מאירועים שצילמנו / עיצבנו / השתתפנו בהם
-            </p>
+            <div className="text-center mb-10">
+              <span
+                className="text-[11px] uppercase tracking-[0.22em] font-semibold"
+                style={{ color: "var(--accent)" }}
+              >
+                גלריה
+              </span>
+              <h2
+                className="mt-3 font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+                style={{
+                  fontFamily: "var(--font-display), Georgia, serif",
+                  fontSize: "clamp(1.875rem, 4vw, 2.5rem)",
+                }}
+              >
+                תיק עבודות
+              </h2>
+              <p
+                className="text-sm mt-3 max-w-md mx-auto"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                רגעים אמיתיים מאירועים שצילמנו / עיצבנו / השתתפנו בהם
+              </p>
+              <div className="hero-luxury-rule mt-5 justify-center" aria-hidden>
+                <span className="line" />
+                <span className="floret" />
+                <span className="line" />
+              </div>
+            </div>
 
             <button
               type="button"
-              className="block w-full mb-4 rounded-3xl overflow-hidden"
+              className="block w-full mb-5 rounded-3xl overflow-hidden transition"
+              style={{
+                border: "1px solid var(--border-gold)",
+                boxShadow:
+                  "0 30px 80px -30px rgba(0,0,0,0.7), 0 0 0 1px var(--accent-glow)",
+              }}
               onClick={() => onAction("gallery_open")}
               aria-label="פתח גלריה"
             >
@@ -347,21 +433,26 @@ export function LuxuriousTemplate({
               <img
                 src={galleryUrls[activePhoto]}
                 alt=""
-                className="w-full max-h-[600px] object-cover"
+                className="w-full max-h-[640px] object-cover"
               />
             </button>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2.5">
               {galleryUrls.map((url, i) => (
                 <button
                   key={url}
                   type="button"
                   onClick={() => setActivePhoto(i)}
-                  className={`aspect-square rounded-xl overflow-hidden transition ${
+                  className={`aspect-square rounded-xl overflow-hidden transition duration-300 ease-out ${
                     i === activePhoto
-                      ? "ring-2 ring-[--accent]"
-                      : "opacity-60 hover:opacity-100"
+                      ? "ring-2 ring-[--accent] scale-[1.03]"
+                      : "opacity-60 hover:opacity-100 hover:scale-[1.02]"
                   }`}
+                  style={
+                    i === activePhoto
+                      ? { boxShadow: "0 6px 18px -6px var(--accent-glow)" }
+                      : undefined
+                  }
                   aria-label={`תמונה ${i + 1}`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -374,11 +465,32 @@ export function LuxuriousTemplate({
       )}
 
       {/* === REVIEWS === */}
-      <section className="py-16">
+      {/* R95 — centered editorial header. Star icon embedded in
+          the gold ornament position, no longer a side-affixed
+          afterthought. */}
+      <section className="py-20">
         <div className="max-w-4xl mx-auto px-5">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-extrabold gradient-gold">דירוגים מלקוחות</h2>
-            <Star size={28} className="text-[--accent]" aria-hidden />
+          <div className="text-center mb-10">
+            <span
+              className="text-[11px] uppercase tracking-[0.22em] font-semibold inline-flex items-center gap-1.5"
+              style={{ color: "var(--accent)" }}
+            >
+              <Star size={11} aria-hidden /> דירוגים
+            </span>
+            <h2
+              className="mt-3 font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(1.875rem, 4vw, 2.5rem)",
+              }}
+            >
+              מה הזוגות אומרים
+            </h2>
+            <div className="hero-luxury-rule mt-5 justify-center" aria-hidden>
+              <span className="line" />
+              <span className="floret" />
+              <span className="line" />
+            </div>
           </div>
 
           <VendorRatingSummary vendorId={vendor.id} />
@@ -406,15 +518,47 @@ export function LuxuriousTemplate({
       </section>
 
       {/* === CONTACT FOOTER === */}
-      <section className="py-16" style={{ background: "var(--surface-1)" }}>
-        <div className="max-w-3xl mx-auto px-5 text-center">
-          <h2 className="text-4xl font-extrabold gradient-gold mb-4">בואו נדבר</h2>
+      {/* R95 — invitation-style closing section. Bigger headline,
+          italic serif sub, ornamental rule between heading + CTAs.
+          The background is a layered radial so the section reads
+          as a "let's talk" cinematic close, not just another card. */}
+      <section
+        className="py-24 relative overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 14%, var(--surface-1)), var(--surface-1) 60%)",
+        }}
+      >
+        <div className="max-w-3xl mx-auto px-5 text-center relative z-10">
+          <span
+            className="text-[11px] uppercase tracking-[0.22em] font-semibold"
+            style={{ color: "var(--accent)" }}
+          >
+            יצירת קשר
+          </span>
+          <h2
+            className="mt-3 font-extrabold tracking-tight gradient-gold-shimmer leading-tight"
+            style={{
+              fontFamily: "var(--font-display), Georgia, serif",
+              fontSize: "clamp(2.25rem, 5vw, 3.25rem)",
+            }}
+          >
+            בואו נדבר
+          </h2>
           <p
-            className="text-base mb-8"
-            style={{ color: "var(--foreground-soft)" }}
+            className="mt-5 text-lg italic mb-2"
+            style={{
+              color: "var(--foreground-soft)",
+              fontFamily: "var(--font-display), Georgia, serif",
+            }}
           >
             מעוניינים בשירות שלי? יצירת קשר זה התחלה של חתונה מושלמת.
           </p>
+          <div className="hero-luxury-rule mt-6 mb-8 justify-center" aria-hidden>
+            <span className="line" />
+            <span className="floret" />
+            <span className="line" />
+          </div>
 
           <div className="flex flex-wrap gap-3 justify-center">
             {whatsappUrl && (
