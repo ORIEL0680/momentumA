@@ -1,5 +1,10 @@
 "use client";
 
+// R98 — `dynamic = "force-dynamic"` is a no-op on a "use client"
+// page (the directive only affects the server render), but the
+// queries inside are intentionally not cached because the vendor
+// expects fresh numbers on every visit. The useEffect re-runs on
+// mount and the supabase client doesn't memoize the result.
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {

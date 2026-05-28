@@ -100,21 +100,45 @@ export async function trackPageView(
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const isMobile = /Mobi|Android/i.test(ua);
 
-  // R97 — surface insert errors instead of swallowing them. The
-  // pre-R97 fire-and-forget made it impossible to tell whether an
-  // analytics miss was a write that never happened (RLS / network /
-  // type mismatch) vs. a read query bug. console.error keeps the
-  // user-visible behavior unchanged but leaves a breadcrumb in
-  // DevTools for the vendor / our support to spot.
-  const { error } = await supabase.from("vendor_page_views").insert({
+  // R97 — surface insert errors instead of swallowing them.
+  // R98 — server-side fallback. The direct-Supabase insert can fail
+  // for reasons that have nothing to do with our code (ad blocker
+  // blocking *.supabase.co, strict corporate CSP, JWT timing race,
+  // RLS edge case). If it does, POST to our own `/api/vendors/track`
+  // route which inserts with the service-role key — bulletproof.
+  // Either path succeeding is enough for the row to land.
+  const payload = {
     vendor_id: vendorId,
     source: detectedSource,
     referrer: referrer.slice(0, 200),
     device_type: isMobile ? "mobile" : "desktop",
     is_unique: !hasVisited,
-  } as unknown as never);
+  };
+  const { error } = await supabase
+    .from("vendor_page_views")
+    .insert(payload as unknown as never);
   if (error) {
-    console.error("[trackPageView] insert failed:", error.message);
+    console.warn(
+      "[trackPageView] direct insert failed, trying server fallback:",
+      error.message,
+    );
+    try {
+      await fetch("/api/vendors/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "view",
+          vendorId,
+          source: detectedSource,
+          referrer: referrer.slice(0, 200),
+          deviceType: isMobile ? "mobile" : "desktop",
+          isUnique: !hasVisited,
+        }),
+        keepalive: true,
+      });
+    } catch (fallbackErr) {
+      console.error("[trackPageView] server fallback also failed:", fallbackErr);
+    }
   }
 }
 
@@ -129,6 +153,26 @@ export async function trackPageAction(
     action_type: actionType,
   } as unknown as never);
   if (error) {
-    console.error("[trackPageAction] insert failed:", error.message);
+    console.warn(
+      "[trackPageAction] direct insert failed, trying server fallback:",
+      error.message,
+    );
+    try {
+      await fetch("/api/vendors/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "action",
+          vendorId,
+          actionType,
+        }),
+        keepalive: true,
+      });
+    } catch (fallbackErr) {
+      console.error(
+        "[trackPageAction] server fallback also failed:",
+        fallbackErr,
+      );
+    }
   }
 }
