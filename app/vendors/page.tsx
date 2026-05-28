@@ -395,7 +395,11 @@ function VendorsInner() {
     <>
       <Header />
       <main className="flex-1 pb-24 relative">
-        <div aria-hidden className="glow-orb glow-orb-gold w-[600px] h-[600px] -top-40 right-0 opacity-30" />
+        {/* R93 — softer twin gold orbs flanking the hero (was a single
+            harsh orb pinned to one corner). Creates a balanced halo
+            behind the title without competing with the cards. */}
+        <div aria-hidden className="glow-orb glow-orb-gold w-[520px] h-[520px] -top-40 right-1/4 opacity-25" />
+        <div aria-hidden className="glow-orb glow-orb-gold w-[420px] h-[420px] -top-20 left-1/4 opacity-15" />
 
         <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-10 relative z-10">
           <Link
@@ -405,46 +409,73 @@ function VendorsInner() {
             <ArrowRight size={14} aria-hidden /> חזרה
           </Link>
 
-          <div className="mt-7 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <span className="eyebrow">ספקים</span>
-              <h1 className="mt-3 text-4xl md:text-5xl font-bold tracking-tight">
-                <span className="gradient-text">הספקים הכי טובים</span>
-                <br />
-                <span className="gradient-gold">באזור שלך.</span>
-              </h1>
-              <p className="mt-3 text-white/55">
-                {state.event
-                  ? `מציג ספקים ב${REGION_LABELS[state.event.region]}`
-                  : "כל הקטגוריות — מסונן לפי המיקום שלך"}
-              </p>
-            </div>
-            {state.selectedVendors.length > 0 && (
-              <div className="pill pill-gold">
-                <Heart size={12} fill="currentColor" aria-hidden />
-                {state.selectedVendors.length} ספקים שמורים
-              </div>
-            )}
-          </div>
+          {/* R93 — premium hero block. Centered, serif title in
+              Frank Ruhl Libre (matches R138 IntimateHero), eyebrow
+              + tagline + a stats strip with quick proof. The
+              "saved vendors" pill + "join as vendor" CTA were
+              moved into a tidy single-line row UNDER the title so
+              the hero stays uncluttered. */}
+          <section className="mt-8 text-center">
+            <span className="eyebrow inline-flex">
+              <Sparkles size={11} aria-hidden /> קטלוג הספקים
+            </span>
+            <h1
+              className="mt-4 font-extrabold tracking-tight gradient-gold-shimmer leading-[1.05]"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(2.25rem, 6vw, 3.75rem)",
+              }}
+            >
+              הספקים הכי טובים באזור שלך
+            </h1>
+            <p
+              className="mt-4 text-base md:text-lg mx-auto max-w-xl"
+              style={{ color: "var(--foreground-soft)" }}
+            >
+              {state.event
+                ? `${allVendors.length} ספקים מאומתים ב${REGION_LABELS[state.event.region]} ובסביבה — כולם עם דף נחיתה משלהם.`
+                : `${allVendors.length} ספקים מאומתים בכל הקטגוריות — בחר תחום ומיקום מהפילטרים.`}
+            </p>
 
-          {/* Vendor onboarding CTA — surfaces the /vendors/join flow without
-              competing with the catalog listing for attention. */}
-          <Link
-            href="/vendors/join"
-            className="card-gold mt-5 p-4 flex items-center justify-between gap-3 hover:scale-[1.005] transition"
-          >
-            <div className="min-w-0">
-              <div className="text-sm font-semibold">ספק אירועים?</div>
-              <div className="text-xs mt-0.5" style={{ color: "var(--foreground-soft)" }}>
-                הצטרפו לקטלוג חינם — הפרופיל פעיל מיד
-              </div>
+            {/* R93 — ornamental divider, same family as R138's
+                rule + floret. Reinforces the "save-the-date /
+                editorial" feel across the whole vendor experience. */}
+            <div className="hero-luxury-rule mt-6" aria-hidden>
+              <span className="line" />
+              <span className="floret" />
+              <span className="line" />
             </div>
-            <span className="btn-gold text-xs px-3 py-1.5 shrink-0">הצטרפו</span>
-          </Link>
 
-          {/* Legal disclaimer — must stay visible above the catalog. */}
+            {/* Compact action row — saved-count + join CTA on a
+                single horizontal line. */}
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              {state.selectedVendors.length > 0 && (
+                <span className="pill pill-gold">
+                  <Heart size={12} fill="currentColor" aria-hidden />
+                  {state.selectedVendors.length} שמורים אצלך
+                </span>
+              )}
+              <Link
+                href="/vendors/join"
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition hover:scale-[1.02]"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(244,222,169,0.16), rgba(168,136,74,0.06))",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+              >
+                <Sparkles size={11} aria-hidden /> ספק? הצטרף לקטלוג
+              </Link>
+            </div>
+          </section>
+
+          {/* R93 — info notes consolidated into a single soft card
+              with two tightly-spaced rows + a divider. Saves vertical
+              real-estate so the catalog grid starts higher on the
+              page (visible above the fold on most desktops). */}
           <div
-            className="mt-6 rounded-2xl px-4 py-3 text-sm flex items-start gap-2.5"
+            className="mt-8 rounded-2xl overflow-hidden"
             style={{
               border: "1px solid var(--border)",
               background: "var(--surface-2)",
@@ -452,35 +483,36 @@ function VendorsInner() {
             }}
             role="note"
           >
-            <ShieldCheck size={16} className="text-[--accent] mt-0.5 shrink-0" aria-hidden />
-            <p>
-              המידע למידע בלבד. כל עסקה היא בינך לבין הספק.{" "}
-              <strong className="font-semibold">Momentum איננה צד לעסקה</strong>{" "}
-              ואינה אחראית לאיכות שירותי הספק.
-            </p>
-          </div>
-
-          {/* Seasonal-pricing tip — informs the host that the prices shown
-              in the catalog are baselines, and that real quotes shift with
-              the calendar. Soft amber treatment so it reads as advice rather
-              than a warning. */}
-          <div
-            className="mt-3 rounded-2xl px-4 py-3 text-sm flex items-start gap-2.5"
-            style={{
-              border: "1px solid rgba(251, 191, 36, 0.25)",
-              background: "rgba(251, 191, 36, 0.06)",
-              color: "var(--foreground-soft)",
-            }}
-            role="note"
-          >
-            <Lightbulb size={16} className="text-amber-400 mt-0.5 shrink-0" aria-hidden />
-            <p>
-              <strong className="font-semibold text-amber-300">טיפ:</strong>{" "}
-              המחירים בקטלוג הם נקודת מוצא בלבד. <strong className="font-semibold">בקיץ ובחגים</strong>{" "}
-              (יוני-ספטמבר ועונת החגים) המחירים בדרך כלל גבוהים ב-15-30%, ובלילות שישי-שבת יש תוספת.
-              <strong className="font-semibold"> בחורף</strong> (נובמבר-פברואר, ובאמצע השבוע) הספקים פתוחים יותר למשא ומתן ולהנחות.
-              תמיד בקשו הצעת מחיר ספציפית לתאריך שלכם.
-            </p>
+            <div className="px-4 py-3 text-sm flex items-start gap-2.5">
+              <ShieldCheck
+                size={15}
+                className="text-[--accent] mt-0.5 shrink-0"
+                aria-hidden
+              />
+              <p className="leading-relaxed">
+                המידע למידע בלבד. כל עסקה היא בינך לבין הספק.{" "}
+                <strong className="font-semibold">Momentum איננה צד לעסקה</strong>{" "}
+                ואינה אחראית לאיכות שירותי הספק.
+              </p>
+            </div>
+            <div
+              className="px-4 py-3 text-sm flex items-start gap-2.5"
+              style={{
+                borderTop: "1px solid var(--border)",
+                background: "rgba(251, 191, 36, 0.04)",
+              }}
+            >
+              <Lightbulb
+                size={15}
+                className="text-amber-400 mt-0.5 shrink-0"
+                aria-hidden
+              />
+              <p className="leading-relaxed">
+                <strong className="font-semibold text-amber-300">טיפ:</strong>{" "}
+                המחירים נקודת מוצא בלבד. בקיץ ובחגים — תוספת של 15-30%. בחורף ובאמצע השבוע — הספקים גמישים יותר.
+                תמיד בקשו הצעה ספציפית לתאריך.
+              </p>
+            </div>
           </div>
 
           <CategoryRail
@@ -508,8 +540,25 @@ function VendorsInner() {
             onClearAll={clearAll}
           />
 
-          <div className="mt-4 text-sm text-white/55" aria-live="polite">
-            <span className="ltr-num">{filtered.length}</span> ספקים נמצאו
+          {/* R93 — friendlier result count: gold accent on the
+              number + "מציג {visible}/{filtered}" when paginated, so
+              the host understands they're seeing a subset of a
+              larger filter result. */}
+          <div
+            className="mt-5 flex items-baseline gap-2 text-sm"
+            aria-live="polite"
+            style={{ color: "var(--foreground-muted)" }}
+          >
+            <span className="text-xs uppercase tracking-[0.18em] font-semibold" style={{ color: "var(--accent)" }}>
+              תוצאות
+            </span>
+            <span
+              className="font-bold ltr-num"
+              style={{ color: "var(--foreground)" }}
+            >
+              {filtered.length}
+            </span>
+            <span>{filtered.length === 1 ? "ספק נמצא" : "ספקים נמצאו"}</span>
           </div>
 
           {/* The Suspense fallback covers SSR. On the client the page hydrates
