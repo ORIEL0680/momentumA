@@ -657,12 +657,16 @@ textarea:focus {
 }
 .floor-3d-inner.flat { transform: rotateX(0deg); }
 
+/* R114 — `.floor-grid` used to paint a 60×60px gold-line grid as
+   "venue floor" texture. The lines were highly visible (0.08 alpha
+   on gold against a dark surface reads as ~10% contrast), and the
+   tables sit in a CSS-grid layout that has NOTHING to do with the
+   60px floor-grid spacing. Result: a constant "the tables aren't on
+   the lines" perception when they were never meant to be — the two
+   grids were independent. The texture is dropped entirely; the
+   floor reads cleaner and the tables now look symmetric in
+   isolation rather than fighting an off-aligned background. */
 .floor-grid {
-  background-image:
-    linear-gradient(rgba(212,176,104,0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(212,176,104,0.08) 1px, transparent 1px);
-  background-size: 60px 60px;
-  background-position: -1px -1px;
   border-radius: 32px;
 }
 
@@ -694,6 +698,15 @@ textarea:focus {
   transform-style: preserve-3d;
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
+  /* R114 — explicit flex column with centered children so the label
+     and the surface stack as a single, symmetric unit inside the
+     grid cell. Without this the children laid out as default block
+     children and the surface drifted off-center horizontally when
+     the label was long. The cell is still auto-sized vertically. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   /* Browser-level virtualization: tables off-screen skip rendering work.
      contain-intrinsic-size keeps the scroll container the right height
      before the dimensions are measured. Values are approximate — the
@@ -701,6 +714,11 @@ textarea:focus {
   content-visibility: auto;
   contain-intrinsic-size: 240px 320px;
 }
+/* R114 — the surface always renders against the grid column width.
+   `width: 100%` on the surface was being interpreted relative to the
+   button's intrinsic width (varied with label text length); we lock
+   it explicitly so every table circle has the same diameter. */
+.table-3d .surface { width: 100%; }
 .table-3d:hover { transform: translateZ(28px) scale(1.04); }
 
 /* R137 — Active state is now SUBTLE on the floor card. Clicking a
@@ -1074,11 +1092,26 @@ textarea:focus {
   box-shadow:
     0 4px 14px -4px rgba(0, 0, 0, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* R114 — translateZ kept for the 3D-tilted-floor variant so the
+     label visibly rises above the table top. In flat mode (which
+     is now the default) perspective + translateZ still subtly
+     scales the label, so we zero it out via the .flat parent
+     selector below. */
   transform: translateZ(40px);
   transition: transform 250ms ease, border-color 250ms ease, background 250ms ease;
 }
+/* R114 — when the floor is flat (default), don't fake-lift the label
+   with translateZ. Perspective is still active on the parent, so even
+   without a rotation the translateZ enlarges the label slightly and
+   makes it look asymmetric against the flat table circle below. */
+.floor-3d-inner.flat .table-name-label {
+  transform: none;
+}
 .table-3d:hover .table-name-label {
   transform: translateZ(60px) scale(1.04);
+}
+.floor-3d-inner.flat .table-3d:hover .table-name-label {
+  transform: scale(1.04);
 }
 .table-3d.active .table-name-label {
   background: linear-gradient(135deg, rgba(244, 222, 169, 0.35), rgba(168, 136, 74, 0.22));
@@ -1088,6 +1121,9 @@ textarea:focus {
   box-shadow:
     0 6px 24px -4px var(--accent-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.floor-3d-inner.flat .table-3d.active .table-name-label {
+  transform: scale(1.05);
 }
 
 /* The big "12" inside the circle — primary identifier for shouting across
