@@ -57,7 +57,14 @@ export default function SeatingPage() {
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<SeatingTable | null>(null);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
-  const [flatView, setFlatView] = useState(false);
+  // R113 — default to FLAT view so the tables render as true circles
+  // instead of the elliptical 28°-perspective version. Pre-R113 the
+  // tilt was on by default; the floor looked cinematic but circles
+  // got compressed vertically and chairs at the bottom edge bled into
+  // the row below, which read as "the tables aren't symmetric / are
+  // cut off". Flat is the calmer, more-accurate-to-the-data default;
+  // hosts who want the cinematic look can still toggle 3D back on.
+  const [flatView, setFlatView] = useState(true);
   // R71 (R60-5) — 3D ROOM removed; 2D top-down view is now the only one.
   // Newest-table id (cleared 600ms later) — the entrance keyframe runs on
   // ONLY that table, instead of replaying for every table on every render.
@@ -574,7 +581,14 @@ export default function SeatingPage() {
                   data-many-tables={state.tables.length > 10 ? "true" : "false"}
                 >
                   <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-6 md:p-10`}>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-14 md:gap-y-20">
+                    {/* R113 — gap-x bumped 5→10 so the chairs that
+                        sit on a 53% radius ring outside each table
+                        (so they extend ~10–15px past the surface
+                        rim) don't almost-touch the adjacent table's
+                        chairs. Vertical gap stays generous because
+                        the table name label sits outside the circle
+                        and needs its own headroom. */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-10 gap-y-14 md:gap-y-20">
                       {tablesWithGuests.map(({ table, heads }, i) => (
                         <Table3D
                           key={table.id}
