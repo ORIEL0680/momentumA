@@ -35,10 +35,15 @@
   --surface: #131318;
   --surface-2: #1A1A21;
   --surface-3: #22222B;
-
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --border-gold: rgba(212, 176, 104, 0.4);
+  /* R111 — `--surface-0` / `--surface-1` were referenced by the
+     vendor landing template but never defined. Without them the
+     template fell back to `transparent` and bled through to the
+     body background — which in light mode was warm cream, making
+     the page look "white-but-not-quite-right". Aliasing them to
+     the existing scale fixes the rendering without rippling into
+     every other component that already uses `--surface`. */
+  --surface-0: var(--background);
+  --surface-1: var(--surface);
 
   --bg-radial-1: rgba(212, 176, 104, 0.10);
   --bg-radial-2: rgba(120, 80, 200, 0.06);
@@ -68,40 +73,59 @@
 
 /* ─────────────── Light theme ─────────────── */
 :root[data-theme="light"] {
-  --background: #FAFAF7;
-  --background-2: #F4F2EC;
+  /* R111 — was warm cream (#FAFAF7 / #F4F2EC). User feedback: light
+     mode read as "cream + bronze" rather than the intended "white +
+     gold". Swapped every surface to neutral white-grays so the
+     accent reads as gold against pure white rather than fighting a
+     warm undertone. */
+  --background: #FFFFFF;
+  --background-2: #F6F6F7;
   --foreground: #18181B;
   --foreground-soft: rgba(24, 24, 27, 0.7);
   --foreground-muted: rgba(24, 24, 27, 0.5);
   --muted: #71717A;
   --muted-2: #A1A1AA;
 
-  /* Slightly warmer, more saturated gold for light bg */
-  --gold-100: #E9CB87;
-  --gold-200: #D4B068;
-  --gold-300: #B89351;
-  --gold-400: #9C7B3D;
-  --gold-500: #7A6233;
-  --gold-600: #574521;
-  --accent: #B89351;
-  --accent-glow: rgba(184, 147, 81, 0.4);
+  /* R111 — brighter, more "gold" gold for light mode. The old
+     palette was deliberately desaturated for WCAG contrast against
+     a cream background, which gave everything a bronze cast. With
+     the new neutral-white surfaces above we can ride the line
+     between contrast and brand-correct gold: --accent is now
+     #C49B4D (a clear warm gold readable against white at >=14px)
+     and the full scale climbs in lockstep. */
+  --gold-100: #F0D597;
+  --gold-200: #DDBC73;
+  --gold-300: #C49B4D;
+  --gold-400: #A8823B;
+  --gold-500: #856828;
+  --gold-600: #5E481A;
+  --accent: #C49B4D;
+  --accent-glow: rgba(196, 155, 77, 0.4);
 
   --surface: #FFFFFF;
-  --surface-2: #F4F2EC;
-  --surface-3: #E9E6DD;
+  --surface-2: #F6F6F7;
+  --surface-3: #ECECEE;
+  /* R111 — same alias as dark mode so the vendor template renders
+     pure-white surfaces in light mode instead of falling through
+     to a warm-cream body. */
+  --surface-0: var(--background);
+  --surface-1: var(--surface);
 
   --border: rgba(24, 24, 27, 0.08);
   --border-strong: rgba(24, 24, 27, 0.16);
-  --border-gold: rgba(184, 147, 81, 0.45);
+  --border-gold: rgba(196, 155, 77, 0.45);
 
-  --bg-radial-1: rgba(184, 147, 81, 0.13);
+  /* R111 — radial + card colors retuned around the new gold and
+     the neutral-white surfaces. The legacy cream stops (#FCFAF5)
+     are gone — cards are pure white over a pure white page now. */
+  --bg-radial-1: rgba(196, 155, 77, 0.13);
   --bg-radial-2: rgba(120, 80, 200, 0.05);
   --bg-radial-3: rgba(80, 140, 200, 0.05);
 
-  --card-bg-from: rgba(255, 255, 255, 0.9);
-  --card-bg-to: rgba(252, 250, 245, 0.9);
+  --card-bg-from: rgba(255, 255, 255, 0.92);
+  --card-bg-to: rgba(246, 246, 247, 0.92);
   --card-hover-from: rgba(255, 255, 255, 1);
-  --card-hover-to: rgba(252, 250, 245, 1);
+  --card-hover-to: rgba(246, 246, 247, 1);
 
   --glass-bg: rgba(255, 255, 255, 0.75);
   --glass-strong-bg: rgba(255, 255, 255, 0.92);
