@@ -581,17 +581,29 @@ export default function SeatingPage() {
                   data-many-tables={state.tables.length > 10 ? "true" : "false"}
                 >
                   <div className={`floor-3d-inner ${flatView ? "flat" : ""} ${activeTableId ? "has-focused" : ""} floor-grid p-6 md:p-10`}>
-                    {/* R113 — gap-x bumped 5→10 so the chairs that
-                        sit on a 53% radius ring outside each table
-                        (so they extend ~10–15px past the surface
-                        rim) don't almost-touch the adjacent table's
-                        chairs. Vertical gap stays generous because
-                        the table name label sits outside the circle
-                        and needs its own headroom. */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-10 gap-y-14 md:gap-y-20">
+                    {/* R115 — switched grid → flex-wrap so partial
+                        rows center themselves. Before R115 the floor
+                        used `grid-cols-{2,3,4}` which placed every
+                        cell on a fixed column track; with 5 tables
+                        on a 4-column grid the 5th sat alone in the
+                        first column of row 2, leaving 3 empty cells
+                        beside it — visibly asymmetric.
+
+                        Each table card is given an explicit basis
+                        per breakpoint so the row math stays the
+                        same as the old grid (2 / 3 / 4 per row),
+                        but when a row doesn't fill out, the
+                        remaining card(s) center along the row axis
+                        instead of left-aligning. Vertical gap stays
+                        generous because the name label sits above
+                        the circle and needs its own headroom. */}
+                    <div className="flex flex-wrap justify-center gap-x-10 gap-y-14 md:gap-y-20">
                       {tablesWithGuests.map(({ table, heads }, i) => (
-                        <Table3D
+                        <div
                           key={table.id}
+                          className="basis-[calc(50%-1.25rem)] sm:basis-[calc(33.333%-1.667rem)] lg:basis-[calc(25%-1.875rem)] flex-grow-0 flex-shrink-0"
+                        >
+                        <Table3D
                           table={table}
                           heads={heads}
                           displayNumber={table.number ?? i + 1}
@@ -603,6 +615,7 @@ export default function SeatingPage() {
                           onActivate={handleActivateTable}
                           onDropGuest={handleDropOnTable}
                         />
+                        </div>
                       ))}
                     </div>
                   </div>
