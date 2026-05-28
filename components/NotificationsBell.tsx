@@ -11,7 +11,7 @@ import {
   Trash2,
   Inbox as InboxIcon,
   Star as StarIcon,
-  MessageCircle as MessageIcon,
+  // R90 — MessageCircle no longer needed (chat KIND_UI removed).
   TrendingUp,
 } from "lucide-react";
 import {
@@ -533,12 +533,7 @@ const KIND_UI: Record<
     bg: "rgba(251,191,36,0.12)",
     border: "rgba(251,191,36,0.30)",
   },
-  vendor_chat_message: {
-    icon: <MessageIcon size={18} />,
-    color: "rgb(110,231,183)",
-    bg: "rgba(52,211,153,0.10)",
-    border: "rgba(52,211,153,0.30)",
-  },
+  // R90 — vendor_chat_message KIND_UI removed (in-app chat retired).
   vendor_milestone: {
     icon: <TrendingUp size={18} />,
     color: "var(--accent)",

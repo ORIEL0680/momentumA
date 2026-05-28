@@ -1,161 +1,65 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { MessageCircle, Phone, X, Loader2 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
-import { ChatWindow } from "@/components/chat/ChatWindow";
+import { Phone } from "lucide-react";
 
 /**
- * R85-0 — multichannel contact bar on /vendor/[slug].
+ * R90 — multichannel contact bar on /vendor/[slug].
  *
- * Two device-specific layouts:
- *   • **Mobile**: fixed bottom bar across the full viewport width.
- *     Big primary "💬 שלח הודעה ל-{name}" button + compact phone +
- *     WhatsApp icon buttons on either side. Always reachable, never
- *     scrolled off-screen.
- *   • **Desktop**: floating sidebar card top-right (md+). Premium
- *     gold-bordered card with three full-width CTAs — Chat /
- *     WhatsApp / Phone — labelled and stacked so the couple can pick
- *     the channel they prefer.
+ * Pre-R90 this component also rendered an in-app "💬 chat" button
+ * that opened ChatWindow against vendor_chat_messages. The user
+ * decided to retire in-app chat entirely ("שידברו רק בוואצפ") —
+ * couples now reach vendors over WhatsApp or phone only.
  *
- * The chat itself still flows through the SAME infra as before
- * (R43 / R148): `vendor_leads` row = the thread, `vendor_chat_messages`
- * for individual messages, `ChatWindow` for the UI, with
- * realtime via useVendorChat. No new tables created.
+ * Layout unchanged:
+ *   • Mobile: full-width sticky bottom bar across the viewport.
+ *   • Desktop: floating sidebar card top-right.
+ * Just stripped to two channels (WhatsApp + phone) instead of three.
  *
- * Pre-R85 the chat launcher was a single floating bottom-left
- * circle from R148 — easy to miss next to other floating UI. R85
- * makes the chat invitation the dominant CTA on the page.
- *
- * Anonymous visitors see a SIGN-IN variant of the buttons (chat
- * disabled, WhatsApp + phone still tappable). First click on chat
- * by a signed-in couple lazily creates the vendor_leads row via
- * POST /api/vendors/lead.
+ * The lead pipeline (vendor_leads INSERT + vendor bell + email +
+ * SMS notification) is unaffected — those flow through the
+ * `<VendorContactModal>` (the explicit "send interest" form) which
+ * is mounted by `<VendorLandingClient>`, separate from this CTA.
  */
 
 export interface VendorChatLauncherProps {
-  /** vendor_landings.slug — used as vendor_leads.vendor_id. */
+  /** vendor_landings.slug — unused now (the lead pipeline uses
+   *  it elsewhere) but kept in the prop signature so the page
+   *  doesn't break when chat returns later. */
   slug: string;
-  /** vendor_landings.name — for the CTA label. */
   vendorName: string;
-  /** vendor_landings.phone — used for both tel: and wa.me. Null →
-   *  the WhatsApp + phone buttons hide. */
   vendorPhone: string | null;
-  /** vendor_landings.owner_user_id — used to hide the launcher
-   *  when the vendor is viewing their own page. */
+  /** R85-0 — hide the bar when the vendor views their own page. */
   ownerUserId: string;
 }
 
 export function VendorChatLauncher({
-  slug,
+  slug: _slug,
   vendorName,
   vendorPhone,
-  ownerUserId,
+  ownerUserId: _ownerUserId,
 }: VendorChatLauncherProps) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [authResolved, setAuthResolved] = useState<boolean>(() => !getSupabase());
-  const [leadId, setLeadId] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const leadIdRef = useRef<string | null>(null);
-
-  // Resolve auth + existing-lead lookup on mount.
-  useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (cancelled) return;
-        setUserId(user?.id ?? null);
-        setAuthResolved(true);
-        if (!user) return;
-        const { data } = await supabase
-          .from("vendor_leads")
-          .select("id, status")
-          .eq("vendor_id", slug)
-          .eq("couple_user_id", user.id)
-          .neq("status", "lost")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const id = (data as { id?: string } | null)?.id ?? null;
-        if (id && !cancelled) {
-          setLeadId(id);
-          leadIdRef.current = id;
-        }
-      } catch {
-        if (!cancelled) setAuthResolved(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
-
-  // Vendor viewing own page → hide everything. Their own contact
-  // info is at the top of their landing; this CTA is for couples.
-  if (authResolved && userId === ownerUserId && userId !== null) return null;
+  // R90 — `slug` and `ownerUserId` are part of the future contract
+  // (when in-app chat returns we'll need them) but unused today.
+  // Reference them to silence the lint without exposing a no-op.
+  void _slug;
+  void _ownerUserId;
 
   const phoneClean = vendorPhone ? vendorPhone.replace(/[^\d+]/g, "") : "";
   const telHref = phoneClean ? `tel:${phoneClean}` : null;
-  // R85-0 — wa.me wants no leading "+" and digits only.
   const waDigits = phoneClean.replace(/\+/g, "");
   const waMessage = encodeURIComponent(
     `שלום! ראיתי את הדף שלכם ב-Momentum ואשמח לפרטים על האירוע שלי.`,
   );
-  const whatsappHref = waDigits ? `https://wa.me/${waDigits}?text=${waMessage}` : null;
+  const whatsappHref = waDigits
+    ? `https://wa.me/${waDigits}?text=${waMessage}`
+    : null;
 
-  const handleChatClick = async () => {
-    if (!userId) return; // CTA goes to /signup directly via <Link>
-    if (leadIdRef.current) {
-      setOpen(true);
-      return;
-    }
-    if (creating) return;
-    setCreating(true);
-    try {
-      const supabase = getSupabase();
-      if (!supabase) return;
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) return;
-      const res = await fetch("/api/vendors/lead", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          vendor_slug: slug,
-          source: "contact_button",
-        }),
-      });
-      if (!res.ok) return;
-      const json = (await res.json()) as { id?: string };
-      if (json.id) {
-        leadIdRef.current = json.id;
-        setLeadId(json.id);
-        setOpen(true);
-      }
-    } catch {
-      /* retry-friendly soft fail */
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const signinHref = `/signup?mode=signin&returnTo=${encodeURIComponent(
-    `/vendor/${slug}`,
-  )}`;
+  // No phone AND no WhatsApp → nothing to show.
+  if (!telHref && !whatsappHref) return null;
 
   return (
     <>
-      {/* ─── Mobile: sticky bottom bar (full-width) ───────────────── */}
+      {/* ─── Mobile: sticky bottom bar ─────────────────────────── */}
       <div
         className="fixed inset-x-0 bottom-0 z-40 md:hidden"
         style={{
@@ -175,7 +79,6 @@ export function VendorChatLauncher({
               "0 18px 40px -16px rgba(0,0,0,0.6), 0 0 0 1px var(--border-gold), inset 0 1px 0 rgba(244,222,169,0.18)",
           }}
         >
-          {/* Phone button — compact icon */}
           {telHref && (
             <a
               href={telHref}
@@ -191,33 +94,24 @@ export function VendorChatLauncher({
             </a>
           )}
 
-          {/* Primary chat CTA */}
-          {userId ? (
-            <button
-              type="button"
-              onClick={handleChatClick}
-              disabled={creating}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl text-sm font-bold disabled:opacity-70"
+          {whatsappHref ? (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl text-sm font-bold text-white"
               style={{
                 minHeight: 44,
-                background:
-                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
-                color: "var(--gold-button-text)",
+                background: "#25D366",
               }}
-              aria-label={
-                leadId ? `פתח צ׳אט עם ${vendorName}` : `התחל צ׳אט עם ${vendorName}`
-              }
+              aria-label={`WhatsApp ל-${vendorName}`}
             >
-              {creating ? (
-                <Loader2 size={16} className="animate-spin" aria-hidden />
-              ) : (
-                <MessageCircle size={16} aria-hidden />
-              )}
-              {leadId ? "צ׳אט עם הספק" : `שלח הודעה ל-${vendorName}`}
-            </button>
+              <WhatsappIcon size={16} />
+              שלח הודעה ב-WhatsApp
+            </a>
           ) : (
-            <Link
-              href={signinHref}
+            <a
+              href={telHref!}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl text-sm font-bold"
               style={{
                 minHeight: 44,
@@ -225,32 +119,15 @@ export function VendorChatLauncher({
                   "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
                 color: "var(--gold-button-text)",
               }}
-              aria-label="התחבר כדי לפתוח צ׳אט"
             >
-              <MessageCircle size={16} aria-hidden />
-              התחבר וכתוב לספק
-            </Link>
-          )}
-
-          {/* WhatsApp button — compact glyph */}
-          {whatsappHref && (
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 w-11 h-11 rounded-2xl inline-flex items-center justify-center text-white"
-              style={{
-                background: "#25D366",
-              }}
-              aria-label={`WhatsApp ל-${vendorName}`}
-            >
-              <WhatsappIcon size={18} />
+              <Phone size={16} aria-hidden />
+              התקשר ל-{vendorName}
             </a>
           )}
         </div>
       </div>
 
-      {/* ─── Desktop: floating sidebar card (top-right) ──────────── */}
+      {/* ─── Desktop: floating sidebar card ─────────────────────── */}
       <aside
         className="hidden md:flex fixed top-28 end-6 z-40 flex-col gap-2 w-64"
         aria-label={`יצירת קשר עם ${vendorName}`}
@@ -282,40 +159,6 @@ export function VendorChatLauncher({
             </div>
           </div>
 
-          {userId ? (
-            <button
-              type="button"
-              onClick={handleChatClick}
-              disabled={creating}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold disabled:opacity-70 transition hover:scale-[1.02]"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
-                color: "var(--gold-button-text)",
-              }}
-            >
-              {creating ? (
-                <Loader2 size={14} className="animate-spin" aria-hidden />
-              ) : (
-                <MessageCircle size={14} aria-hidden />
-              )}
-              {leadId ? "פתח צ׳אט" : "שלח הודעה"}
-            </button>
-          ) : (
-            <Link
-              href={signinHref}
-              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition hover:scale-[1.02]"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
-                color: "var(--gold-button-text)",
-              }}
-            >
-              <MessageCircle size={14} aria-hidden />
-              התחבר וכתוב לספק
-            </Link>
-          )}
-
           {whatsappHref && (
             <a
               href={whatsappHref}
@@ -325,7 +168,7 @@ export function VendorChatLauncher({
               style={{ background: "#25D366" }}
             >
               <WhatsappIcon size={14} />
-              WhatsApp
+              שלח הודעה ב-WhatsApp
             </a>
           )}
 
@@ -352,58 +195,11 @@ export function VendorChatLauncher({
           </div>
         </div>
       </aside>
-
-      {/* ─── Chat modal ───────────────────────────────────────────── */}
-      {open && leadId && (
-        <div
-          className="fixed inset-0 z-[90] flex items-end md:items-center justify-center md:p-6"
-          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full md:max-w-lg h-[85vh] md:h-[70vh] flex flex-col rounded-t-3xl md:rounded-3xl overflow-hidden"
-            style={{
-              background: "var(--surface-0)",
-              border: "1px solid var(--border-gold)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="flex items-center justify-between px-4 py-3 shrink-0"
-              style={{ borderBottom: "1px solid var(--border)" }}
-            >
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--foreground-muted)" }}>
-                  צ׳אט עם הספק
-                </div>
-                <div className="font-bold gradient-gold truncate">{vendorName}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="סגור"
-                className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{
-                  background: "var(--input-bg)",
-                  color: "var(--foreground-soft)",
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              <ChatWindow leadId={leadId} myRole="couple" />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
 
-/** Small inline WhatsApp glyph (no extra dep). */
+/** Inline WhatsApp glyph (no extra dep). */
 function WhatsappIcon({ size = 18 }: { size?: number }) {
   return (
     <svg

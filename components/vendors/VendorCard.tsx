@@ -23,7 +23,6 @@ import {
   Check,
   Trophy,
   Globe,
-  MessageCircle,
 } from "lucide-react";
 import { actions } from "@/lib/store";
 import { vendorImageFor } from "@/lib/images";
@@ -80,7 +79,6 @@ interface VendorCardProps {
   inCompare: boolean;
   /** Compare bucket is full (3) and this vendor isn't already in it. */
   compareDisabled: boolean;
-  onChat: (vendor: Vendor) => void;
   /** Open the Quick Look modal for this vendor. */
   onOpenQuickLook: (vendor: Vendor) => void;
 }
@@ -91,7 +89,6 @@ function VendorCardImpl({
   selected,
   inCompare,
   compareDisabled,
-  onChat,
   onOpenQuickLook,
 }: VendorCardProps) {
   const reducedMotion = useReducedMotion();
@@ -366,20 +363,12 @@ function VendorCardImpl({
             policy. The Vendor type still carries priceFrom for future
             re-introduction (filter chips, sort order); the catalog UI
             simply no longer surfaces a shekel value. */}
+        {/* R90 — in-app chat retired. Couples reach vendors through
+            WhatsApp / phone only now (on the public landing page).
+            Catalog card only carries the phone tap; the "💬 צ׳אט"
+            button + onChat handler were removed. */}
         <div className="mt-auto pt-5 flex items-center justify-end" data-no-quicklook>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChat(vendor);
-              }}
-              className="rounded-full bg-white/[0.05] border border-white/[0.08] hover:bg-white/[0.1] hover:border-[var(--border-gold)] px-3.5 py-2 text-sm inline-flex items-center gap-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
-              aria-label={`שלח הודעה ל${vendor.name}`}
-            >
-              <MessageCircle size={14} />
-              צ׳אט
-            </button>
+          {vendor.phone && (
             <a
               href={`tel:${vendor.phone}`}
               onClick={(e) => e.stopPropagation()}
@@ -388,7 +377,7 @@ function VendorCardImpl({
             >
               <Phone size={14} />
             </a>
-          </div>
+          )}
         </div>
 
         {/* R18 §H — prominent in-body "save" pill, shown only until the

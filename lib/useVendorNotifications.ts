@@ -193,51 +193,11 @@ export function useVendorNotificationsSubscription({
       channels.push(actionsCh);
     }
 
-    // ─── Chat messages ──────────────────────────────────────
-    // R148 — correct table is `vendor_chat_messages` (R143 schema),
-    // not `chat_messages`. RLS on the table already restricts rows
-    // to the two parties of the underlying lead, so we don't need a
-    // server-side filter — every INSERT we receive is one of OUR
-    // chats. Client-side we then skip any message we sent ourselves
-    // (sender_role === "vendor") so the bell doesn't ping when the
-    // vendor types into their own inbox.
-    if (userId) {
-      const chatCh = supabase
-        .channel(`vendor_notif_chat_${userId}`)
-        .on(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          "postgres_changes" as any,
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "vendor_chat_messages",
-          },
-          (payload: { new: Record<string, unknown> }) => {
-            const row = payload.new as {
-              id?: string;
-              body?: string | null;
-              sender_role?: "couple" | "vendor";
-              lead_id?: string;
-              created_at?: string;
-            };
-            // Skip self-sent messages.
-            if (row.sender_role === "vendor") return;
-            const body = (row.body ?? "").trim();
-            addNotification({
-              id: `vendor_chat:${row.id ?? crypto.randomUUID()}`,
-              kind: "vendor_chat_message",
-              title: "הודעה חדשה מזוג",
-              body: body.length > 80 ? `${body.slice(0, 80)}…` : body || "פתח את ההודעות לתגובה",
-              createdAt: row.created_at ?? new Date().toISOString(),
-              meta: {
-                href: "/vendors/dashboard/inbox",
-              },
-            });
-          },
-        )
-        .subscribe();
-      channels.push(chatCh);
-    }
+    // R90 — chat subscription retired. In-app chat is gone; couples
+    // reach vendors over WhatsApp / phone only. `userId` arg stays
+    // in the hook signature for future use, but no listener is
+    // attached for it here today.
+    void userId;
 
     return () => {
       for (const ch of channels) {

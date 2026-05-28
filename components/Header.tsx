@@ -23,7 +23,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Logo } from "./Logo";
 import { Avatar } from "./Avatar";
-import { ChatBell } from "./chat/ChatBell";
+// R90 — ChatBell removed (in-app chat retired).
 import { NotificationsBell } from "./NotificationsBell";
 import { EventSwitcher } from "./EventSwitcher";
 import { UpgradePlanModal } from "./UpgradePlanModal";
@@ -32,7 +32,7 @@ import { useTheme } from "@/lib/theme";
 import { useUser, userActions } from "@/lib/user";
 import { useIsAdmin } from "@/lib/useIsAdmin";
 import { useVendorContext } from "@/lib/useVendorContext";
-import { useChatUnread } from "@/lib/useChatUnread";
+// R90 — useChatUnread retired with ChatBell.
 import { eventSlots, useEventSlots } from "@/lib/eventSlots";
 import { setupCloudSync } from "@/lib/sync";
 import { HEADER_NAV, VENDOR_HEADER_NAV, MORE_MENU_NAV } from "@/lib/navigation";
@@ -134,7 +134,10 @@ export function Header() {
   const { isVendor, vendorLanding } = useVendorContext();
   const { state } = useAppState();
   const nowMs = useNow();
-  const unread = useChatUnread();
+  // R90 — `unread` was driven by useChatUnread (chat retired). Fixed
+  // to 0 so the surviving usage sites (the inbox-unread MORE menu
+  // gate + the avatar dropdown badge) stay quiet without code churn.
+  const unread = 0;
   const { slots } = useEventSlots();
 
   const [scrolled, setScrolled] = useState(false);
@@ -332,7 +335,7 @@ export function Header() {
           {hydrated && user ? (
             <>
               <NotificationsBell />
-              <ChatBell />
+              {/* R90 — ChatBell removed (in-app chat retired). */}
               {/* R88 (R70-2) — the mobile compact `Nי׳` countdown chip
                   was removed: it duplicated the center EventChip on
                   larger screens and competed visually with the big

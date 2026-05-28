@@ -96,11 +96,20 @@ export default function BalancePage() {
       || (state.event?.budgetTotal ?? 0);
     const net = totalIncome - totalCost;
     const totalHeads = attended.reduce((s, g) => s + (g.attendingCount ?? 1), 0);
+    // R91 — total invited heads (sum of attendingCount across EVERY
+    // guest row regardless of status). Lets the SummaryPanel show
+    // "147 of 220 invited guests came" right under the big shekel
+    // figure, per the host's request to see attendance vs invite
+    // ratio at a glance.
+    const totalInvited = state.guests.reduce(
+      (s, g) => s + (g.attendingCount ?? 1),
+      0,
+    );
     const avgPerHead = totalHeads > 0 && filledCount > 0
       ? Math.round(totalIncome / attended.filter((g) => g.envelopeAmount).reduce((sum, g) => sum + (g.attendingCount ?? 1), 0))
       : 0;
-    return { totalIncome, filledCount, totalCost, net, totalHeads, avgPerHead };
-  }, [attended, state.budget, state.event]);
+    return { totalIncome, filledCount, totalCost, net, totalHeads, totalInvited, avgPerHead };
+  }, [attended, state.budget, state.event, state.guests]);
 
   const verdict = totals.net > 0 ? "profit" : totals.net < 0 ? "loss" : "balanced";
 
@@ -165,6 +174,7 @@ export default function BalancePage() {
             filledCount={totals.filledCount}
             totalAttended={attended.length}
             totalHeads={totals.totalHeads}
+            totalInvited={totals.totalInvited}
             eventLabel={EVENT_TYPE_LABELS[state.event.type]}
             dateFmt={dateFmt}
           />
@@ -262,6 +272,7 @@ function SummaryPanel({
   filledCount,
   totalAttended,
   totalHeads,
+  totalInvited,
   eventLabel,
   dateFmt,
 }: {
@@ -277,6 +288,10 @@ function SummaryPanel({
    *  attendingCount=3 → 3 people). Different from `totalAttended`,
    *  which counts guest RECORDS (e.g. one family = 1). */
   totalHeads: number;
+  /** R91 — sum of `attendingCount` across EVERY guest row regardless
+   *  of status. Used as the denominator in the "X / Y הגיעו"
+   *  attendance ratio shown under the income figure. */
+  totalInvited: number;
   eventLabel: string;
   dateFmt: string;
 }) {
@@ -303,38 +318,72 @@ function SummaryPanel({
             <div className="text-5xl md:text-7xl font-extrabold tracking-tight gradient-gold ltr-num mt-2">
               ₪{totalIncome.toLocaleString("he-IL")}
             </div>
-            {/* R89 — attendee count line. Surfaces "how many people
-                showed up" right under the big ₪ number so the host
-                can read income + headcount together at a glance.
-                `totalHeads` counts ACTUAL people (sum of
-                attendingCount), `totalAttended` counts guest records
-                (one family = 1 record). When they differ we show
-                both ("250 אורחים · 80 משפחות"); when each family is
-                a single person we collapse to just the head count.
-                Hidden entirely when nobody confirmed yet (the
-                EmptyState below already handles that case). */}
-            {totalHeads > 0 && (
+            {/* R89 / R91 — attendee tally. R91 upgraded this from a
+                small pill to a hero-secondary stat that sits
+                immediately under the big ₪ figure. Shows actual
+                arrivals (sum of attendingCount on confirmed guests)
+                as the numerator and total invited heads (sum across
+                every guest regardless of status) as the denominator,
+                so the host reads income + attendance vs invite
+                together at a glance. Hidden when no guests exist at
+                all (the EmptyState below catches that case). */}
+            {totalInvited > 0 && (
               <div
-                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm"
+                className="mt-4 inline-flex items-center gap-3 px-4 py-3 rounded-2xl"
                 style={{
-                  background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+                  background:
+                    "linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent) 5%, transparent))",
                   border: "1px solid var(--border-gold)",
-                  color: "var(--accent)",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(244,222,169,0.18), 0 6px 18px -10px var(--accent-glow)",
                 }}
               >
-                <Users size={14} aria-hidden />
-                <span className="font-bold ltr-num">{totalHeads}</span>
-                <span>
-                  {totalHeads === 1 ? "אורח אישר הגעה" : "אורחים אישרו הגעה"}
-                </span>
-                {totalAttended !== totalHeads && (
-                  <span
-                    className="ltr-num opacity-70 ms-1"
-                    title="מספר רשומות האורחים (משפחה אחת = רשומה אחת)"
+                <div
+                  className="w-10 h-10 rounded-xl inline-flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                    color: "var(--gold-button-text)",
+                  }}
+                >
+                  <Users size={18} aria-hidden />
+                </div>
+                <div className="min-w-0">
+                  <div
+                    className="text-[10px] uppercase tracking-[0.18em] font-semibold"
+                    style={{ color: "var(--accent)" }}
                   >
-                    · {totalAttended} {totalAttended === 1 ? "רשומה" : "רשומות"}
-                  </span>
-                )}
+                    הגעת אורחים
+                  </div>
+                  <div className="mt-0.5 text-xl md:text-2xl font-extrabold leading-none">
+                    <span className="ltr-num gradient-gold">{totalHeads}</span>
+                    <span
+                      className="ltr-num text-base font-bold opacity-70 ms-1"
+                      style={{ color: "var(--foreground-soft)" }}
+                    >
+                      / {totalInvited}
+                    </span>
+                    <span
+                      className="text-sm font-normal ms-2"
+                      style={{ color: "var(--foreground-soft)" }}
+                    >
+                      {totalHeads === 1 ? "אורח הגיע" : "אורחים הגיעו"}
+                    </span>
+                  </div>
+                  {totalAttended !== totalHeads && (
+                    <div
+                      className="text-[11px] mt-1 ltr-num"
+                      style={{ color: "var(--foreground-muted)" }}
+                      title="מספר רשומות האורחים (משפחה אחת = רשומה אחת)"
+                    >
+                      {totalAttended} {totalAttended === 1 ? "רשומה" : "רשומות"}
+                      {" · "}
+                      {totalInvited > 0
+                        ? `${Math.round((totalHeads / totalInvited) * 100)}% מהמוזמנים`
+                        : ""}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <div className="text-sm mt-3" style={{ color: "var(--foreground-soft)" }}>

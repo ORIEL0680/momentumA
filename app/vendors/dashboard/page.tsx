@@ -24,7 +24,7 @@ import {
 // favor of the vendor hero) but is still imported by some sibling
 // pages — kept in the lucide list above only when needed there.
 import { getSupabase } from "@/lib/supabase";
-import { VendorInboxCard } from "@/components/chat/VendorInboxCard";
+// R90 — VendorInboxCard removed (in-app chat retired).
 import { Logo } from "@/components/Logo";
 import { EmptyState } from "@/components/EmptyState";
 // R144 — vendor pages now use the SAME premium global Header as the
@@ -626,7 +626,7 @@ export default function VendorDashboardPage() {
         </section>
 
         {/* R43 — vendor chat inbox entry (unread count). */}
-        <VendorInboxCard />
+        {/* R90 — VendorInboxCard removed (in-app chat retired). */}
 
         {/* R18 §I — fresh-vendor onboarding banner. */}
         {isFreshVendor && publicUrl && (

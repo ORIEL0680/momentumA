@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, Heart, Plus, ShieldCheck, Sparkles, Lightbulb } from "lucide-react";
 import { Header } from "@/components/Header";
-import { VendorChatModal } from "@/components/VendorChatModal";
+// R90 — in-app chat retired. Couples reach vendors over WhatsApp /
+// phone only. VendorChatModal import + chatVendor state + handleChat
+// callback all removed below. VendorQuickLook still accepts an
+// `onChat` prop (kept for API stability); we pass a no-op.
 import { useAppState } from "@/lib/store";
 import { VENDORS } from "@/lib/vendors";
 import { getSupabase } from "@/lib/supabase";
@@ -85,7 +88,7 @@ function VendorsInner() {
   // runs ONCE per mount (prefilled flag) so subsequent user changes win.
   const [filters, setFilters] = useState<VendorFiltersShape>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortMode>("recommended");
-  const [chatVendor, setChatVendor] = useState<Vendor | null>(null);
+  // R90 — chatVendor state retired (was used to open VendorChatModal).
   const [quickVendor, setQuickVendor] = useState<Vendor | null>(null);
   const [page, setPage] = useState(1);
 
@@ -359,7 +362,12 @@ function VendorsInner() {
       router.replace(`/vendors${qs ? `?${qs}` : ""}`, { scroll: false });
     }
   }, [searchParams, router]);
-  const handleChat = useCallback((v: Vendor) => setChatVendor(v), []);
+  // R90 — handleChat retired; the catalog card no longer has a chat
+  // button. VendorQuickLook still receives a (no-op) onChat for now.
+  const handleChat = useCallback((v: Vendor) => {
+    /* R90 no-op; param kept to satisfy QuickLook prop signature */
+    void v;
+  }, []);
 
   // Smart empty-state suggestions — list 0-3 actions the user can take with
   // ONE click that would each likely surface results.
@@ -553,7 +561,6 @@ function VendorsInner() {
                         compareDisabled={
                           !compareIds.has(vendor.id) && compareIds.size >= 3
                         }
-                        onChat={handleChat}
                         onOpenQuickLook={openQuickLook}
                       />
                     </motion.div>
@@ -612,7 +619,7 @@ function VendorsInner() {
           )}
         </AnimatePresence>
 
-        {chatVendor && <VendorChatModal vendor={chatVendor} onClose={() => setChatVendor(null)} />}
+        {/* R90 — VendorChatModal mount removed (chat retired). */}
       </main>
     </>
   );

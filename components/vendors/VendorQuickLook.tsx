@@ -56,7 +56,11 @@ interface VendorQuickLookProps {
 
 const GALLERY_INDICES = [0, 1, 2];
 
-export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuickLookProps) {
+export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: VendorQuickLookProps) {
+  // R90 — `onChat` prop preserved in the API so /vendors page caller
+  // doesn't need to change, but unused now that the chat button is
+  // gone. Reference once to silence the unused-var lint.
+  void _onChat;
   const reducedMotion = useReducedMotion();
   const { state } = useAppState();
   const [imgIdx, setImgIdx] = useState(0);
@@ -431,15 +435,11 @@ export function VendorQuickLook({ vendor, onClose, onChat, onPick }: VendorQuick
               <Trophy size={14} aria-hidden />
               {inCompare ? "בהשוואה" : "השוואה"}
             </button>
-            <button
-              type="button"
-              onClick={() => onChat(vendor)}
-              className="btn-secondary rounded-2xl py-3 text-sm font-semibold inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
-              aria-label={`שלח הודעה ל${vendor.name}`}
-            >
-              <MessageCircle size={14} aria-hidden />
-              צ׳אט
-            </button>
+            {/* R90 — in-app chat button removed. Couples reach
+                vendors over WhatsApp / phone only now. The phone tap
+                below remains; the WhatsApp link is on the full
+                vendor page (`/vendor/[slug]`) where there's room
+                for it. */}
             {/* R14 BUG#2: hide the call button entirely when the phone is
                 missing or whitespace. The Vendor type has phone as required
                 but seed/placeholder rows have shipped with empty strings —

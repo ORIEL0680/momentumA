@@ -49,7 +49,8 @@ export type NotificationKind =
   //   • vendor_milestone    — usage milestones (e.g., "10 views today")
   | "vendor_new_lead"
   | "vendor_new_review"
-  | "vendor_chat_message"
+  // R90 — "vendor_chat_message" kind retired with in-app chat.
+  // Couples reach vendors over WhatsApp / phone only now.
   | "vendor_milestone"
   // R147 — fired when a couple takes an explicit action on the
   // vendor's public landing page (WhatsApp click, phone tap, save,

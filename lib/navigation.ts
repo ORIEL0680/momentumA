@@ -53,10 +53,8 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/guests", label: "אורחים" },
   { href: "/budget", label: "תקציב" },
   { href: "/vendors", label: "ספקים" },
-  // R148 — new "צ׳אטים" hub: shows every host↔vendor conversation
-  // in one place. The vendor side has /vendors/dashboard/inbox for
-  // the same data; this is the host's equivalent.
-  { href: "/chats", label: "צ׳אטים" },
+  // R90 — "צ׳אטים" pill removed. In-app chat with vendors is
+  // retired; couples reach vendors over WhatsApp / phone only.
   { href: "/seating", label: "הושבה" },
   { href: "/balance", label: "מאזן" },
 ] as const;
@@ -80,7 +78,9 @@ export const HEADER_NAV: readonly HeaderNavItem[] = [
 export const VENDOR_HEADER_NAV: readonly HeaderNavItem[] = [
   { href: "/vendors/dashboard", label: "דשבורד" },
   { href: "/vendors/dashboard/leads", label: "לידים" },
-  { href: "/vendors/dashboard/inbox", label: "הודעות" },
+  // R90 — "הודעות" pill removed. The /vendors/dashboard/inbox
+  // page was deleted. Vendors talk to couples on WhatsApp directly
+  // (couples open WhatsApp from the public landing page CTA bar).
   { href: "/vendors/dashboard/analytics", label: "אנליטיקס" },
   { href: "/dashboard/vendor-studio", label: "עריכת הדף" },
   { href: "/vendors", label: "הקטלוג" },
