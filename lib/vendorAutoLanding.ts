@@ -22,6 +22,7 @@
 
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/service";
+import type { VendorLandingData } from "@/lib/types";
 
 /** Shape returned to the renderer. */
 export interface VendorAutoLandingRow {
@@ -172,4 +173,56 @@ export async function findLandingForApplication(
     slug: landingRow.slug ?? null,
     published: landingRow.landing_published === true,
   };
+}
+
+/**
+ * R106 — service-role fetch of the FULL vendor_landings row for an
+ * application. Returns null when no landing exists.
+ *
+ * Why this exists (separately from `findLandingForApplication`): the
+ * `/vendor/[slug]` page renders one of two components depending on
+ * the URL shape. The auto-landing template (VendorAutoLanding)
+ * doesn't surface any vendor-uploaded photos — no gallery, no
+ * hero, no logo — because the application form only ever captured
+ * a `sample_work_url`. When a vendor THEN goes through the studio
+ * and uploads photos, the photos land in `vendor_landings.{hero,
+ * gallery, logo, cover}_*` — invisible to the auto template.
+ *
+ * R106 lets the page detect "this application has an associated
+ * landing" and render the FULL studio template
+ * (`VendorLandingClient`) against the landing data, even from the
+ * `/vendor/app-<uuid>` URL. The redirect approach from R99/R100
+ * 404'd in some cases (R101); component-swap doesn't have that
+ * failure mode because there's no second HTTP request.
+ *
+ * Bypasses RLS via service-role, so unpublished landings + landings
+ * with `landing_published = false` are still reachable here.
+ */
+export async function fetchLandingByApplicationId(
+  applicationId: string,
+): Promise<VendorLandingData | null> {
+  let supabase;
+  try {
+    supabase = createServiceClient();
+  } catch {
+    return null;
+  }
+
+  const { data: appRow } = (await supabase
+    .from("vendor_applications")
+    .select("email")
+    .eq("id", applicationId)
+    .maybeSingle()) as { data: { email: string } | null };
+  if (!appRow?.email) return null;
+
+  const { data: landingRow } = (await supabase
+    .from("vendor_landings")
+    .select("*")
+    .ilike("email", appRow.email)
+    .order("landing_updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()) as { data: VendorLandingData | null };
+
+  return landingRow ?? null;
 }

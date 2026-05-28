@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchVendorBySlug, getVendorPhotoUrl } from "@/lib/vendorStudio";
 import {
   fetchApprovedApplication,
+  fetchLandingByApplicationId,
   findLandingForApplication,
   isAutoLandingSlug,
   applicationIdFromSlug,
@@ -165,9 +166,30 @@ export default async function VendorLandingPage({ params }: PageProps) {
   //      landing exists yet — the row is logged for future
   //      backfill / debugging.
   if (isAutoLandingSlug(slug)) {
+    const appId = applicationIdFromSlug(slug);
+
+    // R106 — if the application has a real vendor_landings row,
+    // render the FULL studio template (VendorLandingClient) against
+    // it. The auto-landing template (VendorAutoLanding) has no
+    // gallery / hero / logo rendering at all — vendors who uploaded
+    // photos via the studio saw their photos vanish on the public
+    // page just because the URL was `/vendor/app-<uuid>`. Component
+    // swap fixes it without an HTTP redirect (the R99 approach 404'd).
+    if (appId) {
+      const fullLanding = await fetchLandingByApplicationId(appId);
+      if (fullLanding) {
+        return (
+          <>
+            <VendorLandingClient vendor={fullLanding} />
+            <VendorViewTracker vendorId={fullLanding.id} />
+          </>
+        );
+      }
+    }
+
+    // No landing yet → fall back to the basic auto template.
     const autoVendor = await fetchApprovedApplication(slug);
     if (!autoVendor) notFound();
-    const appId = applicationIdFromSlug(slug);
     const realLanding = appId ? await findLandingForApplication(appId) : null;
     const trackerVendorId = realLanding?.id ?? autoVendor.id;
     return (
