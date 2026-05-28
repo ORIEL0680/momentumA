@@ -151,7 +151,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     slug,
     found: true,
-    template: landingRow ? "studio (VendorLandingClient)" : "auto-landing (VendorAutoLanding)",
+    // R108 — both branches now render through VendorLandingClient
+    // (the auto branch synthesizes a landing in memory). The label
+    // documents which data source drives the page.
+    template: landingRow
+      ? "studio (VendorLandingClient ← real landing)"
+      : "studio (VendorLandingClient ← synthesized from application)",
     landing: landingRow,
     application: applicationRow,
     canonical_slug: canonicalSlug,

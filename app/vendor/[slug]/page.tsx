@@ -5,14 +5,13 @@ import { fetchVendorBySlug, getVendorPhotoUrl } from "@/lib/vendorStudio";
 import {
   fetchApprovedApplication,
   fetchLandingByApplicationId,
-  findLandingForApplication,
   isAutoLandingSlug,
   applicationIdFromSlug,
+  synthesizeLandingFromApplication,
 } from "@/lib/vendorAutoLanding";
 import { VENDOR_CATEGORIES } from "@/lib/vendorApplication";
 import { jsonLdSafe } from "@/lib/jsonLdSafe";
 import { VendorLandingClient } from "@/components/vendor-studio/VendorLandingClient";
-import { VendorAutoLanding } from "@/components/vendors/VendorAutoLanding";
 import { VendorChatLauncher } from "@/components/chat/VendorChatLauncher";
 import { VendorViewTracker } from "@/components/vendors/VendorViewTracker";
 import { VendorBackButton } from "@/components/vendors/VendorBackButton";
@@ -151,31 +150,27 @@ export default async function VendorLandingPage({ params }: PageProps) {
   // Next handles by rendering the 404 page.
   if (!slug?.trim()) notFound();
 
-  // R85 (R67 fix) / R99 / R101 — auto-landing path: slug shaped
-  // like `app-<uuid>` is an approved vendor application.
+  // R85 (R67 fix) / R99 / R101 / R106 / R108 — auto-landing path:
+  // slug shaped like `app-<uuid>` is an approved vendor application.
   //
-  // R99 added a server-side redirect to /vendor/<canonical-slug>
-  // when a real landing existed. R101 REMOVED the redirect (it
-  // caused intermittent 404s due to RLS / publish-flag chains).
-  // Instead, we now:
-  //   1. Render VendorAutoLanding directly (always reachable).
-  //   2. Look up the canonical landing UUID server-side and pass
-  //      it to <VendorViewTracker> so analytics records the view
-  //      against the correct vendor_id (the landing UUID, which
-  //      is what the dashboard + analytics queries by).
-  //   3. Fall back to the application id for the tracker if no
-  //      landing exists yet — the row is logged for future
-  //      backfill / debugging.
+  // History:
+  //   R99 tried a server-side redirect to /vendor/<canonical-slug>
+  //   when a real landing existed. R101 REMOVED the redirect (RLS +
+  //   publish-flag chains 404'd in some setups). R106 introduced a
+  //   component-swap pattern: if a real landing exists, render
+  //   <VendorLandingClient> against it (so studio-uploaded photos
+  //   surface). The other case still rendered the basic
+  //   <VendorAutoLanding> mini-template — meaning the catalog
+  //   contained pages with two visibly different designs.
+  //
+  //   R108 closes that gap. We ALWAYS render <VendorLandingClient>
+  //   (→ LuxuriousTemplate), and when there's no real landing we
+  //   synthesize one from the application row so the template still
+  //   has data to render. Result: every approved vendor — landing
+  //   or not — gets the same premium gold-on-dark studio template.
   if (isAutoLandingSlug(slug)) {
     const appId = applicationIdFromSlug(slug);
 
-    // R106 — if the application has a real vendor_landings row,
-    // render the FULL studio template (VendorLandingClient) against
-    // it. The auto-landing template (VendorAutoLanding) has no
-    // gallery / hero / logo rendering at all — vendors who uploaded
-    // photos via the studio saw their photos vanish on the public
-    // page just because the URL was `/vendor/app-<uuid>`. Component
-    // swap fixes it without an HTTP redirect (the R99 approach 404'd).
     if (appId) {
       const fullLanding = await fetchLandingByApplicationId(appId);
       if (fullLanding) {
@@ -189,15 +184,19 @@ export default async function VendorLandingPage({ params }: PageProps) {
       }
     }
 
-    // No landing yet → fall back to the basic auto template.
+    // No landing yet → synthesize one from the application row so
+    // the page still renders through LuxuriousTemplate. The
+    // synthesized landing carries `owner_user_id = ""` which
+    // VendorLandingClient reads as "lead modal is unavailable —
+    // redirect the primary CTA to WhatsApp" (we can't insert a
+    // lead row when no vendor_landings UUID exists to point at).
     const autoVendor = await fetchApprovedApplication(slug);
     if (!autoVendor) notFound();
-    const realLanding = appId ? await findLandingForApplication(appId) : null;
-    const trackerVendorId = realLanding?.id ?? autoVendor.id;
+    const synthesized = synthesizeLandingFromApplication(autoVendor);
     return (
       <>
-        <VendorAutoLanding vendor={autoVendor} />
-        <VendorViewTracker vendorId={trackerVendorId} />
+        <VendorLandingClient vendor={synthesized} />
+        <VendorViewTracker vendorId={autoVendor.id} />
         <VendorBackButton />
       </>
     );

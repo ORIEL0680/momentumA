@@ -198,6 +198,71 @@ export async function findLandingForApplication(
  * Bypasses RLS via service-role, so unpublished landings + landings
  * with `landing_published = false` are still reachable here.
  */
+/**
+ * R108 — synthesize a `VendorLandingData`-shaped object from an
+ * `VendorAutoLandingRow` so the public page can render every
+ * approved vendor — landing or no landing — through the same
+ * `VendorLandingClient` → `LuxuriousTemplate` pipeline.
+ *
+ * Why this exists:
+ *   Pre-R108, vendors WITHOUT a `vendor_landings` row (the ones who
+ *   were approved before signing up to the app, or who never opened
+ *   the studio) rendered through the much-simpler `VendorAutoLanding`
+ *   component. That meant the same approved-vendor list contained
+ *   pages with two visually distinct designs — confusing for couples
+ *   browsing the catalog, and unfair to the auto-only vendors whose
+ *   pages looked second-class.
+ *
+ *   R108 closes the gap: every approved vendor renders through
+ *   LuxuriousTemplate. The synthesized object has the same shape as
+ *   a real landing, just with most extras set to null/empty so the
+ *   template's graceful-degradation paths kick in (no hero photo →
+ *   centered title hero; empty gallery → gallery section just
+ *   doesn't render; etc.).
+ *
+ *   `slug` is set to the synthetic `app-<uuid>` so the URL the
+ *   client points at matches the URL it came from. `owner_user_id`
+ *   is empty string — VendorLandingClient uses that as the "no real
+ *   landing exists" signal to route the lead button to WhatsApp
+ *   instead of the modal that POSTs to a non-existent slug.
+ */
+export function synthesizeLandingFromApplication(
+  app: VendorAutoLandingRow,
+): VendorLandingData {
+  return {
+    id: app.id,
+    slug: `app-${app.id}`,
+    owner_user_id: "",
+    name: app.business_name,
+    category: app.category,
+    city: app.city,
+    phone: app.phone,
+    email: null,
+    website: app.website,
+    instagram: app.instagram,
+    facebook: app.facebook,
+    tagline: null,
+    about_long: app.about,
+    description: app.about,
+    hero_photo_path: null,
+    gallery_paths: [],
+    video_url: null,
+    logo_url: null,
+    cover_image_url: null,
+    image_updated_at: null,
+    service_areas: [],
+    price_range: null,
+    years_experience: app.years_in_field > 0 ? app.years_in_field : null,
+    languages: [],
+    certifications: [],
+    landing_template: "luxurious",
+    landing_published: true,
+    featured: false,
+    landing_updated_at: app.created_at,
+    created_at: app.created_at,
+  };
+}
+
 export async function fetchLandingByApplicationId(
   applicationId: string,
 ): Promise<VendorLandingData | null> {

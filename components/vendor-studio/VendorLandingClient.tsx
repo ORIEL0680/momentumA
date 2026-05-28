@@ -80,13 +80,31 @@ export function VendorLandingClient({ vendor }: { vendor: VendorLandingData }) {
       ? `tel:${vendor.phone}`
       : "";
 
+  // R108 — vendor rows synthesized from an application (no real
+  // vendor_landings row) carry `owner_user_id = ""` as a signal. The
+  // lead-interest modal POSTs to /api/vendors/lead which requires
+  // the slug to exist in vendor_landings — for synthesized rows it
+  // doesn't, so the POST would 404 with a generic error. Instead we
+  // route the primary CTA directly to WhatsApp (the next-best
+  // contact channel the application already exposes) so the couple
+  // still has a one-click path to reach the vendor.
+  const whatsappUrl = buildWhatsappUrl();
+  const isSynthesized = vendor.owner_user_id.length === 0;
+  const onSendInterest =
+    isSynthesized && whatsappUrl
+      ? () => {
+          handleAction("whatsapp");
+          window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+        }
+      : () => setLeadModalOpen(true);
+
   const sharedProps = {
     vendor,
     reviews,
     onAction: handleAction,
-    whatsappUrl: buildWhatsappUrl(),
+    whatsappUrl,
     telUrl,
-    onSendInterest: () => setLeadModalOpen(true),
+    onSendInterest,
   };
 
   const Template =
