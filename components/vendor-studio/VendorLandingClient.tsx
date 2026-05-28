@@ -10,8 +10,12 @@ import { showToast } from "@/components/Toast";
 import type { VendorLandingData, VendorReview } from "@/lib/types";
 import { PhoneInput } from "@/components/inputs/PhoneInput";
 import { LuxuriousTemplate } from "./templates/LuxuriousTemplate";
-import { ModernTemplate } from "./templates/ModernTemplate";
-import { RusticTemplate } from "./templates/RusticTemplate";
+// R110 — Modern + Rustic templates removed from the render path.
+// They overrode the brand CSS variables with sage/terracotta
+// palettes, so any vendor whose `landing_template` was anything
+// other than "luxurious" got a page that didn't match the app's
+// gold-on-dark identity. Every vendor now renders through
+// LuxuriousTemplate so the catalog stays visually coherent.
 
 /**
  * R20 Phase 9 — client-side wrapper around the chosen template.
@@ -107,16 +111,15 @@ export function VendorLandingClient({ vendor }: { vendor: VendorLandingData }) {
     onSendInterest,
   };
 
-  const Template =
-    vendor.landing_template === "modern"
-      ? ModernTemplate
-      : vendor.landing_template === "rustic"
-        ? RusticTemplate
-        : LuxuriousTemplate;
-
+  // R110 — `vendor.landing_template` ("luxurious" | "modern" | "rustic")
+  // is intentionally ignored. Modern/Rustic re-skinned the page with
+  // off-brand sage / terracotta palettes that broke catalog-wide
+  // visual consistency. Every vendor now renders through
+  // LuxuriousTemplate so the gold-on-dark brand is the only palette
+  // a couple ever sees.
   return (
     <>
-      <Template {...sharedProps} />
+      <LuxuriousTemplate {...sharedProps} />
       {leadModalOpen && (
         <LeadInterestModal
           vendor={vendor}

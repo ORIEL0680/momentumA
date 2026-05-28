@@ -126,8 +126,10 @@ export function LuxuriousTemplate({
           aria-hidden
           className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full pointer-events-none float-slow"
           style={{
+            // R110 — tokenized so the orb stays brand-correct even if
+            // the accent palette is ever swapped at the theme layer.
             background:
-              "radial-gradient(circle, rgba(244,222,169,0.16), transparent 70%)",
+              "radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%)",
             filter: "blur(60px)",
           }}
         />
@@ -257,17 +259,18 @@ export function LuxuriousTemplate({
                   onClick={() => onAction("whatsapp")}
                   className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md transition hover:scale-[1.02]"
                   style={{
-                    // R107 — bring secondary CTAs in line with the
-                    // app's gold-on-dark brand. Translucent gold wash
-                    // over the hero photo + gold border + warm accent
-                    // text reads as a premium pair next to the
-                    // primary `btn-gold` lead-capture button.
+                    // R107 / R110 — secondary CTAs in the app's
+                    // gold-on-dark brand. R110 swaps the dark base
+                    // and the inset gold sheen from hardcoded rgba
+                    // to brand tokens (`var(--background)` +
+                    // `color-mix` against `var(--accent)`) so the
+                    // entire button derives from the theme.
                     background:
-                      "color-mix(in srgb, var(--accent) 12%, rgba(10,10,12,0.55))",
+                      "color-mix(in srgb, var(--accent) 14%, color-mix(in srgb, var(--background) 55%, transparent))",
                     border: "1px solid var(--border-gold)",
                     color: "var(--accent)",
                     boxShadow:
-                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,222,169,0.18)",
+                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent)",
                   }}
                 >
                   <MessageCircle size={18} aria-hidden /> WhatsApp
@@ -279,15 +282,15 @@ export function LuxuriousTemplate({
                   onClick={() => onAction("phone")}
                   className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md transition hover:scale-[1.02]"
                   style={{
-                    // R107 — see WhatsApp button above; same brand
-                    // treatment so the trio (lead → WhatsApp → phone)
-                    // reads as a coherent set of gold-toned CTAs.
+                    // R107 / R110 — see WhatsApp button above; same
+                    // brand treatment so the trio reads as a coherent
+                    // set of gold-toned CTAs derived from theme tokens.
                     background:
-                      "color-mix(in srgb, var(--accent) 12%, rgba(10,10,12,0.55))",
+                      "color-mix(in srgb, var(--accent) 14%, color-mix(in srgb, var(--background) 55%, transparent))",
                     border: "1px solid var(--border-gold)",
                     color: "var(--accent)",
                     boxShadow:
-                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,222,169,0.18)",
+                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent)",
                   }}
                 >
                   <Phone size={18} aria-hidden /> התקשר
