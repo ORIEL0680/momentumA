@@ -150,14 +150,25 @@ export async function findLandingSlugForApplication(
   // orphan-adoption sets owner_user_id; before that we matched by
   // email alone. Use the most-recently-updated row when several
   // exist (legacy data has duplicates).
+  //
+  // R100 — CRITICAL: only redirect to slugs that are actually
+  // reachable. `fetchVendorBySlug` (used by the redirect target)
+  // filters by `landing_published = true` by default, so an
+  // unpublished landing would 404 after redirect. We require
+  // `landing_published = true` AND a non-empty `slug` here. When
+  // neither is true, the caller falls through to VendorAutoLanding
+  // (which renders + tracks regardless of publish state).
   const { data: landingRow } = (await supabase
     .from("vendor_landings")
-    .select("id, slug")
+    .select("id, slug, landing_published")
     .ilike("email", appRow.email)
+    .eq("landing_published", true)
     .order("landing_updated_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle()) as { data: { id: string; slug: string | null } | null };
+    .maybeSingle()) as {
+    data: { id: string; slug: string | null; landing_published: boolean } | null;
+  };
 
   if (!landingRow?.slug) return null;
   return { slug: landingRow.slug, landingId: landingRow.id };

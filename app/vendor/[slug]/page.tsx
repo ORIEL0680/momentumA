@@ -82,7 +82,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const vendor = await fetchVendorBySlug(slug);
+  // R100 — match the page-render call below: allow unpublished.
+  const vendor = await fetchVendorBySlug(slug, true);
   if (!vendor) return { title: "ספק לא נמצא — Momentum" };
 
   const heroImg = vendor.hero_photo_path
@@ -184,7 +185,14 @@ export default async function VendorLandingPage({ params }: PageProps) {
     );
   }
 
-  const vendor = await fetchVendorBySlug(slug);
+  // R100 — `allowUnpublished = true` so an approved vendor's slug
+  // page renders even when `landing_published = false`. The flag
+  // was originally meant for a "draft → preview → publish" workflow
+  // that never shipped; every approved vendor should be reachable.
+  // The catalog only exposes approved vendors (RPC filter), so
+  // there's no risk of revealing a private draft via this route —
+  // a bogus slug still hits notFound() below.
+  const vendor = await fetchVendorBySlug(slug, true);
   if (!vendor) notFound();
 
   // R11 P1 #14 — pull aggregate stats so Google can render a star
