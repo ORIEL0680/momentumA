@@ -111,26 +111,27 @@ export async function fetchApprovedApplication(
 }
 
 /**
- * R99 — service-role lookup: given an application id (no auto-slug
- * prefix), find the matching `vendor_landings` row by email and
- * return its real `slug` + `id` (UUID). Used by the public
- * `/vendor/[slug]` page to REDIRECT auto-landing URLs
- * (`/vendor/app-<uuid>`) to the canonical slug
- * (`/vendor/<real-slug>`) whenever a landing exists.
+ * R99 / R101 — service-role lookup: given an application id, find
+ * the matching `vendor_landings` row by email and return the
+ * landing's `{ id, slug, published }` triple.
  *
- * Why the redirect matters: the auto-landing template
- * (VendorAutoLanding) is server-only and has no client effects.
- * That means NO trackPageView ever fires for auto URLs → analytics
- * always shows zero traffic for auto-landed vendors. The studio
- * template (VendorLandingClient) has the tracker; redirecting
- * traffic there gets the page-view recorded for every visit.
+ * R101: the previous R99/R100 version was used to drive a server-
+ * side redirect from `/vendor/app-<uuid>` to `/vendor/<canonical-slug>`.
+ * That redirect chained a 404 in some configurations and is no
+ * longer attempted. The helper is kept (renamed
+ * `findLandingForApplication`) and used purely to inform the
+ * client-side `<VendorViewTracker>` of the canonical landing UUID
+ * — so analytics records visits to auto-landing URLs against the
+ * correct vendor_id even when no redirect happens.
  *
- * Returns null when no landing exists for this application (yet) —
- * the caller should fall back to rendering VendorAutoLanding.
+ * Returns null when no landing exists for this application's
+ * email — caller passes the application id to the tracker as a
+ * fallback (less useful for analytics, but the row is logged for
+ * future backfill).
  */
-export async function findLandingSlugForApplication(
+export async function findLandingForApplication(
   applicationId: string,
-): Promise<{ slug: string; landingId: string } | null> {
+): Promise<{ id: string; slug: string | null; published: boolean } | null> {
   let supabase;
   try {
     supabase = createServiceClient();
@@ -146,30 +147,29 @@ export async function findLandingSlugForApplication(
     .maybeSingle()) as { data: { email: string } | null };
   if (!appRow?.email) return null;
 
-  // Step 2: find a vendor_landings row matching that email. R142's
-  // orphan-adoption sets owner_user_id; before that we matched by
-  // email alone. Use the most-recently-updated row when several
-  // exist (legacy data has duplicates).
+  // Step 2: find a vendor_landings row matching this application's
+  // email. R142's orphan-adoption sets owner_user_id; before that
+  // we matched by email alone. Use the most-recently-updated row
+  // when several exist (legacy data has duplicates).
   //
-  // R100 — CRITICAL: only redirect to slugs that are actually
-  // reachable. `fetchVendorBySlug` (used by the redirect target)
-  // filters by `landing_published = true` by default, so an
-  // unpublished landing would 404 after redirect. We require
-  // `landing_published = true` AND a non-empty `slug` here. When
-  // neither is true, the caller falls through to VendorAutoLanding
-  // (which renders + tracks regardless of publish state).
+  // R101 — return regardless of `landing_published`. The caller
+  // (the page tracker) uses the id to log views to the right
+  // vendor_id; the published flag is informational only.
   const { data: landingRow } = (await supabase
     .from("vendor_landings")
     .select("id, slug, landing_published")
     .ilike("email", appRow.email)
-    .eq("landing_published", true)
     .order("landing_updated_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()) as {
-    data: { id: string; slug: string | null; landing_published: boolean } | null;
+    data: { id: string; slug: string | null; landing_published: boolean | null } | null;
   };
 
-  if (!landingRow?.slug) return null;
-  return { slug: landingRow.slug, landingId: landingRow.id };
+  if (!landingRow) return null;
+  return {
+    id: landingRow.id,
+    slug: landingRow.slug ?? null,
+    published: landingRow.landing_published === true,
+  };
 }

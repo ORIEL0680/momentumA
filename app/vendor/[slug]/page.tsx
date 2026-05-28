@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { fetchVendorBySlug, getVendorPhotoUrl } from "@/lib/vendorStudio";
 import {
   fetchApprovedApplication,
-  findLandingSlugForApplication,
+  findLandingForApplication,
   isAutoLandingSlug,
   applicationIdFromSlug,
 } from "@/lib/vendorAutoLanding";
@@ -149,38 +149,31 @@ export default async function VendorLandingPage({ params }: PageProps) {
   // Next handles by rendering the 404 page.
   if (!slug?.trim()) notFound();
 
-  // R85 (R67 fix) / R99 — auto-landing path: slug shaped like
-  // `app-<uuid>` is an approved vendor application.
+  // R85 (R67 fix) / R99 / R101 — auto-landing path: slug shaped
+  // like `app-<uuid>` is an approved vendor application.
   //
-  // R99: BEFORE rendering the auto-landing template (which is a
-  // server-only component with NO trackPageView and NO lead
-  // form), check if a real vendor_landings row exists for this
-  // application's email. If it does, redirect to /vendor/<real-slug>
-  // so the visitor lands on the full studio template — which has
-  // tracking + the multichannel contact bar. This fixes the
-  // analytics-stays-zero bug for vendors who got auto-approved AND
-  // then provisioned a landing (the common case for everyone who
-  // ever signed up after applying).
+  // R99 added a server-side redirect to /vendor/<canonical-slug>
+  // when a real landing existed. R101 REMOVED the redirect (it
+  // caused intermittent 404s due to RLS / publish-flag chains).
+  // Instead, we now:
+  //   1. Render VendorAutoLanding directly (always reachable).
+  //   2. Look up the canonical landing UUID server-side and pass
+  //      it to <VendorViewTracker> so analytics records the view
+  //      against the correct vendor_id (the landing UUID, which
+  //      is what the dashboard + analytics queries by).
+  //   3. Fall back to the application id for the tracker if no
+  //      landing exists yet — the row is logged for future
+  //      backfill / debugging.
   if (isAutoLandingSlug(slug)) {
-    const appId = applicationIdFromSlug(slug);
-    if (appId) {
-      const realLanding = await findLandingSlugForApplication(appId);
-      if (realLanding?.slug) {
-        redirect(`/vendor/${realLanding.slug}`);
-      }
-    }
     const autoVendor = await fetchApprovedApplication(slug);
     if (!autoVendor) notFound();
+    const appId = applicationIdFromSlug(slug);
+    const realLanding = appId ? await findLandingForApplication(appId) : null;
+    const trackerVendorId = realLanding?.id ?? autoVendor.id;
     return (
       <>
         <VendorAutoLanding vendor={autoVendor} />
-        {/* R99 — even on the no-landing fallback, fire a page-view
-            so analytics has SOMETHING when the vendor eventually
-            provisions a landing (we use the application id as the
-            tracking key here — analytics is keyed by landing.id, so
-            these views won't appear yet, but the row is logged for
-            backfill / debugging). */}
-        <VendorViewTracker vendorId={autoVendor.id} />
+        <VendorViewTracker vendorId={trackerVendorId} />
       </>
     );
   }
