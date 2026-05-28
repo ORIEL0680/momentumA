@@ -103,15 +103,37 @@ function VendorsInner() {
     let cancelled = false;
     void (async () => {
       try {
-        const { data, error } = (await supabase.rpc(
-          "list_approved_vendors",
-        )) as { data: ApprovedVendorRow[] | null; error: unknown };
+        // R104 — TWO parallel queries:
+        //   1. `list_approved_vendors` RPC: the curated, ordered list
+        //      of approved vendors (featured first, etc.). Source of
+        //      truth for which vendors EXIST in the catalog.
+        //   2. Direct `vendor_landings` SELECT: every published
+        //      landing's image fields. Anon RLS allows this.
+        //
+        // The merge below uses the second query to PATCH in image
+        // data even when the RPC schema is missing newer columns
+        // (e.g., when the user hasn't run the R86/R103 migrations).
+        // Net effect: gallery_paths / logo_url / cover_image_url
+        // surface in the catalog the moment the vendor uploads,
+        // regardless of which RPC version is deployed.
+        const [rpcRes, landingsRes] = await Promise.all([
+          supabase.rpc("list_approved_vendors"),
+          supabase
+            .from("vendor_landings")
+            .select(
+              "name, email, hero_photo_path, logo_url, cover_image_url, gallery_paths, image_updated_at",
+            ),
+        ]);
         if (cancelled) return;
+        const { data, error } = rpcRes as {
+          data: ApprovedVendorRow[] | null;
+          error: unknown;
+        };
         if (error) {
-          // R82 — surface RPC errors. Most likely cause if this ever
-          // fires: the function wasn't migrated to prod, or its GRANT
-          // EXECUTE TO anon was revoked. Either way, knowing it failed
-          // is better than silent fallback to static-only.
+          // R82 — surface RPC errors. Most likely cause: the function
+          // wasn't migrated to prod, or its GRANT EXECUTE TO anon
+          // was revoked. Either way, knowing it failed is better
+          // than silent fallback to static-only.
           console.warn("[vendors-catalog] list_approved_vendors error:", error);
           return;
         }
@@ -119,26 +141,54 @@ function VendorsInner() {
           console.warn("[vendors-catalog] RPC returned non-array:", data);
           return;
         }
-        const mapped = mapApprovedRows(data);
-        // R82-1 — was `console.info(...mapped.map(...))` dumping the
-        // full vendor list to every visitor's DevTools console. Vendor
-        // business names are technically public (they appear in the
-        // catalog UI) but concentrating them in a single log line was
-        // a free scraping helper. Down to count-only; if a specific
-        // missing-vendor case ever needs debugging, add the
-        // verbose log back behind `?debug=1`.
+
+        // R104 — build a name-keyed map of landing image fields.
+        // We key by name (lowercased + trimmed) because the RPC
+        // doesn't expose the landing's email or id — but the RPC
+        // already COALESCEs business_name landing-first, so the
+        // names align. If a vendor renamed their business, the
+        // catalog uses the new name AND the new landing matches.
+        type LandingImageRow = {
+          name: string | null;
+          email: string | null;
+          hero_photo_path: string | null;
+          logo_url: string | null;
+          cover_image_url: string | null;
+          gallery_paths: string[] | null;
+          image_updated_at: string | null;
+        };
+        const landingByName = new Map<string, LandingImageRow>();
+        const landingsArr: LandingImageRow[] =
+          (landingsRes.data as LandingImageRow[] | null) ?? [];
+        for (const row of landingsArr) {
+          const key = (row.name ?? "").trim().toLowerCase();
+          if (key) landingByName.set(key, row);
+        }
+
+        // Patch missing image fields onto RPC rows before mapping.
+        const patched: ApprovedVendorRow[] = data.map((row) => {
+          const key = (row.business_name ?? "").trim().toLowerCase();
+          const landing = key ? landingByName.get(key) : undefined;
+          if (!landing) return row;
+          return {
+            ...row,
+            hero_photo_path: row.hero_photo_path ?? landing.hero_photo_path,
+            logo_url: row.logo_url ?? landing.logo_url,
+            cover_image_url: row.cover_image_url ?? landing.cover_image_url,
+            gallery_paths: row.gallery_paths ?? landing.gallery_paths,
+            image_updated_at:
+              row.image_updated_at ?? landing.image_updated_at,
+          };
+        });
+
+        const mapped = mapApprovedRows(patched);
         if (process.env.NODE_ENV !== "production") {
           console.info(
-            `[vendors-catalog] approved vendors from DB: ${mapped.length}`,
+            `[vendors-catalog] approved vendors from DB: ${mapped.length} (landings merged: ${landingsArr.length})`,
           );
         }
-        // R126 — was `if (mapped.length) setApproved(mapped)`. The
-        // guard was a guard against a transient empty response, but
-        // it also meant deleting the LAST approved vendor in
-        // /admin/vendors didn't propagate to the catalog: an empty
-        // RPC response was silently swallowed and the catalog kept
-        // showing the deleted vendor until a full reload. Always
-        // commit the response.
+        // R126 — always commit the response (even empty) so vendor
+        // deletions propagate without a full reload.
         setApproved(mapped);
       } catch (e) {
         console.warn("[vendors-catalog] RPC threw:", e);
