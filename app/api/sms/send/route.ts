@@ -1,9 +1,65 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendSms } from "@/lib/twilioClient";
 import { normalizeIsraeliPhone } from "@/lib/phone";
 import { rateLimit } from "@/lib/serverRateLimit";
+
+/**
+ * R117 — direct Twilio call so we can resolve the SMS sender at
+ * runtime. lib/twilioClient.sendSms() requires TWILIO_SMS_FROM
+ * specifically; this route falls back to TWILIO_WHATSAPP_FROM
+ * when that's the only sender the host has configured. A single
+ * Twilio number with WhatsApp Business enabled can also send
+ * plain SMS, so reusing the WhatsApp sender works without any
+ * env-var change on the user's end.
+ */
+async function sendSmsViaTwilio({
+  to,
+  body,
+}: {
+  to: string;
+  body: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from =
+    process.env.TWILIO_SMS_FROM ?? process.env.TWILIO_WHATSAPP_FROM ?? "";
+  if (!sid || !token || !from) {
+    return { ok: false, error: "twilio not configured" };
+  }
+
+  const form = new URLSearchParams();
+  form.set("To", to);
+  form.set("From", from);
+  form.set("Body", body);
+
+  try {
+    const auth = Buffer.from(`${sid}:${token}`).toString("base64");
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(
+        `[api/sms/send] Twilio ${res.status}: ${errBody.slice(0, 200)}`,
+      );
+      return { ok: false, error: `twilio ${res.status}: ${errBody.slice(0, 150)}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[api/sms/send] fetch failed", e);
+    return { ok: false, error: "network" };
+  }
+}
 
 /**
  * R116 — POST /api/sms/send
@@ -107,7 +163,7 @@ export async function POST(req: NextRequest) {
 
   // ── Send ──────────────────────────────────────────────────────────
   const e164 = `+${normalized.phone}`;
-  const result = await sendSms({ to: e164, body: message });
+  const result = await sendSmsViaTwilio({ to: e164, body: message });
   if (!result.ok) {
     const isConfig = result.error === "twilio not configured";
     return NextResponse.json(

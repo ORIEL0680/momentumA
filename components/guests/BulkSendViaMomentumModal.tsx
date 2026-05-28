@@ -143,81 +143,69 @@ export function BulkSendViaMomentumModal({
       if (cancelRef.current) break;
       const guest = candidates[i];
 
-      // Strategy A: approved template (works for first contact).
       let okResult = false;
       let failReason = "";
 
-      if (templateAvailable) {
-        // Build link only for the rsvpUrl variable.
-        let rsvpUrl = "";
-        try {
-          const built = await buildHostInvitationWhatsappLink(
-            origin,
-            event,
-            guest,
-          );
-          rsvpUrl = built.rsvpUrl;
-        } catch {
-          /* link build failed; we'll fall through to free-form attempt */
-        }
-        if (rsvpUrl) {
-          const res = await sendWhatsAppMessage({
-            phone: guest.phone,
-            templateSid: GUEST_INVITATION_TEMPLATE_SID,
-            variables: buildGuestInvitationVariables({
-              guestName: guest.name,
-              hostNames,
-              date: dateText,
-              venue: venue || "פרטים בלינק",
-              rsvpUrl,
-            }),
-          });
-          if (res.ok) {
-            okResult = true;
-          } else if (res.error && res.error !== "outside_24h_window") {
-            failReason = res.hebrewHint ?? res.error;
-          }
-        }
-      }
-
-      // Strategy B: free-form (works only inside the 24h window).
-      // R116 — store the message text outside the if-block so Strategy
-      // C (SMS fallback) can reuse it instead of rebuilding the link.
+      // R117 — pre-build the invitation link ONCE for every guest.
+      // Pre-R117 the link was built inside Strategy A (for the
+      // template's rsvpUrl variable) and SEPARATELY again inside
+      // Strategy B (for the free-form WhatsApp text). When Strategy
+      // A failed with a non-window error (e.g. Twilio code 63020 —
+      // which the client mapped to generic "twilio_error", NOT to
+      // "outside_24h_window"), the code set `failReason` and the
+      // `!failReason` guard on Strategy B skipped the second build.
+      // That left messageText empty, so Strategy C (SMS) couldn't run.
+      //
+      // Building once up front + removing the early failReason gate
+      // means every guest now gets all three strategies attempted
+      // in order, and SMS always has a body to send.
+      let rsvpUrl = "";
       let messageText = "";
-      if (!okResult && !failReason) {
-        try {
-          const built = await buildHostInvitationWhatsappLink(
-            origin,
-            event,
-            guest,
-          );
-          messageText = decodeURIComponent(
-            new URL(built.url).searchParams.get("text") ?? "",
-          );
-        } catch {
-          /* leave empty → will fail below */
-        }
-        if (messageText) {
-          const res = await sendWhatsAppMessage({
-            phone: guest.phone,
-            message: messageText,
-          });
-          if (res.ok) {
-            okResult = true;
-          } else {
-            // Don't set failReason here — give Strategy C a chance to
-            // recover. We'll come back and set the WhatsApp reason if
-            // SMS also fails.
-          }
-        }
+      try {
+        const built = await buildHostInvitationWhatsappLink(
+          origin,
+          event,
+          guest,
+        );
+        rsvpUrl = built.rsvpUrl;
+        messageText = decodeURIComponent(
+          new URL(built.url).searchParams.get("text") ?? "",
+        );
+      } catch {
+        /* leave both empty — every strategy below tolerates this */
       }
 
-      // R116 — Strategy C: SMS fallback. Triggered whenever WhatsApp
-      // didn't succeed (template not approved by Meta yet, recipient
-      // outside the 24h window, etc.). SMS doesn't require a template
-      // approval and works for every Israeli mobile number, so this
-      // is the safety net that keeps invitations flowing while the
-      // WhatsApp Business template clears Meta review.
+      // Strategy A: approved template (best path — works for first
+      // contact). Never sets failReason on its own; failure just
+      // falls through to B and C.
+      if (templateAvailable && rsvpUrl) {
+        const res = await sendWhatsAppMessage({
+          phone: guest.phone,
+          templateSid: GUEST_INVITATION_TEMPLATE_SID,
+          variables: buildGuestInvitationVariables({
+            guestName: guest.name,
+            hostNames,
+            date: dateText,
+            venue: venue || "פרטים בלינק",
+            rsvpUrl,
+          }),
+        });
+        if (res.ok) okResult = true;
+      }
+
+      // Strategy B: WhatsApp free-form (works inside the 24h window).
+      if (!okResult && messageText) {
+        const res = await sendWhatsAppMessage({
+          phone: guest.phone,
+          message: messageText,
+        });
+        if (res.ok) okResult = true;
+      }
+
+      // Strategy C: SMS fallback — the deterministic safety net.
+      // Works for every Israeli mobile number, no Meta approval
+      // required. Always runs when WhatsApp didn't succeed AND we
+      // have a message body to send.
       if (!okResult && messageText) {
         const res = await sendSmsMessage({
           phone: guest.phone,
