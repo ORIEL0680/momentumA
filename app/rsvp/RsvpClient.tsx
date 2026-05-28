@@ -16,6 +16,7 @@ import { parseRsvpQuery } from "@/lib/rsvpLinks";
 import { fireConfetti } from "@/lib/confetti";
 import { tryGetPublicOrigin } from "@/lib/origin";
 import { buildNavigationLinks } from "@/lib/navigationLinks";
+import { formatEventDate } from "@/lib/format";
 import {
   decodeInvitation,
   buildGuestResponseWhatsappLink,
@@ -56,6 +57,13 @@ function RsvpInner() {
   const { state, hydrated } = useAppState();
   const [count, setCount] = useState(2);
   const [note, setNote] = useState("");
+  // R119 — optional contact channels for the SMS+Email confirmation
+  // that fires after a successful RSVP. The guest fills these in
+  // themselves (we don't have the host's contact list on this device).
+  // Pre-filled from `state.guests` when available — that case happens
+  // when the host opens the RSVP link on their own device to test.
+  const [confirmPhone, setConfirmPhone] = useState("");
+  const [confirmEmail, setConfirmEmail] = useState("");
   const [submitted, setSubmitted] = useState<null | "confirmed" | "declined" | "maybe">(null);
   const [showConfetti, setShowConfetti] = useState(false);
   // Cloud-sync failure banner. We always persist locally, but if the Supabase
@@ -151,6 +159,16 @@ function RsvpInner() {
     () => buildNavigationLinks(venueText),
     [venueText],
   );
+
+  // R119 — pre-fill the confirmation phone from `state.guests` when
+  // we can. That only matches if the host opens the RSVP link on
+  // their OWN device (testing the flow). On a real guest's phone
+  // the local store is empty and the guest types their phone in.
+  useEffect(() => {
+    if (!resolved?.guest?.id) return;
+    const localGuest = state.guests.find((g) => g.id === resolved.guest.id);
+    if (localGuest?.phone && !confirmPhone) setConfirmPhone(localGuest.phone);
+  }, [resolved?.guest?.id, state.guests, confirmPhone]);
 
   // Track view on first render with a resolved payload — only once per page load.
   const trackedRef = useRef(false);
@@ -266,6 +284,46 @@ function RsvpInner() {
       setShowConfetti(true);
       window.setTimeout(() => setShowConfetti(false), 2400);
       fireConfetti(1500);
+    }
+
+    // R119 — fire the SMS+Email confirmation. Only runs when the
+    // guest left at least one contact channel; the API itself
+    // gracefully skips channels with no recipient, and the whole
+    // call is fire-and-forget so a Twilio/Resend hiccup never
+    // affects the RSVP submit path (which already succeeded
+    // above via publishRsvpUpdate). Skipped for "maybe" — that's
+    // a non-final answer, no logistics to confirm yet.
+    if (finalStatus !== "maybe") {
+      const phone = confirmPhone.trim();
+      const email = confirmEmail.trim();
+      if (phone || email) {
+        const hostNames = resolved.partnerName
+          ? `${resolved.hostName} ו${resolved.partnerName}`
+          : resolved.hostName;
+        const dateText = formatEventDate(resolved.date);
+        const venue =
+          [resolved.synagogue, resolved.city].filter(Boolean).join(" · ") ||
+          "פרטים בלינק";
+        void fetch("/api/rsvp/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            response: finalStatus,
+            eventId: resolved.eventId,
+            guestId: resolved.guest.id,
+            guestName: resolved.guest.name,
+            guestPhone: phone || undefined,
+            guestEmail: email || undefined,
+            hostNames,
+            dateText,
+            venue,
+            wazeUrl: navLinks?.waze,
+            rsvpUrl: typeof window !== "undefined" ? window.location.href : undefined,
+          }),
+        }).catch(() => {
+          /* fire-and-forget; the RSVP is already saved */
+        });
+      }
     }
   };
 
@@ -387,6 +445,10 @@ function RsvpInner() {
             setCount={setCount}
             note={note}
             setNote={setNote}
+            confirmPhone={confirmPhone}
+            setConfirmPhone={setConfirmPhone}
+            confirmEmail={confirmEmail}
+            setConfirmEmail={setConfirmEmail}
             onRespond={respond}
             hasPartner={config.subject.hasPartner}
           />
@@ -616,6 +678,10 @@ function ResponsePicker({
   setCount,
   note,
   setNote,
+  confirmPhone,
+  setConfirmPhone,
+  confirmEmail,
+  setConfirmEmail,
   onRespond,
   hasPartner,
 }: {
@@ -623,6 +689,10 @@ function ResponsePicker({
   setCount: (n: number) => void;
   note: string;
   setNote: (s: string) => void;
+  confirmPhone: string;
+  setConfirmPhone: (s: string) => void;
+  confirmEmail: string;
+  setConfirmEmail: (s: string) => void;
   onRespond: (status: GuestStatus) => void;
   hasPartner: boolean;
 }) {
@@ -686,6 +756,52 @@ function ResponsePicker({
         />
         <div className="mt-1 text-xs text-end ltr-num" style={{ color: "var(--foreground-muted)" }}>
           {note.length} / 300
+        </div>
+
+        {/* R119 — optional contact channels for the SMS + email
+            confirmation. Both are optional; either, neither, or both
+            can be filled. We position this as "stay in the loop"
+            instead of "give us your info" so it reads as a service
+            we offer the guest, not data extraction from the host. */}
+        <div
+          className="mt-6 rounded-2xl p-4"
+          style={{
+            background: "color-mix(in srgb, var(--accent) 6%, var(--surface-2))",
+            border: "1px solid var(--border-gold)",
+          }}
+        >
+          <div className="text-sm font-bold mb-1" style={{ color: "var(--accent)" }}>
+            📨 לקבל אישור עם פרטי האירוע
+          </div>
+          <div className="text-xs mb-3" style={{ color: "var(--foreground-soft)" }}>
+            אופציונלי — נשלח לך SMS ו/או מייל עם המיקום וניווט Waze.
+          </div>
+          <label className="block text-xs mb-1" style={{ color: "var(--foreground-soft)" }}>
+            טלפון (לקבלת SMS)
+          </label>
+          <input
+            type="tel"
+            inputMode="tel"
+            dir="ltr"
+            value={confirmPhone}
+            onChange={(e) => setConfirmPhone(e.target.value)}
+            placeholder="050-1234567"
+            className="input ltr-num mb-3"
+            autoComplete="tel"
+          />
+          <label className="block text-xs mb-1" style={{ color: "var(--foreground-soft)" }}>
+            אימייל (לקבלת אישור מעוצב)
+          </label>
+          <input
+            type="email"
+            inputMode="email"
+            dir="ltr"
+            value={confirmEmail}
+            onChange={(e) => setConfirmEmail(e.target.value)}
+            placeholder="name@example.com"
+            className="input ltr-num"
+            autoComplete="email"
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-2.5">
