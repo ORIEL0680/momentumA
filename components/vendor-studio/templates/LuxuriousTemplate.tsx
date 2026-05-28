@@ -259,10 +259,19 @@ export function LuxuriousTemplate({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => onAction("whatsapp")}
-                  className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md"
+                  className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md transition hover:scale-[1.02]"
                   style={{
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    // R107 — bring secondary CTAs in line with the
+                    // app's gold-on-dark brand. Translucent gold wash
+                    // over the hero photo + gold border + warm accent
+                    // text reads as a premium pair next to the
+                    // primary `btn-gold` lead-capture button.
+                    background:
+                      "color-mix(in srgb, var(--accent) 12%, rgba(10,10,12,0.55))",
+                    border: "1px solid var(--border-gold)",
+                    color: "var(--accent)",
+                    boxShadow:
+                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,222,169,0.18)",
                   }}
                 >
                   <MessageCircle size={18} aria-hidden /> WhatsApp
@@ -272,10 +281,17 @@ export function LuxuriousTemplate({
                 <a
                   href={telUrl}
                   onClick={() => onAction("phone")}
-                  className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md"
+                  className="rounded-2xl px-7 py-4 text-base inline-flex items-center gap-2 backdrop-blur-md transition hover:scale-[1.02]"
                   style={{
-                    background: "rgba(255,255,255,0.08)",
-                    border: "1px solid rgba(255,255,255,0.15)",
+                    // R107 — see WhatsApp button above; same brand
+                    // treatment so the trio (lead → WhatsApp → phone)
+                    // reads as a coherent set of gold-toned CTAs.
+                    background:
+                      "color-mix(in srgb, var(--accent) 12%, rgba(10,10,12,0.55))",
+                    border: "1px solid var(--border-gold)",
+                    color: "var(--accent)",
+                    boxShadow:
+                      "0 10px 28px -14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(244,222,169,0.18)",
                   }}
                 >
                   <Phone size={18} aria-hidden /> התקשר

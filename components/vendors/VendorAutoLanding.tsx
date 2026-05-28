@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   MapPin,
   Briefcase,
@@ -91,15 +90,11 @@ export function VendorAutoLanding({
             }}
           />
           <div className="relative z-10 max-w-3xl mx-auto px-5 sm:px-8 pt-12 pb-10 text-center">
-            <Link
-              href="/vendors"
-              className="text-xs inline-flex items-center gap-1.5 opacity-70 hover:opacity-100 transition"
-              style={{ color: "var(--foreground-soft)" }}
-            >
-              ← חזרה לקטלוג הספקים
-            </Link>
+            {/* R107 — inline "back to catalog" link removed; the sticky
+                <VendorBackButton /> pill mounted by the page now covers
+                this affordance and stays visible on scroll. */}
             <div
-              className="mt-5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-wider font-semibold"
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-wider font-semibold"
               style={{
                 background: "rgba(0,0,0,0.35)",
                 border: "1px solid var(--border-gold)",

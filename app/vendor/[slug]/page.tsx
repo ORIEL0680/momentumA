@@ -15,6 +15,7 @@ import { VendorLandingClient } from "@/components/vendor-studio/VendorLandingCli
 import { VendorAutoLanding } from "@/components/vendors/VendorAutoLanding";
 import { VendorChatLauncher } from "@/components/chat/VendorChatLauncher";
 import { VendorViewTracker } from "@/components/vendors/VendorViewTracker";
+import { VendorBackButton } from "@/components/vendors/VendorBackButton";
 
 /**
  * R20 Phase 9 — public vendor landing page.
@@ -182,6 +183,7 @@ export default async function VendorLandingPage({ params }: PageProps) {
           <>
             <VendorLandingClient vendor={fullLanding} />
             <VendorViewTracker vendorId={fullLanding.id} />
+            <VendorBackButton />
           </>
         );
       }
@@ -196,6 +198,7 @@ export default async function VendorLandingPage({ params }: PageProps) {
       <>
         <VendorAutoLanding vendor={autoVendor} />
         <VendorViewTracker vendorId={trackerVendorId} />
+        <VendorBackButton />
       </>
     );
   }
@@ -305,6 +308,7 @@ export default async function VendorLandingPage({ params }: PageProps) {
         vendorPhone={vendor.phone}
         ownerUserId={vendor.owner_user_id}
       />
+      <VendorBackButton />
     </>
   );
 }
