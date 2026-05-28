@@ -109,3 +109,56 @@ export async function fetchApprovedApplication(
     created_at: data.created_at,
   };
 }
+
+/**
+ * R99 — service-role lookup: given an application id (no auto-slug
+ * prefix), find the matching `vendor_landings` row by email and
+ * return its real `slug` + `id` (UUID). Used by the public
+ * `/vendor/[slug]` page to REDIRECT auto-landing URLs
+ * (`/vendor/app-<uuid>`) to the canonical slug
+ * (`/vendor/<real-slug>`) whenever a landing exists.
+ *
+ * Why the redirect matters: the auto-landing template
+ * (VendorAutoLanding) is server-only and has no client effects.
+ * That means NO trackPageView ever fires for auto URLs → analytics
+ * always shows zero traffic for auto-landed vendors. The studio
+ * template (VendorLandingClient) has the tracker; redirecting
+ * traffic there gets the page-view recorded for every visit.
+ *
+ * Returns null when no landing exists for this application (yet) —
+ * the caller should fall back to rendering VendorAutoLanding.
+ */
+export async function findLandingSlugForApplication(
+  applicationId: string,
+): Promise<{ slug: string; landingId: string } | null> {
+  let supabase;
+  try {
+    supabase = createServiceClient();
+  } catch {
+    return null;
+  }
+
+  // Step 1: get the application's email (needed for the join).
+  const { data: appRow } = (await supabase
+    .from("vendor_applications")
+    .select("email")
+    .eq("id", applicationId)
+    .maybeSingle()) as { data: { email: string } | null };
+  if (!appRow?.email) return null;
+
+  // Step 2: find a vendor_landings row matching that email. R142's
+  // orphan-adoption sets owner_user_id; before that we matched by
+  // email alone. Use the most-recently-updated row when several
+  // exist (legacy data has duplicates).
+  const { data: landingRow } = (await supabase
+    .from("vendor_landings")
+    .select("id, slug")
+    .ilike("email", appRow.email)
+    .order("landing_updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()) as { data: { id: string; slug: string | null } | null };
+
+  if (!landingRow?.slug) return null;
+  return { slug: landingRow.slug, landingId: landingRow.id };
+}
