@@ -40,6 +40,7 @@ import {
   Repeat,
   Info,
   Mic,
+  Users,
 } from "lucide-react";
 
 type FilterMode = "all" | "filled" | "empty";
@@ -163,6 +164,7 @@ export default function BalancePage() {
             avgPerHead={totals.avgPerHead}
             filledCount={totals.filledCount}
             totalAttended={attended.length}
+            totalHeads={totals.totalHeads}
             eventLabel={EVENT_TYPE_LABELS[state.event.type]}
             dateFmt={dateFmt}
           />
@@ -259,6 +261,7 @@ function SummaryPanel({
   avgPerHead,
   filledCount,
   totalAttended,
+  totalHeads,
   eventLabel,
   dateFmt,
 }: {
@@ -269,6 +272,11 @@ function SummaryPanel({
   avgPerHead: number;
   filledCount: number;
   totalAttended: number;
+  /** Sum of `attendingCount` across confirmed guests — i.e., the
+   *  ACTUAL number of people who showed up (e.g. one row with
+   *  attendingCount=3 → 3 people). Different from `totalAttended`,
+   *  which counts guest RECORDS (e.g. one family = 1). */
+  totalHeads: number;
   eventLabel: string;
   dateFmt: string;
 }) {
@@ -295,7 +303,41 @@ function SummaryPanel({
             <div className="text-5xl md:text-7xl font-extrabold tracking-tight gradient-gold ltr-num mt-2">
               ₪{totalIncome.toLocaleString("he-IL")}
             </div>
-            <div className="text-sm mt-2" style={{ color: "var(--foreground-soft)" }}>
+            {/* R89 — attendee count line. Surfaces "how many people
+                showed up" right under the big ₪ number so the host
+                can read income + headcount together at a glance.
+                `totalHeads` counts ACTUAL people (sum of
+                attendingCount), `totalAttended` counts guest records
+                (one family = 1 record). When they differ we show
+                both ("250 אורחים · 80 משפחות"); when each family is
+                a single person we collapse to just the head count.
+                Hidden entirely when nobody confirmed yet (the
+                EmptyState below already handles that case). */}
+            {totalHeads > 0 && (
+              <div
+                className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm"
+                style={{
+                  background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+                  border: "1px solid var(--border-gold)",
+                  color: "var(--accent)",
+                }}
+              >
+                <Users size={14} aria-hidden />
+                <span className="font-bold ltr-num">{totalHeads}</span>
+                <span>
+                  {totalHeads === 1 ? "אורח אישר הגעה" : "אורחים אישרו הגעה"}
+                </span>
+                {totalAttended !== totalHeads && (
+                  <span
+                    className="ltr-num opacity-70 ms-1"
+                    title="מספר רשומות האורחים (משפחה אחת = רשומה אחת)"
+                  >
+                    · {totalAttended} {totalAttended === 1 ? "רשומה" : "רשומות"}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="text-sm mt-3" style={{ color: "var(--foreground-soft)" }}>
               עלות האירוע: <span className="font-semibold ltr-num">₪{totalCost.toLocaleString("he-IL")}</span>
             </div>
           </div>
