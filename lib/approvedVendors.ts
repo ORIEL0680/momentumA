@@ -54,6 +54,14 @@ export interface ApprovedVendorRow {
    *  Optional in the row shape because pre-2026-05-28 RPC
    *  versions didn't return it. */
   service_areas?: string[] | null;
+  /** R103 — gallery storage paths from vendor_landings.gallery_paths.
+   *  Used by the mapper as the LAST priority in the photoUrl
+   *  fallback chain — if the vendor uploaded portfolio photos but
+   *  never set a dedicated logo/cover/hero, the catalog tile
+   *  uses the first gallery photo instead of the monogram
+   *  placeholder. Optional for the same RPC-version reason as
+   *  service_areas above. */
+  gallery_paths?: string[] | null;
   created_at: string | null;
 }
 
@@ -153,22 +161,30 @@ function cleanHandle(v: string | null | undefined): string | undefined {
 export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
   const type = CATEGORY_TO_TYPE[row.category] ?? "entertainment";
   const city = (row.city ?? "").trim();
-  // R117 / R86 — resolve to a full public URL ONCE here. Priority:
-  //   1. cover_image_url (the wide-aspect cover, ideal for the
-  //      catalog tile's 16/10 frame)
-  //   2. logo_url (smaller brand mark, used as fallback)
-  //   3. hero_photo_path (legacy single image — used by every
-  //      vendor pre-2026-05-28 migration)
+  // R117 / R86 / R103 — resolve to a full public URL ONCE here.
+  // Priority:
+  //   1. cover_image_url (wide-aspect cover, ideal for the catalog
+  //      tile's 16/10 frame)
+  //   2. logo_url (square brand mark, used as fallback)
+  //   3. hero_photo_path (legacy single image — pre-2026-05-28)
+  //   4. gallery_paths[0] (R103 — first portfolio photo). Catches
+  //      vendors who uploaded portfolio shots but never set a
+  //      dedicated logo/cover — pre-R103 they showed the monogram
+  //      placeholder even though they had real photos.
   // The first non-empty wins.
   //
   // Cache-bust: append `?v=image_updated_at` so a browser that
   // cached the URL for `/storage/v1/.../logo-1234.jpg` doesn't
   // serve the old version after the vendor reuploads. Skipped for
   // URLs that already carry a query string.
+  const galleryFirst = (row.gallery_paths ?? []).find(
+    (p) => typeof p === "string" && p.trim().length > 0,
+  );
   const rawPhoto =
     (row.cover_image_url && row.cover_image_url.trim()) ||
     (row.logo_url && row.logo_url.trim()) ||
     (row.hero_photo_path && row.hero_photo_path.trim()) ||
+    (galleryFirst && galleryFirst.trim()) ||
     "";
   const resolved = rawPhoto ? getVendorPhotoUrl(rawPhoto) : "";
   const photoUrl = resolved

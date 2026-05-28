@@ -711,15 +711,16 @@ export default function VendorStudioEditor() {
               </div>
               <div>
                 <h2 className="font-bold leading-tight">
-                  תמונת פרופיל / לוגו
+                  תמונת הקטלוג ⭐
                 </h2>
                 <p
                   className="text-xs mt-0.5 leading-relaxed"
                   style={{ color: "var(--foreground-muted)" }}
                 >
-                  הפנים של העסק שלך בקטלוג של Momentum. הזוגות יראו את התמונה
-                  הזו כאוואטר זהוב על הכרטיס שלך — לוגו, צילום של מוצר מוכר, או
-                  כל תמונה מייצגת אחרת.
+                  זאת התמונה הראשית של העסק — מה שזוגות רואים על הכרטיס שלך
+                  ב<strong className="text-[--accent]">קטלוג Momentum</strong>.
+                  לוגו, תמונה של מוצר/אירוע אופייני, או כל תמונה מייצגת.
+                  אם לא תעלה כאן — נשתמש בתמונה הראשונה מהגלריה למטה.
                 </p>
               </div>
             </div>
@@ -932,9 +933,17 @@ export default function VendorStudioEditor() {
 
           {/* Gallery */}
           <section className="card p-5">
-            <h2 className="font-bold mb-3">
-              גלריה (<span className="ltr-num">{galleryPaths.length}</span> תמונות)
+            <h2 className="font-bold">
+              גלריית עבודות (<span className="ltr-num">{galleryPaths.length}</span> תמונות)
             </h2>
+            <p
+              className="text-xs mt-1 mb-3 leading-relaxed"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              תיק עבודות שמופיע בדף הנחיתה הציבורי שלך. אם לא הגדרת
+              תמונת קטלוג למעלה — התמונה הראשונה כאן תופיע גם
+              בכרטיס בקטלוג.
+            </p>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
               {galleryPaths.map((p, i) => (
                 <div key={p} className="relative aspect-square rounded-xl overflow-hidden">
