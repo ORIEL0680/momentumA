@@ -217,7 +217,19 @@ export interface Vendor {
   id: string;
   name: string;
   type: VendorType;
+  /** Primary region — derived from the vendor's city. Kept for
+   *  backward compat with the static seed (lib/vendors.ts) and for
+   *  sort/display fallbacks. The richer `regions` array below is
+   *  what filtering actually consults when present. */
   region: Region;
+  /** R94 — every region the vendor explicitly serves (from
+   *  vendor_landings.service_areas). A vendor can declare they serve
+   *  multiple regions (e.g. "צפון, חיפה, קריות" → north + haifa)
+   *  and the catalog filter now matches if the selected filter
+   *  region is INCLUDED in this list. Absent for static seed
+   *  vendors who never selected service areas — filtering falls
+   *  back to `region` for them. */
+  regions?: Region[];
   rating: number;
   reviews: number;
   priceFrom: number;

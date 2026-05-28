@@ -105,7 +105,18 @@ export const EMPTY_FILTERS: VendorFilters = {
 export function filterVendors(vendors: Vendor[], f: VendorFilters): Vendor[] {
   const q = f.search.trim().toLowerCase();
   return vendors.filter((v) => {
-    if (f.region !== "all" && v.region !== f.region) return false;
+    // R94 — region filter now respects the vendor's declared
+    // service-area list (`v.regions`). A vendor who serves multiple
+    // regions ("צפון, חיפה, קריות" in studio) matches when ANY of
+    // those is the selected filter. Falls back to single
+    // `v.region` for static-seed entries that don't populate
+    // `regions`.
+    if (f.region !== "all") {
+      const matches = v.regions && v.regions.length > 0
+        ? v.regions.includes(f.region)
+        : v.region === f.region;
+      if (!matches) return false;
+    }
     if (f.type !== "all" && v.type !== f.type) return false;
     if (f.catalogOnly && !v.inCatalog) return false;
     if (q) {

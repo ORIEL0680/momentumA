@@ -46,6 +46,14 @@ export interface ApprovedVendorRow {
   /** R86 — touched by the DB trigger whenever any image field
    *  changes. Used as a cache-buster on image URLs. */
   image_updated_at?: string | null;
+  /** R94 — the vendor's declared service areas from
+   *  vendor_landings.service_areas. Free-text strings (e.g.,
+   *  "צפון", "חיפה והקריות", "תל אביב"). The mapper translates
+   *  each one to a `Region` and collects unique values so a vendor
+   *  who serves multiple regions appears in every matching filter.
+   *  Optional in the row shape because pre-2026-05-28 RPC
+   *  versions didn't return it. */
+  service_areas?: string[] | null;
   created_at: string | null;
 }
 
@@ -69,10 +77,26 @@ const CATEGORY_TO_TYPE: Record<string, VendorType> = {
   other: "entertainment", // no 1:1 VendorType — closest generic bucket
 };
 
-// Free-text city → Region. Heuristic (substring match); region is a
-// soft filter, so an imperfect guess just affects default sort, never
-// correctness. Unknown → "tel-aviv" (the broadest "מרכז" bucket).
+// Free-text city / area → Region. Heuristic (substring match); the
+// region tag is a soft filter so an imperfect guess just affects the
+// default sort, not correctness.
+//
+// R94 — the regex set now ALSO catches direct region names
+// ("צפון", "דרום", "מרכז", etc.) so a vendor who writes
+// "צפון, חיפה, קריות" in the studio's service-areas field gets
+// matched against three regions instead of one. Pre-R94, only city
+// names matched — "צפון" alone fell through to the default
+// "tel-aviv" bucket, hiding northern vendors from the north filter.
 const CITY_REGION_RULES: Array<[RegExp, Region]> = [
+  // ─── Direct region names ─────────────────────────────────────
+  [/^\s*(תל.?אביב|מרכז|ת"א)\s*$/, "tel-aviv"],
+  [/^\s*(ירושלים והסביבה|ירושלים)\s*$/, "jerusalem"],
+  [/^\s*(חיפה והקריות|הקריות|חיפה)\s*$/, "haifa"],
+  [/^\s*(צפון|הצפון|גליל|הגליל)\s*$/, "north"],
+  [/^\s*(דרום|הדרום|נגב|הנגב|אילת והערבה)\s*$/, "south"],
+  [/^\s*(שרון|השרון)\s*$/, "sharon"],
+  [/^\s*(שפלה|השפלה)\s*$/, "shfela"],
+  // ─── City-name substring matches ─────────────────────────────
   [/תל.?אביב|ת"א|רמת.?גן|גבעתיים|חולון|בת.?ים|ראשון|אזור|יפו/, "tel-aviv"],
   [/ירושלים|בית.?שמש|מבשרת|מעלה.?אדומים/, "jerusalem"],
   [/חיפה|קריות|קריית|נשר|טירת.?כרמל/, "haifa"],
@@ -90,6 +114,35 @@ function regionFromCity(city: string | null | undefined): Region {
     }
   }
   return "tel-aviv";
+}
+
+/**
+ * R94 — derive a unique `Region[]` from the vendor's declared
+ * service areas. Each free-text token is matched against
+ * `CITY_REGION_RULES`; unrecognized tokens are silently skipped
+ * (a region tag is soft — better to omit than to mis-bucket).
+ *
+ * Returns `null` when no service areas were declared or none
+ * matched a known region, so the caller can decide to fall back to
+ * the single city-derived region.
+ */
+function regionsFromAreas(areas: string[] | null | undefined): Region[] | null {
+  if (!areas || areas.length === 0) return null;
+  const set = new Set<Region>();
+  for (const raw of areas) {
+    const s = (raw ?? "").trim();
+    if (!s) continue;
+    for (const [re, region] of CITY_REGION_RULES) {
+      if (re.test(s)) {
+        set.add(region);
+        // Don't break — a single token like "חיפה והקריות" could
+        // (in principle) match two rules; but our rules are tuned
+        // so each token maps to ONE region. The break is fine.
+        break;
+      }
+    }
+  }
+  return set.size > 0 ? Array.from(set) : null;
 }
 
 function cleanHandle(v: string | null | undefined): string | undefined {
@@ -121,12 +174,19 @@ export function mapApprovedRowToVendor(row: ApprovedVendorRow): Vendor {
   const photoUrl = resolved
     ? appendCacheBuster(resolved, row.image_updated_at ?? row.created_at)
     : "";
+  // R94 — derive every region this vendor serves from their
+  // declared service_areas. Falls back to the city-derived single
+  // region when service_areas is empty / unrecognized — same
+  // behavior as before the migration for legacy rows.
+  const derivedRegions = regionsFromAreas(row.service_areas);
+  const primaryRegion = derivedRegions?.[0] ?? regionFromCity(city);
   return {
     // `app-` prefix keeps DB-backed ids distinct from the static seed.
     id: `app-${row.id}`,
     name: row.business_name,
     type,
-    region: regionFromCity(city),
+    region: primaryRegion,
+    regions: derivedRegions ?? undefined,
     rating: 0,
     reviews: 0, // 0 → VendorCard shows the honest "ספק חדש" badge (R37)
     priceFrom: 0, // applications don't capture price; UI handles 0
