@@ -209,35 +209,29 @@ function VendorCardImpl({
       onKeyDown={handleCardKey}
     >
       <div className={`aspect-[16/10] relative ${meshClass} overflow-hidden`}>
-        {/* R84-2 — three render branches:
-            1. Vendor uploaded a logo → object-contain on top of a
-               blurred copy of itself (R147 design).
-            2. No logo at all → unique monogram placeholder with
-               vendor-name-derived gradient. PREMIUM fallback.
-            3. (legacy) used to fall back to a category stock image;
-               removed — every vendor now gets a unique tile, no
-               commodity stock photos. */}
+        {/* R96 — two render branches with `object-cover` everywhere
+            for a uniform photo-like look across every tile:
+              1. Vendor uploaded something (cover / logo / hero) →
+                 fill the 16:10 frame edge-to-edge. Logos that are
+                 square get cropped slightly top/bottom — almost
+                 always invisible since most logos have transparent
+                 backgrounds. Trade-off worth it for grid symmetry.
+              2. No upload at all → richer VendorImagePlaceholder
+                 (gradient + monogram + soft photo-like blobs).
+            The R84 dual blur-backdrop + contained-foreground combo
+            was visually correct for logo uploads but made every
+            tile look slightly different in weight; switching to a
+            single object-cover gives the catalog the consistent
+            "every vendor has a photo" feel the user asked for. */}
         {usesVendorPhoto ? (
-          <>
-            <Image
-              src={imageUrl}
-              alt=""
-              aria-hidden
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              quality={50}
-              className="absolute inset-0 w-full h-full object-cover scale-110"
-              style={{ filter: "blur(28px) saturate(1.1)", opacity: 0.55 }}
-            />
-            <Image
-              src={imageUrl}
-              alt={vendor.name}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-              quality={70}
-              className={`absolute inset-0 w-full h-full object-contain p-6 transition-transform duration-700 ease-out hover:scale-105`}
-            />
-          </>
+          <Image
+            src={imageUrl}
+            alt={vendor.name}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            quality={70}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out hover:scale-105"
+          />
         ) : (
           <VendorImagePlaceholder
             name={vendor.name}

@@ -104,10 +104,42 @@ export function VendorImagePlaceholder({
       }}
       aria-hidden
     >
-      {/* Decorative dot pattern — same scale across all tiles so they
-          look related, not random. */}
+      {/* R96 — soft "photo-like" blobs. Two blurred radial highlights
+          (offset top-right + bottom-left) give the tile depth and
+          the suggestion of a focal point, so the placeholder reads
+          as a styled abstract photo rather than a flat color swatch.
+          Sized in % so the same composition works across all
+          breakpoints. */}
       <div
-        className="absolute inset-0 opacity-15"
+        className="absolute pointer-events-none"
+        style={{
+          top: "-20%",
+          right: "-15%",
+          width: "70%",
+          height: "70%",
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.28), transparent 60%)",
+          filter: "blur(28px)",
+        }}
+      />
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          bottom: "-25%",
+          left: "-20%",
+          width: "75%",
+          height: "75%",
+          background:
+            "radial-gradient(circle, rgba(0,0,0,0.32), transparent 60%)",
+          filter: "blur(36px)",
+        }}
+      />
+
+      {/* Decorative dot pattern — same scale across all tiles so they
+          look related, not random. Reduced opacity since the blobs
+          now carry most of the visual depth. */}
+      <div
+        className="absolute inset-0 opacity-[0.08]"
         style={{
           backgroundImage:
             "radial-gradient(circle at 30% 50%, white 1px, transparent 1px), radial-gradient(circle at 70% 80%, white 1px, transparent 1px)",
@@ -121,24 +153,37 @@ export function VendorImagePlaceholder({
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.32) 100%)",
+            "radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.38) 100%)",
         }}
       />
 
-      {/* Monogram — serif, semi-bold, soft white. The drop-shadow
-          gives depth without making it feel like a watermark. */}
+      {/* R96 — monogram in a softer "engraved on plaster" treatment
+          (subtle inner shadow + light/dark stack) so it reads as
+          intentional typographic art, not a stamp on a placeholder. */}
       <div
-        className="relative font-extrabold text-white"
+        className="relative font-extrabold flex flex-col items-center"
         style={{
+          color: "rgba(255,255,255,0.96)",
           fontFamily: "var(--font-display), Georgia, serif",
           fontSize: "clamp(4rem, 8vw, 6rem)",
-          opacity: 0.92,
           textShadow:
-            "0 3px 14px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.45)",
+            "0 1px 0 rgba(255,255,255,0.18), 0 4px 18px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.35)",
           lineHeight: 1,
         }}
       >
-        {initial}
+        <span>{initial}</span>
+        {/* A delicate hairline under the monogram, like an
+            engraver's mark. Adds craft + depth without clutter. */}
+        <span
+          aria-hidden
+          className="mt-3 block"
+          style={{
+            width: 28,
+            height: 1,
+            background:
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
+          }}
+        />
       </div>
 
       {/* Category emoji — corner accent. Soft + small so it never
@@ -146,7 +191,7 @@ export function VendorImagePlaceholder({
       {emoji && (
         <div
           className="absolute bottom-3 end-3 text-2xl select-none"
-          style={{ opacity: 0.5, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}
+          style={{ opacity: 0.55, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}
         >
           {emoji}
         </div>
