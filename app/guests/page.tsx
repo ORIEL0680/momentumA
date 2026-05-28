@@ -23,6 +23,7 @@ import { trackEvent, trackFirstOnce } from "@/lib/analytics";
 import { subscribeRsvpUpdates, type RsvpUpdate } from "@/lib/rsvpSync";
 import { showToast } from "@/components/Toast";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send-client";
+import { sendSmsMessage } from "@/lib/sms-send-client";
 import {
   GUEST_INVITATION_TEMPLATE_SID,
   buildGuestInvitationVariables,
@@ -988,25 +989,41 @@ function GuestRow({
       }
 
       // Strategy 2: free-form body (works inside the 24h window).
-      const result = await sendWhatsAppMessage({
+      const freeFormResult = await sendWhatsAppMessage({
         phone: guest.phone,
         message: messageText,
       });
-      if (result.ok) {
+      if (freeFormResult.ok) {
         showToast(`✓ נשלח ל-${guest.name} מ-Momentum`, "success");
         actions.markInvited(guest.id);
         return;
       }
 
-      // Strategy 3: graceful fallback — surface the right hint.
-      if (result.error === "outside_24h_window" && !templateAvailable) {
+      // R118 — Strategy 3: SMS fallback. The bulk-send modal has had
+      // this since R116/R117; the single-row "send via Momentum"
+      // button was still failing back to "open WhatsApp manually"
+      // when WhatsApp's template + free-form both bounced. Now it
+      // mirrors the modal's behavior: SMS catches whatever WhatsApp
+      // didn't deliver, using the same RSVP link.
+      const smsResult = await sendSmsMessage({
+        phone: guest.phone,
+        message: messageText,
+      });
+      if (smsResult.ok) {
+        showToast(`✓ נשלח ל-${guest.name} כ-SMS (WhatsApp נכשל)`, "success");
+        actions.markInvited(guest.id);
+        return;
+      }
+
+      // Strategy 4: surface a clear hint when every API channel failed.
+      if (freeFormResult.error === "outside_24h_window" && !templateAvailable) {
         showToast(
           "תבנית הזמנה לא מוגדרת עדיין — שלח דרך וואטסאפ הירוק למטה",
           "info",
         );
       } else {
         showToast(
-          result.hebrewHint ?? "השליחה נכשלה — נסה דרך וואטסאפ",
+          smsResult.hebrewHint ?? freeFormResult.hebrewHint ?? "השליחה נכשלה — נסה דרך וואטסאפ",
           "error",
         );
       }

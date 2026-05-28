@@ -232,10 +232,23 @@ export async function sendWhatsAppTemplate({
         ? { contentVariables: JSON.stringify(contentVariables) }
         : {}),
     });
+    // R118 — structured log on success too so we can correlate API
+    // accepts with later delivery status in the Twilio Console.
+    console.log(
+      `[twilio-whatsapp][template] sid=${msg.sid} to=${e164} contentSid=${contentSid} status=${msg.status}`,
+    );
     return { ok: true, sid: msg.sid, status: msg.status };
   } catch (e) {
+    // R118 — capture Twilio's structured fields so we can read the
+    // exact error code + recipient out of Vercel logs (the user's
+    // delivery panel only sees what `messages.list` returns later;
+    // the synchronous error from `messages.create` is richer).
     const detail = e instanceof Error ? e.message.slice(0, 200) : "unknown";
-    console.error("[twilio-whatsapp] template send failed", e);
+    const code = (e as { code?: number | string } | null)?.code;
+    const moreInfo = (e as { moreInfo?: string } | null)?.moreInfo;
+    console.error(
+      `[twilio-whatsapp][template] FAILED to=${e164} contentSid=${contentSid} code=${code} detail="${detail}" moreInfo=${moreInfo}`,
+    );
     return { ok: false, error: "twilio_error", detail };
   }
 }

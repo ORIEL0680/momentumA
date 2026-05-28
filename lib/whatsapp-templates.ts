@@ -45,16 +45,25 @@ export interface GuestInvitationVars {
 
 /** Build the `variables` map that POST /api/whatsapp/send expects when
  *  the request carries a `templateSid`. The shape mirrors Twilio's
- *  ContentVariables — keys are positional ("1", "2", ...). */
+ *  ContentVariables — keys are positional ("1", "2", ...).
+ *
+ *  R118 — defensive trimming. Meta enforces a per-variable length cap
+ *  on approved templates; exceeding it returns code 63020 ("generic
+ *  permanent failure") on Twilio's side and the host sees "לא נמסר"
+ *  with no useful detail. Trimming AND truncating each value here
+ *  keeps long guest names / multi-word venues from blowing through
+ *  Meta's silent limit. The 60 / 100 caps are conservative — the
+ *  actual Meta limit is 1024 but they also enforce a "looks like
+ *  spam" heuristic on anything over ~150 that we want to avoid. */
 export function buildGuestInvitationVariables(
   vars: GuestInvitationVars,
 ): Record<string, string> {
   return {
-    "1": vars.guestName,
-    "2": vars.hostNames,
-    "3": vars.date,
-    "4": vars.venue,
-    "5": vars.rsvpUrl,
+    "1": (vars.guestName ?? "").trim().slice(0, 60) || "אורח",
+    "2": (vars.hostNames ?? "").trim().slice(0, 60) || "המשפחה",
+    "3": (vars.date ?? "").trim().slice(0, 40) || "פרטים בלינק",
+    "4": (vars.venue ?? "").trim().slice(0, 100) || "פרטים בלינק",
+    "5": (vars.rsvpUrl ?? "").trim().slice(0, 200),
   };
 }
 
