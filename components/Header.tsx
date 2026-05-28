@@ -415,22 +415,26 @@ export function Header() {
           className="hidden md:flex w-full px-4 sm:px-6 lg:px-10 h-12 items-center gap-1.5"
           style={{ borderTop: "1px solid color-mix(in srgb, var(--border-gold) 50%, transparent)" }}
         >
-          <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
+          {/* R92 — phantom spacer mirroring the "..." button's
+              width (36px) on the opposite side so the centered pill
+              row sits at the true horizontal middle of the
+              viewport, not offset by the overflow control. */}
+          <div aria-hidden className="shrink-0 w-9" />
+          {/* R92 — pill row centered horizontally on the page (was
+              left/start-aligned with flex-1 → all pills pinned to
+              the right edge in RTL, which felt cramped against the
+              avatar/notifications cluster). Now: pills sit in a
+              centered group with the "..." overflow on the side.
+              The wrapper still gets flex-1 so the centering math
+              uses the full available width, not just the pills'
+              natural width. Active-pill logic (R147) unchanged.
+
+              Pills wrap is `justify-center` so a long nav (vendor
+              area has 5 pills) self-centers. On mobile (md:hidden)
+              the separate scroll row below stays start-aligned for
+              swipe ergonomics. */}
+          <div className="flex items-center justify-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
             {effectiveNav.map((n) => {
-              // R147 — only the MOST-SPECIFIC match lights up gold.
-              //
-              // Pre-R147 logic: `pathname === n.href || pathname.startsWith(n.href + "/")`.
-              // On `/vendors/dashboard/leads`, BOTH "/vendors/dashboard"
-              // AND "/vendors/dashboard/leads" matched (the leads
-              // pathname starts with the parent's href), so two pills
-              // glowed gold simultaneously. Same on host pages where
-              // `/dashboard` matched everything under it.
-              //
-              // New logic: a pill is active iff (a) exact match, OR
-              // (b) prefix match AND no other nav item is a longer
-              // prefix match. The longest-prefix wins, so navigating
-              // to `/vendors/dashboard/leads` only highlights "לידים";
-              // the dashboard pill returns to its normal muted style.
               const active = isMostSpecificMatch(pathname, n.href, effectiveNav);
               return <NavPill key={n.href} href={n.href} label={n.label} active={active} />;
             })}
