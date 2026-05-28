@@ -111,13 +111,22 @@ export default function VendorAnalyticsPage() {
         // Step 2 — pull 30 days of views (capped at 10k rows to stay
         // cheap on serverless). The chart only needs day-buckets so
         // we count client-side; smaller code than a SQL `group by`.
+        //
+        // R97 — `vendor_page_views.vendor_id` stores the landing
+        // UUID (see lib/vendorStudio.ts `trackPageView(vendor.id)`,
+        // where `vendor.id` is the vendor_landings.id UUID). The
+        // PRE-R97 code queried by `landingRow.slug` here, which
+        // never matched — every analytics dashboard showed 0
+        // views regardless of actual traffic. The /vendors/dashboard
+        // metric strip got it right (R142 used `landingIdAsText`);
+        // this page lagged. Now using `landingRow.id`.
         const thirtyAgo = new Date(
           Date.now() - 30 * 24 * 60 * 60 * 1000,
         ).toISOString();
         const { data: viewRows } = await supabase
           .from("vendor_page_views")
           .select("viewed_at")
-          .eq("vendor_id", landingRow.slug)
+          .eq("vendor_id", landingRow.id)
           .gte("viewed_at", thirtyAgo)
           .order("viewed_at", { ascending: false })
           .limit(10000);
@@ -138,10 +147,12 @@ export default function VendorAnalyticsPage() {
         setLeadsCount(leadCount ?? 0);
 
         // Step 4 — action breakdown (last 30 days).
+        // R97 — same UUID vs slug fix as Step 2. vendor_page_actions
+        // is keyed by the landing UUID, not the slug.
         const { data: actionRows } = await supabase
           .from("vendor_page_actions")
           .select("action_type")
-          .eq("vendor_id", landingRow.slug)
+          .eq("vendor_id", landingRow.id)
           .gte("action_at", thirtyAgo);
         if (cancelled) return;
         const map = new Map<string, number>();

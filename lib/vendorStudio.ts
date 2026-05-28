@@ -100,13 +100,22 @@ export async function trackPageView(
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   const isMobile = /Mobi|Android/i.test(ua);
 
-  await supabase.from("vendor_page_views").insert({
+  // R97 — surface insert errors instead of swallowing them. The
+  // pre-R97 fire-and-forget made it impossible to tell whether an
+  // analytics miss was a write that never happened (RLS / network /
+  // type mismatch) vs. a read query bug. console.error keeps the
+  // user-visible behavior unchanged but leaves a breadcrumb in
+  // DevTools for the vendor / our support to spot.
+  const { error } = await supabase.from("vendor_page_views").insert({
     vendor_id: vendorId,
     source: detectedSource,
     referrer: referrer.slice(0, 200),
     device_type: isMobile ? "mobile" : "desktop",
     is_unique: !hasVisited,
   } as unknown as never);
+  if (error) {
+    console.error("[trackPageView] insert failed:", error.message);
+  }
 }
 
 export async function trackPageAction(
@@ -115,8 +124,11 @@ export async function trackPageAction(
 ): Promise<void> {
   const supabase = getSupabase();
   if (!supabase) return;
-  await supabase.from("vendor_page_actions").insert({
+  const { error } = await supabase.from("vendor_page_actions").insert({
     vendor_id: vendorId,
     action_type: actionType,
   } as unknown as never);
+  if (error) {
+    console.error("[trackPageAction] insert failed:", error.message);
+  }
 }
