@@ -7,6 +7,7 @@ import { showToast } from "@/components/Toast";
 import { getSupabase } from "@/lib/supabase";
 import { buildHostInvitationWhatsappLink } from "@/lib/invitation";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-send-client";
+import { sendSmsMessage } from "@/lib/sms-send-client";
 import {
   GUEST_INVITATION_TEMPLATE_SID,
   buildGuestInvitationVariables,
@@ -180,8 +181,10 @@ export function BulkSendViaMomentumModal({
       }
 
       // Strategy B: free-form (works only inside the 24h window).
+      // R116 — store the message text outside the if-block so Strategy
+      // C (SMS fallback) can reuse it instead of rebuilding the link.
+      let messageText = "";
       if (!okResult && !failReason) {
-        let messageText = "";
         try {
           const built = await buildHostInvitationWhatsappLink(
             origin,
@@ -202,14 +205,34 @@ export function BulkSendViaMomentumModal({
           if (res.ok) {
             okResult = true;
           } else {
-            failReason =
-              res.error === "outside_24h_window" && !templateAvailable
-                ? "תבנית הזמנה לא מאושרת — שלח דרך וואטסאפ ידנית"
-                : (res.hebrewHint ?? "שליחה נכשלה");
+            // Don't set failReason here — give Strategy C a chance to
+            // recover. We'll come back and set the WhatsApp reason if
+            // SMS also fails.
           }
-        } else {
-          failReason = "בניית הלינק נכשלה";
         }
+      }
+
+      // R116 — Strategy C: SMS fallback. Triggered whenever WhatsApp
+      // didn't succeed (template not approved by Meta yet, recipient
+      // outside the 24h window, etc.). SMS doesn't require a template
+      // approval and works for every Israeli mobile number, so this
+      // is the safety net that keeps invitations flowing while the
+      // WhatsApp Business template clears Meta review.
+      if (!okResult && messageText) {
+        const res = await sendSmsMessage({
+          phone: guest.phone,
+          message: messageText,
+        });
+        if (res.ok) {
+          okResult = true;
+        } else {
+          failReason =
+            res.error === "not_configured"
+              ? "WhatsApp ו-SMS שניהם לא זמינים — שלח דרך הכפתור הירוק"
+              : (res.hebrewHint ?? "שליחה נכשלה (גם WhatsApp וגם SMS)");
+        }
+      } else if (!okResult && !messageText) {
+        failReason = "בניית הלינק נכשלה";
       }
 
       if (okResult) {
@@ -389,9 +412,11 @@ export function BulkSendViaMomentumModal({
                           className="mt-2 text-[11px]"
                           style={{ color: "rgba(252,165,165,0.85)" }}
                         >
-                          <strong>בינתיים:</strong> סגור חלון זה ולחץ על
-                          כפתור הוואטסאפ הירוק ליד כל אורח בנפרד — זה
-                          פותח WhatsApp במכשיר שלך ומגיע ל‑100% מהאורחים.
+                          <strong>בינתיים — אוטומטית:</strong> אם WhatsApp
+                          נכשל, Momentum ינסה לשלוח את אותה הזמנה כ-SMS
+                          רגיל. SMS מגיע ל-100% מהמספרים הישראליים ולא
+                          דורש אישור Meta. אז גם בלי תבנית מאושרת,
+                          האורחים שלך יקבלו לינק.
                         </div>
                       </>
                     )}
@@ -418,6 +443,7 @@ export function BulkSendViaMomentumModal({
                 <li>📱 רק לאורחים עם מספר טלפון</li>
                 <li>📨 רק לאלה שטרם הוזמנו</li>
                 <li>⏱ ~5 הודעות בשנייה — סבלנות 30-60 שניות</li>
+                <li>🔁 אם WhatsApp נכשל — נשלח SMS אוטומטית כגיבוי</li>
               </ul>
             </>
           )}

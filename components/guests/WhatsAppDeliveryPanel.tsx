@@ -9,8 +9,11 @@ import {
   XCircle,
   RefreshCw,
   ChevronDown,
+  Send,
 } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
+import { sendSmsMessage } from "@/lib/sms-send-client";
+import { showToast } from "@/components/Toast";
 
 /**
  * R113 — host-side diagnostic panel for "did Momentum actually deliver
@@ -278,7 +281,10 @@ export function WhatsAppDeliveryPanel() {
           )}
 
           {!error && messages.length > 0 && summary.failed > 0 && (
-            <FailureHint summary={summary} messages={messages} />
+            <>
+              <FailureHint summary={summary} messages={messages} />
+              <RetryFailedAsSms messages={messages} onAfterRetry={fetchStatus} />
+            </>
           )}
         </div>
       )}
@@ -465,6 +471,80 @@ function FailureHint({
         {summary.failed} נכשלו מתוך {summary.total} הודעות אחרונות
       </p>
     </div>
+  );
+}
+
+/**
+ * R116 — "retry failed as SMS" action. Surfaces a single button that
+ * re-sends every failed/undelivered WhatsApp message as a plain SMS
+ * using the same body Twilio recorded. SMS doesn't need a Meta-approved
+ * template, so it's the deterministic recovery path while WhatsApp
+ * template approval is pending.
+ */
+function RetryFailedAsSms({
+  messages,
+  onAfterRetry,
+}: {
+  messages: MessageStatus[];
+  onAfterRetry: () => void;
+}) {
+  const [retrying, setRetrying] = useState(false);
+  const failed = messages.filter(
+    (m) => m.status === "failed" || m.status === "undelivered",
+  );
+  // Need a `to` and a `body` to recover — Twilio always populates both
+  // when the original send was an outbound message.
+  const recoverable = failed.filter((m) => m.to && m.body);
+  if (recoverable.length === 0) return null;
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    let ok = 0;
+    let fail = 0;
+    for (const m of recoverable) {
+      // `m.to` is `whatsapp:+972...` — strip the channel prefix.
+      const phone = m.to.replace(/^whatsapp:/, "");
+      const res = await sendSmsMessage({
+        phone,
+        message: m.body ?? "",
+      });
+      if (res.ok) ok++;
+      else fail++;
+      // Polite throttle (Twilio caps SMS at 1/sec on trial accounts).
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    showToast(
+      fail === 0
+        ? `✓ ${ok} הודעות נשלחו כ-SMS`
+        : `${ok} נשלחו · ${fail} נכשלו ב-SMS`,
+      ok > 0 ? "success" : "error",
+    );
+    setRetrying(false);
+    onAfterRetry();
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleRetry}
+      disabled={retrying}
+      className="w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition disabled:opacity-50"
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), color-mix(in srgb, var(--accent) 8%, var(--surface-2)))",
+        border: "1px solid var(--border-gold)",
+        color: "var(--accent)",
+      }}
+    >
+      {retrying ? (
+        <RefreshCw size={14} className="animate-spin" aria-hidden />
+      ) : (
+        <Send size={14} aria-hidden />
+      )}
+      {retrying
+        ? "שולח SMS..."
+        : `📨 שלח שוב כ-SMS ל-${recoverable.length} שנכשלו`}
+    </button>
   );
 }
 
