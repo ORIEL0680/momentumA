@@ -61,31 +61,50 @@ const ALLOWED_ACTIONS = new Set([
 ]);
 
 /**
- * R134 — resolve any of the three catalog vendor-id formats into the
- * canonical `vendor_landings.slug` we need to write a `vendor_leads`
- * row. Returns null when nothing matches (in which case we skip the
- * lead insert and let the action stay as an analytics-only event).
+ * R134 / R135 — resolve any of the three catalog vendor-id formats
+ * into the canonical { id, slug } pair from `vendor_landings`.
+ *
+ *   • `id` — the UUID is what `vendor_page_views` and
+ *     `vendor_page_actions` are keyed by (the analytics dashboard
+ *     reads them with `eq("vendor_id", landingRow.id)`).
+ *   • `slug` — what `vendor_leads` and `vendor_reviews` are keyed
+ *     by (matches the public /vendor/<slug> URL).
+ *
+ * Pre-R135 the analytics dashboard never saw catalog WhatsApp
+ * clicks because the route was writing `vendor_page_actions.vendor_id
+ * = "app-<applicationId>"` straight from the catalog feed — that
+ * literal string never matched `landingRow.id` on read. R135 resolves
+ * BOTH ids on the way in and writes the analytics rows under the
+ * canonical UUID so the dashboard finally sees them.
+ *
+ * Returns nulls when nothing matches; callers fall back to the raw
+ * `body.vendorId` for the analytics insert (so we don't silently
+ * drop the event when a brand-new vendor isn't fully provisioned).
  */
 type SupabaseClient = ReturnType<typeof createServiceClient>;
-async function resolveVendorSlug(
+async function resolveVendorIds(
   supabase: SupabaseClient,
   vendorId: string,
-): Promise<string | null> {
+): Promise<{ id: string | null; slug: string | null }> {
   // 1. UUID match against vendor_landings.id.
   const { data: byId } = (await supabase
     .from("vendor_landings")
-    .select("slug")
+    .select("id, slug")
     .eq("id", vendorId)
-    .maybeSingle()) as { data: { slug: string | null } | null };
-  if (byId?.slug) return byId.slug;
+    .maybeSingle()) as {
+    data: { id: string | null; slug: string | null } | null;
+  };
+  if (byId?.id) return { id: byId.id, slug: byId.slug };
 
   // 2. Slug match (direct catalog hits).
   const { data: bySlug } = (await supabase
     .from("vendor_landings")
-    .select("slug")
+    .select("id, slug")
     .eq("slug", vendorId)
-    .maybeSingle()) as { data: { slug: string | null } | null };
-  if (bySlug?.slug) return bySlug.slug;
+    .maybeSingle()) as {
+    data: { id: string | null; slug: string | null } | null;
+  };
+  if (bySlug?.id) return { id: bySlug.id, slug: bySlug.slug };
 
   // 3. `app-<applicationId>` — auto-page format. Look up the
   //    application's email and find the landing by email match.
@@ -99,13 +118,15 @@ async function resolveVendorSlug(
     if (app?.email) {
       const { data: landing } = (await supabase
         .from("vendor_landings")
-        .select("slug")
+        .select("id, slug")
         .ilike("email", app.email)
-        .maybeSingle()) as { data: { slug: string | null } | null };
-      if (landing?.slug) return landing.slug;
+        .maybeSingle()) as {
+        data: { id: string | null; slug: string | null } | null;
+      };
+      if (landing?.id) return { id: landing.id, slug: landing.slug };
     }
   }
-  return null;
+  return { id: null, slug: null };
 }
 
 export async function POST(req: NextRequest) {
@@ -135,9 +156,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "supabase_unavailable" }, { status: 503 });
   }
 
+  // R135 — resolve once up front so both the view/action insert AND
+  // the lead-from-whatsapp side-effect use the canonical landing
+  // UUID + slug. Pre-R135 we wrote the analytics tables with the
+  // raw catalog id (`app-<applicationId>` for auto-pages) which
+  // never matched the analytics dashboard's read query — vendor
+  // saw zero clicks in their analytics even though the rows
+  // existed.
+  const { id: canonicalVendorId, slug: canonicalSlug } = await resolveVendorIds(
+    supabase,
+    body.vendorId,
+  );
+  // Fall back to the raw input if nothing resolves — better to log
+  // an event under the wrong key than silently drop it (and a new
+  // vendor whose provisioning isn't fully baked will still see the
+  // signal once their landing row catches up).
+  const analyticsVendorId = canonicalVendorId ?? body.vendorId;
+
   if (body.kind === "view") {
     const { error } = await supabase.from("vendor_page_views").insert({
-      vendor_id: body.vendorId,
+      vendor_id: analyticsVendorId,
       source: body.source ?? "direct",
       referrer: (body.referrer ?? "").slice(0, 200),
       device_type: body.deviceType ?? "unknown",
@@ -158,7 +196,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const { error } = await supabase.from("vendor_page_actions").insert({
-      vendor_id: body.vendorId,
+      vendor_id: analyticsVendorId,
       action_type: body.actionType,
     } as unknown as never);
     if (error) {
@@ -166,41 +204,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // R134 — every WhatsApp click on a vendor card / landing / quick-
-    // look now ALSO drops a row into `vendor_leads` so the vendor
-    // sees the signal in their leads dashboard, not just in analytics.
-    // Host wanted "every click = a lead". For anonymous visitors (no
-    // session) the lead carries `couple_user_id = NULL`; the leads
-    // page renders that as "לחיצת WhatsApp אנונימית". Service-role
-    // bypasses RLS so both auth + anon callers can insert.
-    //
-    // `vendor_leads.vendor_id` is the SLUG (per the 2026-05-14
-    // schema). The incoming `body.vendorId` can be ANY of three
-    // shapes the catalog uses today:
-    //   1. The landing's UUID (when the catalog tile points at a
-    //      real /vendor/<slug> page)
-    //   2. The slug itself (legacy / direct catalog hits)
-    //   3. `app-<applicationId>` (the auto-page format used for
-    //      approved-but-no-landing vendors — see R85/R106)
-    // We try them in that order and stop at the first match.
-    if (body.actionType === "whatsapp") {
+    // R134 — every WhatsApp click also drops a vendor_leads row so the
+    // vendor sees the signal in their leads dashboard. Anonymous click
+    // = NULL couple_user_id, source "whatsapp_click", status pending.
+    // Service-role bypasses RLS for both auth + anon callers.
+    if (body.actionType === "whatsapp" && canonicalSlug) {
       try {
-        const slug = await resolveVendorSlug(supabase, body.vendorId);
-        if (slug) {
-          const { error: leadErr } = await supabase
-            .from("vendor_leads")
-            .insert({
-              vendor_id: slug,
-              couple_user_id: null,
-              source: "whatsapp_click",
-              status: "pending",
-            } as unknown as never);
-          if (leadErr) {
-            console.error(
-              "[/api/vendors/track lead-from-whatsapp]",
-              leadErr.message,
-            );
-          }
+        const { error: leadErr } = await supabase
+          .from("vendor_leads")
+          .insert({
+            vendor_id: canonicalSlug,
+            couple_user_id: null,
+            source: "whatsapp_click",
+            status: "pending",
+          } as unknown as never);
+        if (leadErr) {
+          console.error(
+            "[/api/vendors/track lead-from-whatsapp]",
+            leadErr.message,
+          );
         }
       } catch (e) {
         console.error("[/api/vendors/track lead-from-whatsapp] threw", e);
