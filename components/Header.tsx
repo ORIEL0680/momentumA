@@ -189,11 +189,36 @@ export function Header() {
   }, []);
 
   // Scroll → "scrolled" state for the more-opaque variant.
+  // R120 — was raw `setScrolled(scrollY > 40)` on every scroll event.
+  // The boolean only flips ONCE (at the 40px threshold), but React
+  // still recomputed the entire Header on every scroll frame because
+  // setState fires whether the new value matches or not. On mobile
+  // that meant 60 re-renders/sec while scrolling, which compounded
+  // with the other compositor work into visible jank. Two fixes:
+  // (1) wrap the read in requestAnimationFrame so we coalesce
+  // multiple scroll events per frame; (2) gate the setState call so
+  // it only fires when the boolean actually changes.
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
+    let raf: number | null = null;
+    let current = window.scrollY > 40;
+    setScrolled(current);
+    const tick = () => {
+      raf = null;
+      const next = window.scrollY > 40;
+      if (next !== current) {
+        current = next;
+        setScrolled(next);
+      }
+    };
+    const onScroll = () => {
+      if (raf != null) return;
+      raf = window.requestAnimationFrame(tick);
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf != null) window.cancelAnimationFrame(raf);
+    };
   }, []);
 
   // "..." dropdown — outside click + Escape close.

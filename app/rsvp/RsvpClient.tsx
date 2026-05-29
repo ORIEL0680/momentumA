@@ -599,29 +599,59 @@ function CountUnit({ value, label }: { value: number; label: string }) {
 // ─────────────────────────────────── Parallax + confetti ───────────────────────────────────
 
 function ParallaxBackdrop() {
-  const [scroll, setScroll] = useState(0);
+  // R120 — was driven by `useState(scroll)` → every scroll frame
+  // triggered a React state update + full re-render of the backdrop.
+  // On mobile that read as the page "dancing": each pixel of scroll
+  // pushed a re-render through React, the backdrop transform got
+  // recalc'd off-frame, and Safari's compositor flickered between
+  // the old and new layer position. The fix is the same pattern
+  // used by ScrollProgress: keep scrollY in a ref, write
+  // `transform:` directly to the DOM inside requestAnimationFrame.
+  // No React state, no reconciliation, smooth GPU-only updates.
+  const haloRef = useRef<HTMLDivElement | null>(null);
+  const sideRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const onScroll = () => setScroll(window.scrollY);
+    const update = () => {
+      rafRef.current = null;
+      const y = window.scrollY;
+      if (haloRef.current) {
+        haloRef.current.style.transform = `translate(-50%, ${y * -0.25}px)`;
+      }
+      if (sideRef.current) {
+        sideRef.current.style.transform = `translateY(${y * -0.15}px)`;
+      }
+    };
+    const onScroll = () => {
+      if (rafRef.current != null) return;
+      rafRef.current = window.requestAnimationFrame(update);
+    };
+    // Prime the initial position (e.g. after a back-button restore
+    // to a non-zero scroll position).
+    update();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current);
+    };
   }, []);
 
   return (
     <div aria-hidden className="absolute inset-0 -z-0 pointer-events-none overflow-hidden">
       <div
+        ref={haloRef}
         className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full opacity-25"
         style={{
           background: "radial-gradient(circle, rgba(212,176,104,0.45), transparent 70%)",
-          transform: `translate(-50%, ${scroll * -0.25}px)`,
           willChange: "transform",
         }}
       />
       <div
+        ref={sideRef}
         className="absolute top-1/2 -end-40 w-[500px] h-[500px] rounded-full opacity-20"
         style={{
           background: "radial-gradient(circle, rgba(244,222,169,0.4), transparent 70%)",
-          transform: `translateY(${scroll * -0.15}px)`,
           willChange: "transform",
         }}
       />

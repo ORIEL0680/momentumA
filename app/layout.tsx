@@ -94,6 +94,14 @@ export const viewport: Viewport = {
   // this, the inset evaluates to 0 and the row sits on top of the
   // home indicator.
   viewportFit: "cover",
+  // R120 — `interactiveWidget: "resizes-content"` opts us into the
+  // modern keyboard-resize behavior: when the soft keyboard opens
+  // on iOS/Android, the page content shrinks to fit the visible
+  // area instead of the keyboard overlapping the input and pushing
+  // every `position: fixed` element off-screen. Without this hint
+  // an input near the bottom of the page on mobile felt like the
+  // whole site jumped when focus + the keyboard popped up.
+  interactiveWidget: "resizes-content",
   // Note: we intentionally do NOT set `maximumScale` or `userScalable: false` —
   // blocking pinch-zoom violates WCAG 2.1 SC 1.4.4 (Resize Text) and excludes
   // users with low vision. The small UX win on iOS double-tap-to-zoom isn't

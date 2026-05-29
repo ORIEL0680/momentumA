@@ -693,6 +693,14 @@ textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .table-3d.table-floating { animation: none !important; }
 }
+/* R120 — mobile GPUs (especially iOS Safari) struggle with 10+
+   concurrent 6s float loops; the page reads as "dancing" even
+   though the floor animation itself is the only mover. Force-disable
+   the float on any narrow viewport — the static layout is still
+   visually pleasant + zero compositor cost. */
+@media (max-width: 768px) {
+  .table-3d.table-floating, .table-3d { animation: none !important; }
+}
 .table-3d {
   position: relative;
   transform-style: preserve-3d;
@@ -1847,5 +1855,24 @@ select:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ───────────── R120 — mobile compositor budget ─────────────
+   `backdrop-filter: blur(12px+)` on a fullscreen modal/overlay is
+   one of the most expensive things you can do on a mobile GPU —
+   iOS Safari especially drops frames hard. The codebase has 8+
+   surfaces using `backdrop-blur-sm/md/lg`; on a phone they
+   compound into the "the page is dancing" / scroll-jank symptom
+   the user reported. This selector caps every backdrop-blur to a
+   gentle 4px on narrow viewports — visually almost identical
+   (glass surfaces still feel translucent) but the compositor work
+   drops by ~10×. Desktops keep the original heavy blur. */
+@media (max-width: 768px) {
+  [class*="backdrop-blur"],
+  .glass,
+  .glass-strong {
+    -webkit-backdrop-filter: blur(4px) !important;
+    backdrop-filter: blur(4px) !important;
   }
 }
