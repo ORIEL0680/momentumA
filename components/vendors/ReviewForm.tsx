@@ -176,15 +176,21 @@ export function ReviewForm({
   };
 
   return (
+    // R137 — headless-UI-style centered modal pattern: outer scrolls,
+    // inner flex container centers the card. The previous layout
+    // (`items-center` + `my-8` + outer `overflow-y-auto`) pushed the
+    // review form off-screen on mobile because review forms are
+    // long (rating + sub-ratings + tags + free-text + media).
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal
       aria-labelledby="review-form-title"
     >
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
-        className="w-full max-w-lg rounded-3xl my-8 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-lg rounded-3xl max-h-[calc(100vh-2rem)] overflow-y-auto"
         style={{ background: "var(--surface-1)", border: "1px solid var(--border-gold)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -578,6 +584,7 @@ export function ReviewForm({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

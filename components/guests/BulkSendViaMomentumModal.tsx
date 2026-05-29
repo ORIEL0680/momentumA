@@ -262,20 +262,22 @@ export function BulkSendViaMomentumModal({
   };
 
   return (
-    // R112 — the OUTER overlay gets overflow-y-auto so on short screens
-    // (mobile landscape, small laptops) the user can scroll the whole
-    // modal into view if it's taller than the viewport. Inner card
-    // becomes a flex column with max-h capped at the viewport.
+    // R137 — headless-UI-style centered modal. The previous R112 layout
+    // (items-center + my-auto + overflow-y-auto on the same outer)
+    // pushed the modal below the viewport on mobile when the bulk-
+    // send progress list grew. The new outer-scroll + inner-flex
+    // pattern centers the card AND scrolls correctly on any height.
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[60] overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
       onClick={phase === "sending" ? undefined : onClose}
       role="dialog"
       aria-modal
       aria-labelledby="bulk-send-title"
     >
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
-        className="card glass-strong w-full max-w-lg scale-in flex flex-col my-auto"
+        className="card glass-strong w-full max-w-lg scale-in flex flex-col"
         onClick={(e) => e.stopPropagation()}
         style={{
           border: "1px solid var(--border-gold)",
@@ -601,6 +603,7 @@ export function BulkSendViaMomentumModal({
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

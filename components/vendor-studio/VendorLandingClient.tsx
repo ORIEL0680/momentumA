@@ -321,16 +321,25 @@ function LeadInterestModal({
   };
 
   return (
+    // R137 — headless-UI-style centered modal: outer fixed overlay
+    // owns the scroll, inner min-h-full flex container centers the
+    // card both vertically AND when the card overflows the viewport
+    // (which the interest form does on mobile, since it has 3 chip
+    // groups + 2 inputs + a hint card). Pre-R137 we had `items-
+    // center` + `my-auto` + `overflow-y-auto` all on the SAME outer
+    // — that combo pushes tall content below the visible area on
+    // mobile so the host only sees the bottom half.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto"
       style={{ background: "rgba(8,6,4,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       onClick={onClose}
       role="dialog"
       aria-modal
       aria-labelledby="interest-modal-title"
     >
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
-        className="w-full max-w-lg my-auto rounded-3xl overflow-hidden"
+        className="w-full max-w-lg rounded-3xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         style={{
           background:
@@ -519,6 +528,7 @@ function LeadInterestModal({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

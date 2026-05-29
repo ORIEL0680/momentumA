@@ -85,16 +85,20 @@ export function DeleteEventModal({ onClose }: Props) {
     // the card means: short screens can scroll the whole modal into
     // view, tall content scrolls inside the card. Without this the
     // bottom buttons + confirm input disappeared on mobile.
+    // R137 — headless-UI-style centered modal: outer fixed overlay
+    // owns the scroll, inner min-h-full flex container centers the
+    // card vertically without pushing it off-screen on mobile.
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[70] overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
       role="dialog"
       aria-modal
       aria-labelledby="delete-event-title"
     >
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
-        className="card glass-strong w-full max-w-md scale-in flex flex-col my-auto"
+        className="card glass-strong w-full max-w-md scale-in flex flex-col"
         onClick={(e) => e.stopPropagation()}
         style={{
           border: "1px solid rgba(248,113,113,0.35)",
@@ -248,6 +252,7 @@ export function DeleteEventModal({ onClose }: Props) {
             {busy ? "מוחק..." : "מחק והתחל מחדש"}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

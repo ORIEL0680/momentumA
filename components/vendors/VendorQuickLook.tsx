@@ -258,17 +258,18 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
   );
 
   return (
+    // R137 — headless-UI-style centered modal: outer scrolls, inner
+    // flex container centers the card. The previous R13 layout used
+    // `items-center` + `overflow-y-auto` on the SAME outer + `my-
+    // auto` on the inner, which pushed the QuickLook below the
+    // viewport on mobile when content was tall (gallery + chips +
+    // contact block).
     <div
-      // R13 — center the modal on every screen size. Previously the
-      // mobile breakpoint (<640px) used `items-end` (bottom-sheet style)
-      // which combined with R12's body padding-bottom looked "stuck" at
-      // the bottom of the screen and never opened in the middle as users
-      // expected. The R12 body padding also pushed the bottom edge of
-      // the sheet up off the screen on iOS Safari.
-      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-[60] overflow-y-auto bg-black/75 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
+      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
       <motion.div
         ref={dialogRef}
         role="dialog"
@@ -280,8 +281,7 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
         transition={{ type: "spring", stiffness: 360, damping: 32 }}
         // max-h capped so the modal always fits the visible viewport
         // (uses `dvh` — dynamic vh, which honors the iOS toolbar).
-        // `my-auto` centers it when content is short.
-        className="w-full sm:max-w-2xl max-h-[92dvh] overflow-y-auto rounded-3xl my-auto"
+        className="w-full sm:max-w-2xl max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-3xl"
         style={{ background: "var(--surface-1)", border: "1px solid var(--border-strong)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -706,6 +706,7 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
           </section>
         </div>
       </motion.div>
+      </div>
       {showReviewForm && state.event && (
         <ReviewForm
           vendorId={vendor.id}
