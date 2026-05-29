@@ -670,36 +670,29 @@ textarea:focus {
   border-radius: 32px;
 }
 
+/* R124 — `.table-floating` keyframe + staggered per-table animation
+   delays were the single biggest source of "the tables don't look
+   right" complaints. The float was 8px translateZ + 2px translateY
+   over 6s with a per-table delay between 60-550ms (see the now-
+   removed nth-child block); adjacent tables in the same row bobbed
+   in DIFFERENT phases, so the row visibly read as uneven. R115's
+   flex-wrap wrapper also moved `.table-3d` from a direct child of
+   `.floor-3d-inner` to a grandchild, which made the nth-child stagger
+   rules dead code (no match) — so on more recent builds the floats
+   were actually IN sync but still added pointless 2px vertical
+   jitter on top of everything else.
+   Final call: kill the float entirely. The static floor reads as a
+   real venue room, not a phone-screensaver carousel. The className
+   is left in the page (`.table-floating`) so the prop still works
+   if we ever want to re-enable it via the keyframe below. */
 @keyframes table-float {
-  0%, 100% { transform: translateZ(0) translateY(0); }
-  50% { transform: translateZ(8px) translateY(-2px); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
-
-/* table-float is gated through a className so we can switch it off in bulk.
-   The animation-delay is set inline per-table so multiple tables don't
-   bob in lockstep. ".table-floating" → opt-in; absence → static. */
-.table-3d.table-floating {
-  animation: table-float 6s ease-in-out infinite;
-}
-
-/* Dense floors (>10 tables) drop the float entirely — it was the single
-   biggest GPU hit on big events. Set as a data-attribute by the seating
-   page so it flips deterministically based on tables.length. */
-[data-many-tables="true"] .table-3d.table-floating,
-[data-many-tables="true"] .table-3d {
-  animation: none !important;
-}
+.table-3d.table-floating { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .table-3d.table-floating { animation: none !important; }
-}
-/* R120 — mobile GPUs (especially iOS Safari) struggle with 10+
-   concurrent 6s float loops; the page reads as "dancing" even
-   though the floor animation itself is the only mover. Force-disable
-   the float on any narrow viewport — the static layout is still
-   visually pleasant + zero compositor cost. */
-@media (max-width: 768px) {
-  .table-3d.table-floating, .table-3d { animation: none !important; }
 }
 .table-3d {
   position: relative;
@@ -715,6 +708,21 @@ textarea:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* R124 — force the button to fill its flex-basis wrapper (added in
+     R115 as `<div className="basis-[...]">`). Without this, the
+     button's intrinsic width is its content's width — which varies
+     with the label text length — and the surface's `width: 100%`
+     resolves against THAT, not against the wrapper. End result: a
+     row of tables had subtly different circle diameters because
+     "מילואים" wraps wider than "1". Setting width:100% on the
+     button itself nails the surface to the wrapper width so every
+     circle in a row is pixel-identical. */
+  width: 100%;
+  /* R124 — explicit overflow:visible so chairs that hang outside
+     the surface rim (53% radius ring → ~6% past the 50% rim, plus
+     half the 18px chair = ~15px beyond) never get clipped by any
+     ancestor's accidental overflow rule. */
+  overflow: visible;
   /* Browser-level virtualization: tables off-screen skip rendering work.
      contain-intrinsic-size keeps the scroll container the right height
      before the dimensions are measured. Values are approximate — the
@@ -726,8 +734,26 @@ textarea:focus {
    `width: 100%` on the surface was being interpreted relative to the
    button's intrinsic width (varied with label text length); we lock
    it explicitly so every table circle has the same diameter. */
-.table-3d .surface { width: 100%; }
-.table-3d:hover { transform: translateZ(28px) scale(1.04); }
+.table-3d .surface { width: 100%; overflow: visible; }
+/* R124 — hover scale moved from the button to the surface. The
+   previous `scale(1.04)` on `.table-3d` itself scaled the entire
+   grid cell — label + circle + count text + chair envelope — which
+   pushed against neighboring cells in the flex row and made the
+   whole row visibly reflow on hover. Scaling only the inner
+   `.surface` keeps the cell footprint stable while still giving
+   the disc the lift cue. translateZ stays on the button so the
+   shadow lifts evenly. */
+.table-3d:hover { transform: translateZ(28px); }
+.table-3d:hover .surface { transform: scale(1.04); }
+/* R124 — overflow:visible on every ancestor that wraps the floor
+   so chairs can't be clipped by a stray browser default. */
+.floor-3d, .floor-3d-inner { overflow: visible; }
+/* R124 — in flat mode (the default since R113) the preserve-3d
+   context on `.table-3d` interacts oddly with the parent's
+   `transform: rotateX(0deg)` — depth transforms still get the
+   perspective treatment, so hover lift looks like a size shift
+   instead of a clean lift. Flattening avoids that. */
+.floor-3d-inner.flat .table-3d { transform-style: flat; }
 
 /* R137 — Active state is now SUBTLE on the floor card. Clicking a
    table opens the center-of-screen detail modal (TableDetailModal),
@@ -887,23 +913,16 @@ textarea:focus {
   100% { transform: scale(1.2); box-shadow: 0 0 14px var(--accent-glow); }
 }
 
-/* Tables enter staggered from below on page mount — feels alive, not static. */
-@keyframes table-enter {
-  0%   { opacity: 0; transform: translateY(40px) translateZ(-30px) scale(0.7); }
-  60%  { opacity: 1; transform: translateY(-8px) translateZ(0) scale(1.05); }
-  100% { opacity: 1; transform: translateY(0) translateZ(0) scale(1); }
-}
-.floor-3d-inner > .table-3d {
-  animation: table-enter 700ms cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-}
-.floor-3d-inner > .table-3d:nth-child(1) { animation-delay: 60ms; }
-.floor-3d-inner > .table-3d:nth-child(2) { animation-delay: 130ms; }
-.floor-3d-inner > .table-3d:nth-child(3) { animation-delay: 200ms; }
-.floor-3d-inner > .table-3d:nth-child(4) { animation-delay: 270ms; }
-.floor-3d-inner > .table-3d:nth-child(5) { animation-delay: 340ms; }
-.floor-3d-inner > .table-3d:nth-child(6) { animation-delay: 410ms; }
-.floor-3d-inner > .table-3d:nth-child(7) { animation-delay: 480ms; }
-.floor-3d-inner > .table-3d:nth-child(n+8) { animation-delay: 550ms; }
+/* R124 — `table-enter` mount keyframe + nth-child stagger removed.
+   R115 wrapped each Table3D in `<div className="basis-[...]">` for
+   the flex-wrap layout, which made `.floor-3d-inner > .table-3d`
+   stop matching (the div became the direct child, not the button).
+   The animation was already dead code on that path; the staggered
+   "scale up from below" effect amplified the rest of the
+   instability on the page anyway. Newly-added tables still get the
+   inline `table-enter` keyframe via the JSX (search for
+   isNewlyAdded), so a freshly-created table still pops in nicely
+   without the floor-wide cascade. */
 
 /* When a table reaches capacity, a subtle gold ring pulses outward once. */
 @keyframes table-full-celebrate {
