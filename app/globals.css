@@ -657,17 +657,107 @@ textarea:focus {
 }
 .floor-3d-inner.flat { transform: rotateX(0deg); }
 
-/* R114 — `.floor-grid` used to paint a 60×60px gold-line grid as
-   "venue floor" texture. The lines were highly visible (0.08 alpha
-   on gold against a dark surface reads as ~10% contrast), and the
-   tables sit in a CSS-grid layout that has NOTHING to do with the
-   60px floor-grid spacing. Result: a constant "the tables aren't on
-   the lines" perception when they were never meant to be — the two
-   grids were independent. The texture is dropped entirely; the
-   floor reads cleaner and the tables now look symmetric in
-   isolation rather than fighting an off-aligned background. */
+/* R125 — luxurious floor pattern UNDER the seating tables.
+   R114 dropped the old hard 60×60 gold-line grid because tables
+   didn't align to it. R125 brings back a floor pattern, but this
+   time as a *background* — purely decorative, set BENEATH the
+   tables via a `::before` pseudo, so the layout grid stays
+   independent. The visual:
+     • Each 100×100 "tile" has a subtle gold-tinted marble radial
+       gradient at its center (polished marble shine)
+     • Thin gold lines (1px, 16% accent) form the tile borders
+     • A brighter gold pin-dot at each intersection (28% accent,
+       3px) anchors the grid as a deliberate composition
+     • Edges fade via a radial mask so the pattern doesn't fight
+       the floor border or push past the rounded corners
+     • A slow shimmer sweeps across the floor every 14 seconds —
+       gentle "light moving across marble" feel, never fast enough
+       to register as motion the eye locks onto. Desktop only;
+       mobile keeps the static pattern for compositor budget. */
 .floor-grid {
+  position: relative;
   border-radius: 32px;
+}
+.floor-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 32px;
+  background-color: var(--surface-0);
+  background-image:
+    /* 1. Gold pin-dot at each grid intersection — luxe inlay accent */
+    radial-gradient(
+      circle at 0 0,
+      color-mix(in srgb, var(--accent) 32%, transparent) 0,
+      transparent 3px
+    ),
+    /* 2. Vertical gold tile lines */
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 16%, transparent) 0 1px,
+      transparent 1px
+    ),
+    /* 3. Horizontal gold tile lines */
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--accent) 16%, transparent) 0 1px,
+      transparent 1px
+    ),
+    /* 4. Polished marble shimmer inside each tile */
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--accent) 5%, var(--surface-1)) 0%,
+      var(--surface-0) 70%
+    );
+  background-size: 100px 100px;
+  background-position: 0 0;
+  /* Edge fade — pattern softens toward the rounded border so it
+     never clashes with the gold rim or surrounding canvas. */
+  mask-image: radial-gradient(
+    ellipse 95% 92% at 50% 50%,
+    black 55%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 95% 92% at 50% 50%,
+    black 55%,
+    transparent 100%
+  );
+}
+.floor-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 32px;
+  background: linear-gradient(
+    115deg,
+    transparent 0%,
+    transparent 35%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: floor-shimmer 14s ease-in-out infinite;
+}
+@keyframes floor-shimmer {
+  0% { background-position: 160% 0; }
+  50% { background-position: -60% 0; }
+  100% { background-position: 160% 0; }
+}
+/* All `.table-3d` content sits ABOVE the floor pattern. The flex-wrap
+   container around the tables doesn't have its own stacking context,
+   so we lift it explicitly. */
+.floor-3d-inner > * { position: relative; z-index: 1; }
+/* Mobile + reduced motion: keep the pattern (it's lightweight as
+   static), drop the shimmer animation. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .floor-grid::after { animation: none; opacity: 0; }
 }
 
 /* R124 — `.table-floating` keyframe + staggered per-table animation
@@ -730,11 +820,15 @@ textarea:focus {
   content-visibility: auto;
   contain-intrinsic-size: 240px 320px;
 }
-/* R114 — the surface always renders against the grid column width.
-   `width: 100%` on the surface was being interpreted relative to the
-   button's intrinsic width (varied with label text length); we lock
-   it explicitly so every table circle has the same diameter. */
-.table-3d .surface { width: 100%; overflow: visible; }
+/* R114 / R125 — the surface renders at 86% of the button's width so
+   the chair envelope (53% radius ring + ~9px chair half-width) has
+   ~7% of breathing room on each side INSIDE the wrapper. Pre-R125
+   the surface was 100% of the wrapper and the chairs that hang past
+   the rim ended up flush with — or past — the wrapper's edges, which
+   made them visually meld into the gap between neighbouring tables
+   (the "chairs cut off" complaint). 86% keeps every chair on screen
+   and surrounded by floor, not floor-edge. */
+.table-3d .surface { width: 86%; overflow: visible; }
 /* R124 — hover scale moved from the button to the surface. The
    previous `scale(1.04)` on `.table-3d` itself scaled the entire
    grid cell — label + circle + count text + chair envelope — which
@@ -1096,8 +1190,15 @@ textarea:focus {
    it tilts naturally with the floor. */
 .table-name-label {
   position: relative;
-  z-index: 3;
-  margin-bottom: 10px;
+  /* R125 — z-index bumped above chairs (z-5) so the label sits cleanly
+     on top of any chair that hangs into its margin band. */
+  z-index: 8;
+  /* R125 — was 10px. Chairs at the top of the surface hang ~16px
+     above the surface rim; with only 10px between the label and the
+     surface, top chairs visibly clipped behind the label's pill
+     background. 20px gives chairs their full silhouette + a
+     comfortable visual gap to the label. */
+  margin-bottom: 20px;
   max-width: 100%;
   display: -webkit-box;
   -webkit-line-clamp: 1;
