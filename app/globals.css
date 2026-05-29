@@ -842,12 +842,17 @@ textarea:focus {
      • Wider width (94% of wrapper) since chairs only hang above
        and below — there's no chair envelope on the short ends, so
        the 7% per-side reserve from the round variant isn't needed
-     • Slightly rounded corners (18px) instead of full circle
-       round-radius. Reads as "polished banquet table edge". */
+     • R128 — `border-radius: 9999px` turns the rectangle into a
+       STADIUM (pill) shape: short ends become full half-circles,
+       long sides stay straight. Reads as "the round table's
+       sibling" instead of "a sharp rectangle that doesn't match
+       the rest of the floor". The 18px corners in the previous
+       version looked too utilitarian next to the perfect circles
+       of the round tables. */
 .table-3d .surface-knight {
   width: 94%;
   aspect-ratio: 2.4 / 1;
-  border-radius: 18px;
+  border-radius: 9999px;
 }
 /* The chair container — `.surface` is `position: relative` already;
    knight chairs are positioned with absolute pixel values for the
