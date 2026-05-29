@@ -23,10 +23,10 @@ export function FinalCTA() {
             color: "var(--foreground-soft)",
           }}
         >
-          {/* R96 (R75) — was "ללא התחייבות" doubled-up with later
-              guarantees. New copy is honest about the two pricing
-              models without over-promising. */}
-          התחילו בחינם — 50 מוזמנים, אירוע אחד. שדרוג ל-Pro כשהאירוע גדל. בלי הפתעות, בלי הסכמים מורכבים.
+          {/* R121 — the launch is free for everyone for 60 days.
+              Calm + confident copy: it's open, all of it, no card. */}
+          לרגל ההשקה, כל מי שמצטרף עכשיו מקבל את הפלטפורמה המלאה
+          בחינם לחודשיים. בלי מספרי כרטיס, בלי שדרוגים, בלי הפתעות.
         </p>
 
         <div className="mt-10 flex justify-center">
@@ -44,7 +44,7 @@ export function FinalCTA() {
         </div>
 
         <p className="mt-5 text-sm" style={{ color: "var(--accent)" }}>
-          🎁 100 הזוגות הראשונים — מחיר השקה ₪99 חד-פעמי (במקום ₪399)
+          🎁 חינמי לכולם · 60 ימי השקה · בלי כרטיס אשראי
         </p>
       </div>
     </section>

@@ -2,16 +2,14 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { X, Check, Crown } from "lucide-react";
+import { X, Check, Gift } from "lucide-react";
 
 /**
- * R18 §R — upgrade modal opened straight from the user menu, instead of
- * a full-page navigation to /pricing. Shows the two real couple tiers
- * (free forever / ₪399 one-time per event — kept in sync with
- * app/pricing/page.tsx) and links out for the full comparison.
- *
- * Pure presentational: no checkout here (payments aren't wired yet),
- * just an honest summary + a path to the detailed page.
+ * R18 §R / R121 — was an "upgrade to Premium ₪399" modal. R121
+ * pauses paid tiers while we wire the Israeli payment processor;
+ * during the launch window every feature is open to every account
+ * for free. This modal is now an "everything-is-included" reassurance
+ * + a link to the marketing pricing section for context.
  */
 export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
@@ -53,13 +51,13 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div
-              className="text-xs uppercase tracking-wider"
+              className="text-xs uppercase tracking-wider inline-flex items-center gap-1.5"
               style={{ color: "var(--accent)" }}
             >
-              שדרוג מסלול
+              <Gift size={12} aria-hidden /> מבצע השקה
             </div>
             <h2 id="upgrade-modal-title" className="mt-1 text-lg font-bold">
-              פרימיום — כל הכלים, אירוע אחד
+              כל הפיצ׳רים פתוחים — חינם.
             </h2>
           </div>
           <button
@@ -72,47 +70,57 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div
-            className="rounded-2xl p-4"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}
-          >
-            <div className="text-sm font-bold">חינם</div>
-            <div className="mt-1 text-2xl font-extrabold ltr-num">₪0</div>
-            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-              לתמיד
-            </div>
+        {/* R121 — premium "you already have everything" hero card. */}
+        <div
+          className="mt-5 rounded-2xl p-5 text-center"
+          style={{
+            background:
+              "linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent) 6%, transparent))",
+            border: "1px solid var(--border-gold)",
+          }}
+        >
+          <div className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+            במבצע ההשקה
           </div>
-          <div
-            className="rounded-2xl p-4"
-            style={{
-              background: "linear-gradient(135deg, rgba(244,222,169,0.14), rgba(168,136,74,0.05))",
-              border: "1px solid var(--border-gold)",
-            }}
-          >
-            <div className="text-sm font-bold inline-flex items-center gap-1.5">
-              <Crown size={13} className="text-[--accent]" aria-hidden /> פרימיום
-            </div>
-            <div className="mt-1 text-2xl font-extrabold ltr-num gradient-gold">₪399</div>
-            <div className="text-xs" style={{ color: "var(--foreground-muted)" }}>
-              חד-פעמי לאירוע
-            </div>
+          <div className="mt-1 text-5xl font-extrabold ltr-num gradient-gold-shimmer leading-none">
+            ₪0
+          </div>
+          <div className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
+            לרגל ההשקה הרשמית — כל הפיצ׳רים פתוחים בחינם לחודשיים.
+            בלי כרטיס אשראי, בלי שדרוג, בלי הגבלה.
           </div>
         </div>
 
-        <ul className="mt-5 space-y-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
+        <ul className="mt-5 space-y-2.5 text-sm" style={{ color: "var(--foreground-soft)" }}>
           {[
-            "סידורי הושבה ללא הגבלה",
-            "ייעוץ AI מורחב",
-            "ייצוא וגיבוי מתקדם",
-            "תמיכה מועדפת",
+            "מוזמנים ואירועים ללא הגבלה",
+            "AI Co-Pilot ביום האירוע",
+            "סידורי הושבה חכמים",
+            "Auto-Report וסיכום Wrapped",
+            "תמיכה ב-WhatsApp + SMS",
           ].map((f) => (
-            <li key={f} className="flex items-center gap-2">
-              <Check size={15} className="text-[--accent] shrink-0" aria-hidden />
+            <li key={f} className="flex items-center gap-2.5">
+              <span
+                className="inline-flex items-center justify-center w-6 h-6 rounded-full shrink-0"
+                style={{
+                  background: "color-mix(in srgb, var(--accent) 18%, transparent)",
+                  border: "1px solid var(--border-gold)",
+                }}
+              >
+                <Check size={12} style={{ color: "var(--accent)" }} aria-hidden />
+              </span>
               {f}
             </li>
           ))}
         </ul>
+
+        <p
+          className="mt-5 text-xs leading-relaxed text-center"
+          style={{ color: "var(--foreground-muted)" }}
+        >
+          אין חיוב אוטומטי כשהמבצע נגמר — תבחרו אם להמשיך עם מסלול
+          בתשלום, או לעצור.
+        </p>
 
         <div className="mt-6 grid gap-2">
           <Link
@@ -120,14 +128,14 @@ export function UpgradePlanModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="btn-gold w-full text-center"
           >
-            צפה במסלולים המלאים
+            פרטי המבצע
           </Link>
           <button
             type="button"
             onClick={onClose}
             className="btn-secondary w-full"
           >
-            המשך בחינם
+            סגור
           </button>
         </div>
       </div>

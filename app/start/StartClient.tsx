@@ -53,11 +53,16 @@ export function StartClient() {
               <Sparkles size={11} /> לפני שיוצאים לדרך
             </span>
             <h1 className="mt-5 text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05]">
-              <span className="gradient-gold block">בחר מסלול שמתאים לך</span>
+              <span className="gradient-gold block">חינמי לכולם — לכבוד ההשקה</span>
             </h1>
+            {/* R121 — was a "choose your tier" page that anchored on
+                ₪99 launch price. While paid tiers are paused for the
+                launch window, the copy reframes as "you already
+                have everything". The PricingTiers component below
+                continues to show feature breakdowns for context. */}
             <p className="mt-5 text-base md:text-lg leading-relaxed" style={{ color: "var(--foreground-soft)" }}>
-              <strong className="text-[--foreground]">אין מנוי חודשי.</strong>{" "}
-              חינם להתחלה, או ₪99 חד-פעמי לאירוע (מחיר השקה) — ללא הפתעות, ללא חיובים אוטומטיים.
+              <strong className="text-[--foreground]">אין מה לבחור עכשיו.</strong>{" "}
+              כל הפיצ׳רים פתוחים בחינם לחודשיים — בלי כרטיס אשראי, בלי חיוב אוטומטי, בלי הגבלות.
             </p>
           </div>
 

@@ -327,7 +327,7 @@ export function Header() {
               className="hidden md:flex items-center gap-1 ms-2"
             >
               <LandingAnchor href="#showcase" label="תכונות" />
-              <LandingAnchor href="#pricing" label="מחיר" />
+              <LandingAnchor href="#pricing" label="השקה חינמית" />
             </nav>
           )}
         </div>

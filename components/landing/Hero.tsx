@@ -37,19 +37,22 @@ export function Hero() {
           ✨ Israeli Startup · נבנה בישראל
         </div>
 
-        {/* Launch banner */}
+        {/* Launch banner — R121: while payments aren't wired yet,
+            every plan is open and free during the launch window.
+            Replaces the previous "₪99 launch price" anchor so the
+            same component conveys generosity instead of scarcity. */}
         <div
           className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs sm:text-sm fade-up"
           style={{
             background:
-              "linear-gradient(135deg, rgba(244,222,169,0.16), rgba(168,136,74,0.10))",
+              "linear-gradient(135deg, rgba(244,222,169,0.18), rgba(168,136,74,0.10))",
             border: "1px solid var(--border-gold)",
             color: "var(--accent)",
           }}
         >
-          🚀 השקה — רק 100 הזוגות הראשונים במחיר ₪99{" "}
+          🎁 השקה רשמית — האתר חינמי לכולם לחודשיים{" "}
           <span style={{ color: "var(--foreground-muted)" }}>
-            (במקום ₪399)
+            · ללא כרטיס אשראי
           </span>
         </div>
 
@@ -183,13 +186,13 @@ export function Hero() {
           className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs sm:text-sm fade-up"
           style={{ color: "var(--foreground-muted)", animationDelay: "0.2s" }}
         >
-          {/* R96 (R75) — was "ביטול בכל רגע" which implied a refund
-              policy that doesn't exist for couples. The new lines
-              honour both sides: couples get a one-time purchase +
-              long-tail access; vendors get cancel-anytime on their
-              subscription. */}
-          <span>✓ התחלה חינמית · ללא התחייבות</span>
-          <span>✓ תשלום חד-פעמי · גישה לאירוע + 12 חודשים אחריו</span>
+          {/* R96 / R121 — R96 honoured the two pricing models
+              (couples one-time, vendors monthly). R121 collapses
+              both into the launch promise — everything is free
+              right now, and the second line is the honest "no
+              auto-charge" guarantee. */}
+          <span>✓ חינמי בתקופת ההשקה · ללא כרטיס אשראי</span>
+          <span>✓ אין חיוב אוטומטי כשהמבצע נגמר</span>
           <span>✓ מותאם לישראל · בעיצוב יוקרתי · תמיכה אנושית</span>
         </div>
       </div>

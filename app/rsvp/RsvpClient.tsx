@@ -1154,7 +1154,7 @@ function ViralCTA({ eventType }: { eventType: EventType }) {
         </Link>
 
         <p className="mt-3 text-[11px]" style={{ color: "var(--foreground-muted)" }}>
-          חינם להתחלה · ₪99 חד-פעמי לפרימיום (מחיר השקה) · ללא מנוי חודשי
+          🎁 חינמי לכולם · 60 ימי השקה · ללא כרטיס אשראי
         </p>
       </div>
     </section>
