@@ -60,19 +60,16 @@ function buildChairs(
   if (table.shape === "knight") {
     const topCount = Math.ceil(table.capacity / 2);
     const bottomCount = table.capacity - topCount;
-    // R128 — the knight surface is a 2.4:1 STADIUM (rectangle with
-    // fully-rounded short ends). Chairs proportionally spread across
-    // the FULL width would put the first/last chairs on the curved
-    // ends, visually floating off the table. The straight section
-    // of each long edge runs from ~21% to ~79% of the width (half-
-    // circle radius = height/2 = 1/(2*2.4) = 20.8% of width). We
-    // clamp the chair x range to that straight band so every chair
-    // sits squarely on the flat top/bottom edge.
-    const STRAIGHT_START = 21; // % of surface width
-    const STRAIGHT_END = 79;
-    const STRAIGHT_RANGE = STRAIGHT_END - STRAIGHT_START;
+    // R129 — knight is a true four-sided rectangle (R128's stadium
+    // shape was wrong). Chairs distribute proportionally across the
+    // FULL width of each long edge with a small inset from the
+    // corners so the first/last chair doesn't end up overhanging
+    // the short edge. 4% per side is enough margin for the chair's
+    // 9px half-width on the widest sane head table.
+    const INSET = 4; // % of width — keeps end chairs off the short edge
+    const RANGE = 100 - 2 * INSET; // 92% spread for chairs
     for (let i = 0; i < topCount; i++) {
-      const x = STRAIGHT_START + ((i + 0.5) / topCount) * STRAIGHT_RANGE;
+      const x = INSET + ((i + 0.5) / topCount) * RANGE;
       chairs.push({
         left: `calc(${x}% - 9px)`,
         top: "-16px",
@@ -81,7 +78,7 @@ function buildChairs(
       });
     }
     for (let i = 0; i < bottomCount; i++) {
-      const x = STRAIGHT_START + ((i + 0.5) / bottomCount) * STRAIGHT_RANGE;
+      const x = INSET + ((i + 0.5) / bottomCount) * RANGE;
       chairs.push({
         left: `calc(${x}% - 9px)`,
         top: "calc(100% - 4px)",

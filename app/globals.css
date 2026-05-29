@@ -830,29 +830,49 @@ textarea:focus {
    and surrounded by floor, not floor-edge. */
 .table-3d .surface { width: 86%; overflow: visible; }
 
-/* R126 — knight (long banquet) variant of the table surface.
-   Overrides the round disc's aspect-ratio + border-radius so the
-   same `.surface` selector renders as a wide rectangle. Every
-   other property (background gradient, border, shadow, inner
-   content) is inherited from `.surface` so the visual language
-   stays consistent across both shapes — same gold rim, same warm
-   surface tone, same active/full state styling.
+/* R126 / R128 / R129 — knight (long banquet) variant of the table
+   surface. A true four-sided rectangle with subtle corner rounding
+   — the way real banquet tables look in a venue. Inherits every
+   other property (gold rim, surface gradient, shadow, active/full
+   state) from `.surface` so the visual language stays consistent.
+
+     • R129: `border-radius: 14px` — clean rectangular silhouette
+       with just enough corner softening to read as a polished
+       furniture edge, not a CAD blueprint. (R128 had taken this to
+       9999px / pill shape, which the user explicitly didn't want —
+       knight tables in a real venue have FOUR straight sides.)
      • 2.4:1 aspect = enough horizontal room for 10-12 chairs per
-       long edge (covers the 20-24 seat banquet table use case)
+       long edge (covers the 20-24 seat banquet table use case).
      • Wider width (94% of wrapper) since chairs only hang above
-       and below — there's no chair envelope on the short ends, so
-       the 7% per-side reserve from the round variant isn't needed
-     • R128 — `border-radius: 9999px` turns the rectangle into a
-       STADIUM (pill) shape: short ends become full half-circles,
-       long sides stay straight. Reads as "the round table's
-       sibling" instead of "a sharp rectangle that doesn't match
-       the rest of the floor". The 18px corners in the previous
-       version looked too utilitarian next to the perfect circles
-       of the round tables. */
+       and below — no chair envelope on the short ends.
+     • R129: also overrides the round disc's radial-gradient
+       backgrounds (inherited from `.surface`) with a layered
+       linear gradient + sheen tuned for a rectangular surface.
+       Without this, the round's "rim halo" radial fired from the
+       center and looked off-axis on a 2.4:1 rectangle. */
 .table-3d .surface-knight {
   width: 94%;
   aspect-ratio: 2.4 / 1;
-  border-radius: 9999px;
+  border-radius: 14px;
+  background:
+    /* 1. Inner gold-rim halo running along all four sides */
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--accent) 0%, transparent) 0,
+      color-mix(in srgb, var(--accent) 14%, transparent) 6%,
+      transparent 14%,
+      transparent 86%,
+      color-mix(in srgb, var(--accent) 14%, transparent) 94%,
+      transparent 100%
+    ),
+    /* 2. Top-light sheen — soft highlight along the top edge */
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      transparent 35%
+    ),
+    /* 3. Warm dark base */
+    linear-gradient(135deg, var(--surface-2), var(--surface-3));
 }
 /* The chair container — `.surface` is `position: relative` already;
    knight chairs are positioned with absolute pixel values for the
