@@ -5,24 +5,21 @@ import { Lightbulb } from "lucide-react";
 import type { AppState } from "@/lib/types";
 import { CalculatorCard } from "./CalculatorCard";
 import { RealCostPerGuestCard } from "./RealCostPerGuestCard";
-import { WhatIfSimulator } from "./WhatIfSimulator";
-import { AiPackagesCalculator } from "./AiPackagesCalculator";
 import { AlcoholCalculator } from "./AlcoholCalculator";
 import { EnvelopeCalculator } from "./EnvelopeCalculator";
 
 const TAB_KEY = "momentum.calc.tab.v1";
 
-type TabId =
-  | "real-cost"
-  | "what-if"
-  | "ai-packages"
-  | "alcohol"
-  | "envelope";
+// R123 — removed "מעבדת התקציב" (what-if) + "3 הצעות AI" (ai-packages)
+// per host request. The hub keeps the three calculators that have a
+// deterministic, no-AI answer: real cost per guest, alcohol planner,
+// envelope target. The corresponding component files
+// (WhatIfSimulator.tsx, AiPackagesCalculator.tsx) were deleted with
+// this rev — see git history if you need to bring them back.
+type TabId = "real-cost" | "alcohol" | "envelope";
 
 const TABS: Array<{ id: TabId; label: string; emoji: string }> = [
   { id: "real-cost", label: "כמה אורח עולה", emoji: "💎" },
-  { id: "what-if", label: "מעבדת התקציב", emoji: "🎚️" },
-  { id: "ai-packages", label: "3 הצעות AI", emoji: "🤖" },
   { id: "alcohol", label: "אלכוהול", emoji: "🍷" },
   { id: "envelope", label: "מעטפה", emoji: "💌" },
 ];
@@ -30,10 +27,6 @@ const TABS: Array<{ id: TabId; label: string; emoji: string }> = [
 const TIPS: Record<TabId, string> = {
   "real-cost":
     "ידעת? 73% מהזוגות לא חישבו את ה'תקורה' — ₪38 לאורח שבדרך כלל נשכח.",
-  "what-if":
-    "טיפ: הקטנת רשימה ב-15% חוסכת בממוצע ₪22,000 — מספיק לירח דבש.",
-  "ai-packages":
-    "ה-AI לומד ממאות אירועים אמיתיים בארץ. אין נוסחה אחת — תקציב זהה יכול לתת 3 חוויות שונות לחלוטין.",
   alcohol:
     "באירוע דתי? אנשים שותים 35% פחות — אל תכפיל כמות מאירועים אחרים.",
   envelope:
@@ -101,7 +94,7 @@ export function CalculatorsHub({ state }: { state: AppState }) {
           מחשבונים חכמים
         </h2>
         <p className="mt-2 text-sm" style={{ color: "var(--foreground-soft)" }}>
-          5 כלים שיעזרו לך להחליט.
+          3 כלים שיעזרו לך להחליט.
         </p>
         <div
           className="mt-3 inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full"
@@ -188,22 +181,6 @@ export function CalculatorsHub({ state }: { state: AppState }) {
             <RealCostPerGuestCard state={state} />
             <HubTip text={TIPS["real-cost"]} />
           </>
-        )}
-        {active === "what-if" && (
-          <>
-            <WhatIfSimulator state={state} />
-            <HubTip text={TIPS["what-if"]} />
-          </>
-        )}
-        {active === "ai-packages" && (
-          <CalculatorCard
-            emoji="🤖"
-            title="3 הצעות מחיר AI"
-            subtitle="אותו תקציב — 3 חוויות שונות לחלוטין, לפי העדיפויות שלך."
-            tip={TIPS["ai-packages"]}
-          >
-            <AiPackagesCalculator state={state} />
-          </CalculatorCard>
         )}
         {active === "alcohol" && (
           <CalculatorCard
