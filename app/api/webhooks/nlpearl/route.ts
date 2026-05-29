@@ -14,6 +14,10 @@ import { upsertRsvpFromServer } from "@/lib/rsvpServer";
  *
  * Optional: set NLPEARL_WEBHOOK_SECRET and send header x-nlpearl-secret.
  */
+export async function GET() {
+  return NextResponse.json({ ok: true, service: "nlpearl-webhook" });
+}
+
 export async function POST(req: NextRequest) {
   const secret = (process.env.NLPEARL_WEBHOOK_SECRET ?? "").trim();
   if (secret) {
