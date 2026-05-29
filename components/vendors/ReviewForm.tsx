@@ -188,7 +188,9 @@ export function ReviewForm({
       aria-modal
       aria-labelledby="review-form-title"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
+      {/* R138 — top-anchor (see VendorLandingClient note) so the
+          review-form header is always above the fold. */}
+      <div className="flex min-h-full items-start justify-center p-4 pt-6 md:pt-12">
       <div
         className="w-full max-w-lg rounded-3xl max-h-[calc(100vh-2rem)] overflow-y-auto"
         style={{ background: "var(--surface-1)", border: "1px solid var(--border-gold)" }}

@@ -96,7 +96,10 @@ export function DeleteEventModal({ onClose }: Props) {
       aria-modal
       aria-labelledby="delete-event-title"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
+      {/* R138 — top-anchor so the destructive-action header is the
+          first thing the user sees (instead of a confirm button
+          floating in the middle of the screen). */}
+      <div className="flex min-h-full items-start justify-center p-4 pt-6 md:pt-12">
       <div
         className="card glass-strong w-full max-w-md scale-in flex flex-col"
         onClick={(e) => e.stopPropagation()}

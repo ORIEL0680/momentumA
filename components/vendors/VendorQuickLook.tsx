@@ -269,7 +269,10 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
       onClick={onClose}
       role="presentation"
     >
-      <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+      {/* R138 — top-anchor so the gallery + vendor title sit above
+          the fold on every screen height, not floating in the
+          middle with the user needing to scroll up. */}
+      <div className="flex min-h-full items-start justify-center p-3 sm:p-4 pt-4 sm:pt-12">
       <motion.div
         ref={dialogRef}
         role="dialog"

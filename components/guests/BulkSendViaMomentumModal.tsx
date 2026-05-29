@@ -275,7 +275,9 @@ export function BulkSendViaMomentumModal({
       aria-modal
       aria-labelledby="bulk-send-title"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
+      {/* R138 — top-anchor so the "X / Y / Z status" header is the
+          first thing the user sees while a bulk send runs. */}
+      <div className="flex min-h-full items-start justify-center p-4 pt-6 md:pt-12">
       <div
         className="card glass-strong w-full max-w-lg scale-in flex flex-col"
         onClick={(e) => e.stopPropagation()}

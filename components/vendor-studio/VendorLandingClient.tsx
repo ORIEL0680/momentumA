@@ -337,7 +337,14 @@ function LeadInterestModal({
       aria-modal
       aria-labelledby="interest-modal-title"
     >
-      <div className="flex min-h-full items-center justify-center p-4">
+      {/* R138 — top-anchor with a generous top padding instead of
+          full vertical-center. items-center on tall content puts the
+          MIDDLE of the modal in the middle of the viewport, which on
+          mobile hides the header above the fold — the user opens the
+          modal and sees "chip buttons but no title". items-start +
+          pt-6 (mobile) / pt-12 (desktop) keeps the title visible
+          first; if content overflows, the inside scrolls. */}
+      <div className="flex min-h-full items-start justify-center p-4 pt-6 md:pt-12">
       <div
         className="w-full max-w-lg rounded-3xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
