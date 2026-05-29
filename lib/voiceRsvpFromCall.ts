@@ -143,8 +143,6 @@ export function mapVoiceCallToRsvp(input: {
 }): VoiceRsvpMapping | null {
   const conv = String(input.conversationStatus ?? "");
   if (NO_UPDATE_STATUSES.has(conv)) {
-    const outcome: VoiceCallOutcome =
-      conv === "VoiceMailLeft" || conv === "70" ? "voicemail" : "no_update";
     return null;
   }
 
@@ -153,7 +151,7 @@ export function mapVoiceCallToRsvp(input: {
     ...(input.collectedData ?? {}),
   };
 
-  let status =
+  const status =
     parseRsvpStatus(collected.rsvpstatus) ??
     parseRsvpStatus(collected.rsvpStatus) ??
     parseRsvpStatus(collected.rsvp_status) ??
