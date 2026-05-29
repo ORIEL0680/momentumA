@@ -146,6 +146,48 @@ export async function trackPageAction(
   vendorId: string,
   actionType: string,
 ): Promise<void> {
+  // R136 — route through `/api/vendors/track` as the PRIMARY path.
+  //
+  // Previously this did a direct Supabase insert first and only fell
+  // back to the route when the direct insert failed. The direct
+  // insert succeeded for ANY vendor.id (the table has no foreign key
+  // on vendor_id), which silently short-circuited the route's R135
+  // canonical-UUID resolution AND the R134 lead-row side-effect.
+  // Result: no leads ever, and analytics rows landed under the wrong
+  // key for synthesized landings whose `vendor.id` is the application
+  // UUID rather than the landing UUID. Routing every action through
+  // the API guarantees both:
+  //   • `vendor_page_actions.vendor_id` = canonical landing UUID
+  //     (so the analytics dashboard's `eq(landingRow.id)` query
+  //     finds the rows)
+  //   • `vendor_leads` gets a new row on every `whatsapp` action
+  //     (so the leads dashboard sees the click)
+  //
+  // Direct Supabase insert is kept as a last-resort fallback for
+  // environments where the API path is blocked (very rare on same-
+  // origin requests).
+  try {
+    const res = await fetch("/api/vendors/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "action",
+        vendorId,
+        actionType,
+      }),
+      keepalive: true,
+    });
+    if (res.ok) return;
+    console.warn(
+      "[trackPageAction] route returned non-ok, trying direct insert:",
+      res.status,
+    );
+  } catch (e) {
+    console.warn(
+      "[trackPageAction] route call threw, trying direct insert:",
+      e,
+    );
+  }
   const supabase = getSupabase();
   if (!supabase) return;
   const { error } = await supabase.from("vendor_page_actions").insert({
@@ -153,26 +195,6 @@ export async function trackPageAction(
     action_type: actionType,
   } as unknown as never);
   if (error) {
-    console.warn(
-      "[trackPageAction] direct insert failed, trying server fallback:",
-      error.message,
-    );
-    try {
-      await fetch("/api/vendors/track", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "action",
-          vendorId,
-          actionType,
-        }),
-        keepalive: true,
-      });
-    } catch (fallbackErr) {
-      console.error(
-        "[trackPageAction] server fallback also failed:",
-        fallbackErr,
-      );
-    }
+    console.error("[trackPageAction] both paths failed:", error.message);
   }
 }

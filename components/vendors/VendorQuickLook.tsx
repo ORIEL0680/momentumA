@@ -183,13 +183,11 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
       // look like a bug.
       showToast("מספר הטלפון לא תקין — מעבר ל-WhatsApp ידני", "info");
     }
-    // R134 — every WhatsApp click on the catalog QuickLook now hits the
-    // server-side track route. The route records the action for
-    // analytics AND drops a row into `vendor_leads` (with
-    // couple_user_id = NULL for anonymous browsers, or via the auth
-    // session when present), so the vendor sees the click in BOTH
-    // analytics AND their leads dashboard. Fire-and-forget with
-    // keepalive so the navigation away to wa.me doesn't kill it.
+    // R136 — open WhatsApp FIRST inside the sync click stack so
+    // mobile popup blockers allow the new tab. Then fire the track
+    // event asynchronously (R134: analytics + lead drop on every
+    // WhatsApp click, R135: canonical id resolution).
+    window.open(url, "_blank", "noopener,noreferrer");
     void fetch("/api/vendors/track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -202,7 +200,6 @@ export function VendorQuickLook({ vendor, onClose, onChat: _onChat, onPick }: Ve
     }).catch(() => {
       /* network blip — analytics is best-effort */
     });
-    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const handleCopyMessage = async () => {

@@ -258,7 +258,13 @@ function LeadInterestModal({
 
   const canSubmit = !!timing && !!guests;
 
-  const handleSubmit = async () => {
+  // R136 — popup blockers REQUIRE window.open to live inside the
+  // synchronous call stack of the click handler. Any `await` before
+  // it breaks that chain and mobile Safari especially refuses to
+  // open the new tab. We do all the prep synchronously, fire
+  // window.open, and then let the analytics fetch run in the
+  // background.
+  const handleSubmit = () => {
     if (submitting || !canSubmit) return;
     setSubmitting(true);
     try {
@@ -271,17 +277,26 @@ function LeadInterestModal({
         budget,
         note,
       });
-      // Build the wa.me URL. We use the vendor's stored phone (already
-      // normalized to +972...). If the phone is invalid wa.me opens
-      // the share picker; the message text still rides along.
-      const cleanPhone = (vendor.phone ?? "").replace(/\D/g, "");
-      const waUrl = cleanPhone
-        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`
+      // R136 — Israeli numbers come in many shapes: "+972 53...",
+      // "972...", "053-...", "53...". The wa.me URL needs digits
+      // only with country code, no leading +. normalizeIsraeliPhone
+      // handles the canonical conversion; if the vendor's stored
+      // phone won't normalize, fall back to opening WhatsApp with
+      // no recipient so the visitor can pick from their contacts —
+      // the message text still rides along.
+      const normalized = normalizeIsraeliPhone(vendor.phone ?? "");
+      const waUrl = normalized.valid
+        ? `https://wa.me/${normalized.phone}?text=${encodeURIComponent(message)}`
         : `https://wa.me/?text=${encodeURIComponent(message)}`;
+
+      // POPUP FIRST — must run inside the click-handler's sync stack
+      // for the new tab to be allowed by mobile browsers.
+      window.open(waUrl, "_blank", "noopener,noreferrer");
 
       // Fire-and-forget analytics + lead drop. R134 piggy-backs a
       // vendor_leads insert onto every actionType=whatsapp event
-      // through this route.
+      // through this route, and R135 resolves the canonical landing
+      // UUID + slug so both rows land under the right keys.
       void fetch("/api/vendors/track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -291,11 +306,10 @@ function LeadInterestModal({
           actionType: "whatsapp",
         }),
         keepalive: true,
-      }).catch(() => {});
+      }).catch(() => {
+        /* network blip — analytics is best-effort */
+      });
 
-      // Open WhatsApp in a new tab. Most browsers open this even from
-      // a fetch microtask because the user clicked moments ago.
-      window.open(waUrl, "_blank", "noopener,noreferrer");
       setSuccess(true);
       window.setTimeout(onClose, 2400);
     } catch (e) {
@@ -477,7 +491,7 @@ function LeadInterestModal({
               <div className="grid grid-cols-[1fr_auto] gap-2">
                 <button
                   type="button"
-                  onClick={() => void handleSubmit()}
+                  onClick={handleSubmit}
                   disabled={!canSubmit || submitting}
                   className="btn-gold py-3.5 text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-40"
                 >
