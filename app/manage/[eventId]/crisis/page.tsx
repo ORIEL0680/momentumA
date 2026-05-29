@@ -11,6 +11,7 @@ import type { AppState } from "@/lib/types";
 import { VENDORS } from "@/lib/vendors";
 import { showToast } from "@/components/Toast";
 import { haptic } from "@/lib/haptic";
+import { normalizeIsraeliPhone } from "@/lib/phone";
 import { ArrowRight, AlertTriangle, Loader2 } from "lucide-react";
 
 /**
@@ -125,10 +126,20 @@ export default function CrisisIndexPage() {
             state.savedVendors ?? []
           ).map((sv) => {
             const catalog = VENDORS.find((c) => c.id === sv.vendorId);
+            // R139 — vendor phones stored in the static catalog can be
+            // in any Israeli format ("050-...", "+972 50-...", etc.).
+            // The crisis modal's call/SMS/WhatsApp actions need
+            // canonical "972..." digits — pre-R139 the raw value flowed
+            // through and broke wa.me / tel: URLs for half the
+            // catalog. Skip the field entirely if the phone won't
+            // normalize so we don't dial a junk number.
+            const norm = catalog?.phone
+              ? normalizeIsraeliPhone(catalog.phone)
+              : null;
             return {
               id: sv.vendorId,
               name: catalog?.name ?? sv.vendorId,
-              ...(catalog?.phone ? { phone: catalog.phone } : {}),
+              ...(norm?.valid ? { phone: `+${norm.phone}` } : {}),
               paymentDue: !!sv.agreedPrice && !sv.depositAmount,
             };
           });

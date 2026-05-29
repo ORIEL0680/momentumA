@@ -34,6 +34,33 @@ type EmailMode = "signup" | "login";
 type AuthMode = "signup" | "signin";
 
 /**
+ * R139 — open-redirect guard for `?returnTo=`. We accept the value
+ * only when it's an internal absolute path (starts with `/`, no
+ * protocol, no protocol-relative `//`, no control chars). Anything
+ * fishy returns null and the role-aware default kicks in.
+ *
+ * The risk: an attacker who lures a victim to
+ *   /signup?returnTo=https://evil.com
+ * would otherwise have us send the freshly-authenticated user
+ * straight to evil.com (now with our auth state in hand). This
+ * keeps every post-auth navigation inside our origin.
+ */
+function safeInternalPath(input: string | null): string | null {
+  if (!input) return null;
+  // Strip control chars (CR/LF/NUL etc.) that browsers sometimes ignore.
+  // eslint-disable-next-line no-control-regex
+  const cleaned = input.replace(/[\x00-\x1F\x7F]/g, "").trim();
+  if (!cleaned) return null;
+  // Must start with a single `/` (absolute path) AND not start with `//`
+  // (protocol-relative URL which would resolve to a foreign host).
+  if (!cleaned.startsWith("/") || cleaned.startsWith("//")) return null;
+  // Reject anything that looks like a URL scheme.
+  if (/^\/?[a-z][a-z0-9+\-.]*:/i.test(cleaned)) return null;
+  // Cap the length to keep the URL row sane.
+  return cleaned.slice(0, 512);
+}
+
+/**
  * Next 16 requires components that read useSearchParams() to live inside a
  * Suspense boundary — otherwise the page bails out of static rendering and
  * the build complains. The actual UI lives in <SignupPageInner />.
@@ -73,7 +100,16 @@ function SignupPageInner() {
   // Explicit ?returnTo overrides everything (used by manager invites
   // and future deep links). The role-aware default is computed below
   // once authMode is known — see `returnTo`.
-  const explicitReturnTo = searchParams.get("returnTo");
+  //
+  // R139 — sanitize the value against an open-redirect attack. An
+  // attacker who lures a victim to /signup?returnTo=https://evil.com
+  // would otherwise have us send the freshly-signed-in user straight
+  // to evil.com after auth. Allow only internal absolute paths.
+  // Anything else (external URL, protocol-relative `//evil.com`,
+  // tab-stripping NUL bytes) gets dropped and we fall through to the
+  // role-aware default below.
+  const rawReturnTo = searchParams.get("returnTo");
+  const explicitReturnTo = safeInternalPath(rawReturnTo);
   const [step, setStep] = useState<Step>("choose");
   const [method, setMethod] = useState<SignupMethod | null>(null);
   const [identifier, setIdentifier] = useState("");

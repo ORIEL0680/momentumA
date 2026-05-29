@@ -114,19 +114,30 @@ function GuestsPageInner() {
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
+    // R139 — dedup phones in the canonical Israeli "+972..." form
+    // instead of raw-digits-after-strip. Pre-R139 a guest typed as
+    // "050-123-4567" deduped against "+972 50-..." would NOT collide
+    // because raw-strip turned them into "0501234567" vs "972501234567".
+    // normalizeIsraeliPhone gives the same canonical "972..." for both.
+    const canonicalize = (phone: string): string | null => {
+      const norm = normalizeIsraeliPhone(phone);
+      return norm.valid ? norm.phone : null;
+    };
     const existingPhones = new Set(
-      state.guests.map((g) => g.phone.replace(/\D/g, "")),
+      state.guests
+        .map((g) => canonicalize(g.phone))
+        .filter((p): p is string => p !== null),
     );
     let added = 0;
     for (const line of lines) {
       const m = /^(.+?)[\s,\t]+([+\d][\d\s-]{6,})$/.exec(line);
       const name = (m ? m[1] : line).trim();
       const phoneRaw = m ? m[2].trim() : "";
-      const phoneDigits = phoneRaw.replace(/\D/g, "");
+      const phoneKey = canonicalize(phoneRaw);
       if (!name) continue;
-      if (phoneDigits && existingPhones.has(phoneDigits)) continue;
+      if (phoneKey && existingPhones.has(phoneKey)) continue;
       actions.addGuest({ name, phone: phoneRaw });
-      if (phoneDigits) existingPhones.add(phoneDigits);
+      if (phoneKey) existingPhones.add(phoneKey);
       added += 1;
     }
     setImportMsg(
