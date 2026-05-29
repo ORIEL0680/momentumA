@@ -6,7 +6,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Header } from "@/components/Header";
 import { DashboardSkeleton } from "@/components/skeletons/PageSkeletons";
 import { InstallPWA } from "@/components/InstallPWA";
-import { useAppState } from "@/lib/store";
+import { useAppState, applyCloudPayload } from "@/lib/store";
+import { getSupabase } from "@/lib/supabase";
 import { subscribeRsvpUpdates } from "@/lib/rsvpSync";
 import { useVendorRedirect } from "@/lib/useVendorRedirect";
 import { useUser } from "@/lib/user";
@@ -75,8 +76,80 @@ function DashboardInner() {
       router.replace("/signup");
       return;
     }
-    if (hydrated && !state.event) router.replace("/onboarding");
-  }, [userHydrated, user, hydrated, state.event, router]);
+  }, [userHydrated, user, router]);
+
+  // R122 — was an immediate
+  //   `if (hydrated && !state.event) router.replace("/onboarding")`
+  // bounce. That fired on first render whenever localStorage hadn't
+  // yet caught up with the cloud — most commonly when a returning
+  // user signed in on a fresh device. The new flow:
+  //   1. Wait ~700ms for any in-flight sync to land (the callback's
+  //      momentum:update dispatch happens microtask-after-await).
+  //   2. If state.event is still missing, run a one-shot direct query
+  //      against `app_states` for THIS user. Cloud is the only source
+  //      of truth that's strictly newer than what the React store may
+  //      have seen.
+  //   3. If cloud HAS an event → hydrate localStorage + dispatch
+  //      momentum:update so the store picks it up. No bounce.
+  //   4. If cloud also has nothing → user is genuinely new, send to
+  //      onboarding once.
+  // The whole guard is single-shot per mount; once it concludes, it
+  // doesn't re-run on subsequent state changes.
+  const [eventGuardDone, setEventGuardDone] = useState(false);
+  useEffect(() => {
+    if (eventGuardDone) return;
+    if (!userHydrated || !user) return;
+    if (!hydrated) return;
+    if (state.event) {
+      setEventGuardDone(true);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (cancelled) return;
+      // localStorage might have been written by syncOnLogin between
+      // mount and now — re-check before doing the cloud query.
+      if (typeof window !== "undefined") {
+        try {
+          const raw = window.localStorage.getItem("momentum.app.v1");
+          const parsed = raw
+            ? (JSON.parse(raw) as { event?: { id?: string } | null })
+            : null;
+          if (parsed?.event?.id) {
+            setEventGuardDone(true);
+            return;
+          }
+        } catch {
+          /* fall through to cloud query */
+        }
+      }
+      // Cloud backstop — same logic the auth callback uses.
+      try {
+        const supabase = getSupabase();
+        if (supabase) {
+          const { data: row } = (await supabase
+            .from("app_states")
+            .select("payload")
+            .eq("user_id", user.id)
+            .maybeSingle()) as { data: { payload: AppState | null } | null };
+          if (cancelled) return;
+          if (row?.payload?.event?.id) {
+            applyCloudPayload(row.payload);
+            setEventGuardDone(true);
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("[dashboard] event-guard cloud query failed:", e);
+      }
+      // No event anywhere — truly a new user, send to onboarding.
+      if (!cancelled) router.replace("/onboarding");
+    }, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [eventGuardDone, userHydrated, user, hydrated, state.event, router]);
 
   // R17 P1#1: scrub `?welcome=1` from the URL as soon as we've captured it
   // into local state. The banner stays mounted for the lifetime of this

@@ -9,7 +9,8 @@ import { getSupabase, SUPABASE_ENABLED } from "@/lib/supabase";
 import { logError } from "@/lib/error-tracker";
 import { track } from "@/lib/analytics";
 import { syncOnLogin } from "@/lib/sync";
-import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { readEventId, applyCloudPayload } from "@/lib/store";
+import type { AppState } from "@/lib/types";
 // R141 — read the pre-auth role choice so new vendors land in
 // /vendors/join (application form) instead of /onboarding (host flow).
 // Without this, every vendor signed up via OAuth or email-confirmation
@@ -208,16 +209,44 @@ function CallbackInner() {
         return;
       }
 
-      // Couple / host side. Parse the AppState properly — substring matching
-      // could false-match a guest name like '"event":{...}'.
-      let hasEvent = false;
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEYS.app);
-        const parsed = raw ? (JSON.parse(raw) as { event?: { id?: string } | null }) : null;
-        hasEvent = !!parsed?.event?.id;
-      } catch {
-        hasEvent = false;
+      // Couple / host side. Three-tier check for an existing event:
+      //   1. Read localStorage after syncOnLogin's write. Fast path.
+      //   2. R122 — if that's empty (most common when a returning user
+      //      signs in on a fresh device and syncOnLogin's pullFromCloud
+      //      hit a transient hiccup), do a DIRECT app_states query as a
+      //      backstop. This is what fixes the reported bug: existing
+      //      users with cloud data getting bounced through onboarding
+      //      because the cached read happened a tick too early.
+      //   3. Still nothing → genuine new user, send to onboarding.
+      let hasEvent = !!readEventId();
+      if (!hasEvent) {
+        try {
+          const { data: row } = (await supabase
+            .from("app_states")
+            .select("payload")
+            .eq("user_id", session.user.id)
+            .maybeSingle()) as { data: { payload: AppState | null } | null };
+          if (cancelled) return;
+          const cloudEventId = row?.payload?.event?.id ?? null;
+          if (cloudEventId && row?.payload) {
+            // Cloud has it — hydrate localStorage + the store cache so
+            // /dashboard's own check sees a populated state on first
+            // render and doesn't re-bounce here.
+            applyCloudPayload(row.payload);
+            hasEvent = true;
+            console.log(
+              `[auth/callback] backstop recovered event ${cloudEventId} for user ${session.user.id}`,
+            );
+          }
+        } catch (e) {
+          // Network blip / RLS edge — fall through to onboarding path.
+          // Worst case the user re-confirms event basics; we never lose
+          // data because syncOnLogin already won't overwrite a non-empty
+          // local with empty cloud (see lib/sync.ts SYNC_CONFLICT_GRACE_MS).
+          console.error("[auth/callback] backstop app_states query failed:", e);
+        }
       }
+
       // Pass `?gate=ok` to bypass the /onboarding pricing-gate redirect.
       // The user just authenticated — bouncing them through /start now would
       // ping-pong with /onboarding's gate (returning users have no event yet

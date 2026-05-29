@@ -25,6 +25,49 @@ const emptyState: AppState = {
   livePhotos: [],
 };
 
+// R122 — hoisted so `applyCloudPayload` can invalidate the cache from
+// a top-level export. Previously declared inline below `readState`,
+// which made it unreachable from the early export.
+let cachedSnapshot: AppState | null = null;
+
+/**
+ * R122 — public read of the current event id straight off localStorage,
+ * bypassing the React store. Used by the auth callback + dashboard
+ * guard to decide whether the signed-in user already has an event
+ * BEFORE the React store has had a chance to subscribe to the
+ * post-sync `momentum:update` event. Returns the event id when
+ * present, otherwise null.
+ */
+export function readEventId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { event?: { id?: string } | null };
+    return parsed?.event?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * R122 — write a cloud-fetched payload directly into localStorage and
+ * fire `momentum:update` so the store re-reads. Mirrors what
+ * syncOnLogin does in the "cloud has data" branch, but exposed so
+ * the dashboard's defensive cloud re-check can apply the recovered
+ * state without a full sync round-trip.
+ */
+export function applyCloudPayload(payload: AppState): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    cachedSnapshot = null;
+    window.dispatchEvent(new CustomEvent("momentum:update"));
+  } catch (e) {
+    console.error("[momentum/store] applyCloudPayload failed:", e);
+  }
+}
+
 function readState(): AppState {
   if (typeof window === "undefined") return emptyState;
   try {
@@ -204,8 +247,10 @@ function writeState(state: AppState) {
   window.dispatchEvent(new CustomEvent("momentum:update"));
 }
 
-// Memoized snapshot — invalidated on every write or external "momentum:update".
-let cachedSnapshot: AppState | null = null;
+// Memoized snapshot — invalidated on every write or external
+// "momentum:update". The variable itself is declared above (R122 moved
+// it next to `emptyState` so the early `applyCloudPayload` export can
+// touch it).
 function getSnapshot(): AppState {
   if (cachedSnapshot) return cachedSnapshot;
   cachedSnapshot = readState();
