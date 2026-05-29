@@ -12,7 +12,7 @@ import { Avatar } from "@/components/Avatar";
 import { useAppState, actions } from "@/lib/store";
 import { useUser } from "@/lib/user";
 import { useVendorRedirect } from "@/lib/useVendorRedirect";
-import type { Guest, SeatingTable } from "@/lib/types";
+import type { Guest, SeatingTable, TableShape } from "@/lib/types";
 import { smartArrangement, type TableExplanation } from "@/lib/seatingAlgorithm";
 import {
   Plus,
@@ -601,7 +601,17 @@ export default function SeatingPage() {
                       {tablesWithGuests.map(({ table, heads }, i) => (
                         <div
                           key={table.id}
-                          className="basis-[calc(50%-1.25rem)] sm:basis-[calc(33.333%-1.667rem)] lg:basis-[calc(25%-1.875rem)] flex-grow-0 flex-shrink-0"
+                          // R126 — knight (long banquet) tables get a wider
+                          // basis so all their chairs fit on screen. On
+                          // mobile they always span the full row. On md+
+                          // they take half the row (so two head tables can
+                          // sit side-by-side). Round tables keep the R115
+                          // 2/3/4-per-row responsive basis.
+                          className={
+                            table.shape === "knight"
+                              ? "basis-full md:basis-[calc(66.666%-1.667rem)] lg:basis-[calc(50%-1.25rem)] flex-grow-0 flex-shrink-0"
+                              : "basis-[calc(50%-1.25rem)] sm:basis-[calc(33.333%-1.667rem)] lg:basis-[calc(25%-1.875rem)] flex-grow-0 flex-shrink-0"
+                          }
                         >
                         <Table3D
                           table={table}
@@ -961,40 +971,60 @@ function Table3DInner({
   const overCapacity = heads > table.capacity;
   const stateClass = overCapacity ? "over" : fullness >= 1 ? "full" : "";
 
-  // R136 — chair positions + rotation around the table.
+  // R126 — chair positions support TWO table shapes:
   //
-  // The new chair shape is a proper "seat + back" visual (see CSS for
-  // .chair-v2 / .chair-v2-seat / .chair-v2-back). For the back to
-  // face OUTWARD on every chair around the circle we need each chair
-  // to be rotated by its angular position.
+  //   • Round (default): chairs sit on a 53%-radius ring around the
+  //     circle. Each chair rotated so its back faces OUTWARD (away
+  //     from the table center).
+  //   • Knight (`shape === "knight"`): chairs distributed along the
+  //     long edges of a wide rectangle. Top edge: chair back faces
+  //     up (rot=0). Bottom edge: chair back faces down (rot=180).
+  //     Capacity is split as ceil(N/2) on top, floor(N/2) on bottom
+  //     so odd capacities still balance visually.
   //
-  // Math: angle 0° (= "top of the circle") → chair's local "up"
-  //       should point away from the table center (i.e. up). That's
-  //       a 0° rotation. Chair at angle 90° (right side) → its local
-  //       "up" should point right → 90° rotation. So the rotation
-  //       equals the angle measured from "top" clockwise.
-  //
-  // Position: chairs sit on a ring at radius 53% of the surface, so
-  // the seat is just outside the table edge (50% = exact edge). This
-  // is what makes the table-with-chairs read as an actual table top.
-  const chairs = Array.from({ length: table.capacity }).map((_, i) => {
-    const angleFromTop = (i * 360) / table.capacity; // 0 = top, clockwise
-    const rad = ((angleFromTop - 90) * Math.PI) / 180; // -90 so 0 → top
+  // Both shapes return the same `{left, top, rot, filled}` shape so
+  // the renderer downstream is one loop, not two branches.
+  const isKnight = table.shape === "knight";
+  const chairs: Array<{
+    left: string;
+    top: string;
+    rot: number;
+    filled: boolean;
+  }> = [];
+  if (isKnight) {
+    const topCount = Math.ceil(table.capacity / 2);
+    const bottomCount = table.capacity - topCount;
+    for (let i = 0; i < topCount; i++) {
+      chairs.push({
+        left: `calc(${((i + 0.5) / topCount) * 100}% - 9px)`,
+        top: "-16px",
+        rot: 0,
+        filled: chairs.length < heads,
+      });
+    }
+    for (let i = 0; i < bottomCount; i++) {
+      chairs.push({
+        left: `calc(${((i + 0.5) / bottomCount) * 100}% - 9px)`,
+        top: "calc(100% - 4px)",
+        rot: 180,
+        filled: chairs.length < heads,
+      });
+    }
+  } else {
     const ring = 53; // % of surface = just outside the rim
-    return {
-      // Position as % offset from center; minus half-size keeps the
-      // chair element centered on the ring point.
-      dx: Math.cos(rad) * ring,
-      dy: Math.sin(rad) * ring,
-      // Rotation: chair's local "back at top" should point AWAY from
-      // center. The vector from center to chair is at angle
-      // (angleFromTop - 90) in normal cartesian; the chair's "up"
-      // axis needs to align with that vector. Default rotation 0
-      // points up, so we add angleFromTop.
-      rot: angleFromTop,
-      filled: i < heads,
-    };
-  });
+    for (let i = 0; i < table.capacity; i++) {
+      const angleFromTop = (i * 360) / table.capacity;
+      const rad = ((angleFromTop - 90) * Math.PI) / 180;
+      const dx = Math.cos(rad) * ring;
+      const dy = Math.sin(rad) * ring;
+      chairs.push({
+        left: `calc(50% + ${dx}% - 9px)`,
+        top: `calc(50% + ${dy}% - 10px)`,
+        rot: angleFromTop,
+        filled: i < heads,
+      });
+    }
+  }
 
   return (
     <button
@@ -1060,18 +1090,17 @@ function Table3DInner({
         {table.name}
       </div>
 
-      <div className="surface relative">
+      <div className={`surface relative ${isKnight ? "surface-knight" : ""}`}>
         {/* Scan overlay sits above the surface gradient but below chairs/labels
             (z-index:0 in CSS; chairs are positioned with their own stacking).
             AnimatePresence isn't needed — the CSS animation auto-plays once and
             the element unmounts when scanning flips back to false. */}
         {scanning && <span aria-hidden className="arrangement-scan" />}
-        {/* R136 — proper chair shapes: seat + curved back, rotated so
-            the back always faces away from the table. Each chair is
-            absolutely positioned on a 53%-radius ring (just outside
-            the rim) and rotated by `rot` so the back points outward.
-            The chair-v2 wrapper handles the rotation; child .seat /
-            .back render the actual chair geometry. */}
+        {/* R136 / R126 — proper chair shapes: seat + curved back, rotated so
+            the back always faces away from the table. For round tables, chairs
+            sit on a 53%-radius ring; for knight tables, they line both long
+            edges. The `left`/`top` values come pre-computed in the chairs
+            array above so this loop is shape-agnostic. */}
         {chairs.map((c, i) => (
           <span
             key={i}
@@ -1083,8 +1112,8 @@ function Table3DInner({
             // briefly snaps to angle 0 mid-animation.
             style={
               {
-                left: `calc(50% + ${c.dx}% - 9px)`,
-                top: `calc(50% + ${c.dy}% - 10px)`,
+                left: c.left,
+                top: c.top,
                 transform: `rotate(${c.rot}deg)`,
                 "--rot": `${c.rot}deg`,
               } as CSSProperties
@@ -1756,6 +1785,12 @@ function TableModal({
   const [name, setName] = useState(table?.name ?? "");
   const [capacity, setCapacity] = useState(String(table?.capacity ?? 10));
   const [namesText, setNamesText] = useState("");
+  // R126 — shape (round disc vs long "knight" banquet table). Defaults
+  // to the table's stored shape on edit, or "round" on create. When the
+  // host flips to knight the suggested default capacity bumps to 20 —
+  // the typical head-table seat count — but they can still type any
+  // number.
+  const [shape, setShape] = useState<TableShape>(table?.shape ?? "round");
   // R16: free-form circle. When set + matching guests have the same circle,
   // the smart-arrangement pins them here.
   const [circle, setCircle] = useState(table?.circle ?? "");
@@ -1820,9 +1855,15 @@ function TableModal({
         // Pass undefined (not "") so clearing the field actually removes the
         // tag rather than storing an empty string that no guest will match.
         circle: trimmedCircle || undefined,
+        shape,
       });
     } else {
-      const newTable = actions.addTable(name.trim(), Number(capacity), numberForSave);
+      const newTable = actions.addTable(
+        name.trim(),
+        Number(capacity),
+        numberForSave,
+        shape,
+      );
       if (trimmedCircle) {
         actions.updateTable(newTable.id, { circle: trimmedCircle });
       }
@@ -1849,10 +1890,81 @@ function TableModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="card glass-strong p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="card glass-strong p-6 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           <Users size={20} className="text-[--accent]" />
           <h3 className="text-xl font-bold">{table ? "ערוך שולחן" : "שולחן חדש"}</h3>
+        </div>
+        {/* R126 — shape selector. Premium 2-option toggle, first thing
+            in the modal because the rest of the form (capacity, name,
+            visual placement) depends on whether this is a round table
+            or a long banquet table. Picking knight bumps the suggested
+            capacity to 20 — typical head-table seat count — if the
+            host hasn't already typed a custom number. */}
+        <div className="mt-5">
+          <div
+            className="text-xs uppercase tracking-[0.18em] font-semibold mb-2.5"
+            style={{ color: "var(--accent)" }}
+          >
+            צורת שולחן
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <ShapeOption
+              active={shape === "round"}
+              onClick={() => setShape("round")}
+              title="עגול"
+              subtitle="8 / 10 / 12 מקומות"
+            >
+              <svg viewBox="0 0 60 60" className="w-12 h-12">
+                <circle
+                  cx="30"
+                  cy="30"
+                  r="18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                {Array.from({ length: 8 }).map((_, i) => {
+                  const a = (i * Math.PI * 2) / 8;
+                  const x = 30 + Math.cos(a) * 24;
+                  const y = 30 + Math.sin(a) * 24;
+                  return <circle key={i} cx={x} cy={y} r="2.4" fill="currentColor" />;
+                })}
+              </svg>
+            </ShapeOption>
+            <ShapeOption
+              active={shape === "knight"}
+              onClick={() => {
+                setShape("knight");
+                // Bump default capacity if the host hasn't customized it.
+                if (capacity === "10") setCapacity("20");
+              }}
+              title="שולחן אבירים"
+              subtitle="14-24 מקומות"
+            >
+              <svg viewBox="0 0 60 60" className="w-12 h-12">
+                <rect
+                  x="6"
+                  y="22"
+                  width="48"
+                  height="16"
+                  rx="3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                {Array.from({ length: 6 }).map((_, i) => {
+                  const x = 10 + i * 8;
+                  return (
+                    <g key={i}>
+                      <circle cx={x} cy="18" r="2.2" fill="currentColor" />
+                      <circle cx={x} cy="42" r="2.2" fill="currentColor" />
+                    </g>
+                  );
+                })}
+              </svg>
+            </ShapeOption>
+          </div>
         </div>
         <div className="mt-5 space-y-4">
           <div className="grid grid-cols-[110px_1fr] gap-3">
@@ -1953,5 +2065,63 @@ function TableModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * R126 — premium "choose your table shape" tile. Two of these sit
+ * side-by-side at the top of the TableModal. Active tile gets the
+ * gold-on-dark luxury treatment (gold border, soft glow, gradient
+ * background); inactive tile is calmer (neutral border, dim text)
+ * so the active selection is unambiguous at a glance.
+ */
+function ShapeOption({
+  active,
+  onClick,
+  title,
+  subtitle,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="rounded-2xl p-3.5 flex flex-col items-center gap-2 text-center transition hover:translate-y-[-1px]"
+      style={
+        active
+          ? {
+              background:
+                "linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--surface-2)), color-mix(in srgb, var(--accent) 6%, var(--surface-2)))",
+              border: "1px solid var(--border-gold)",
+              boxShadow: "0 12px 30px -14px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, transparent)",
+              color: "var(--accent)",
+            }
+          : {
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              color: "var(--foreground-muted)",
+            }
+      }
+    >
+      <span aria-hidden style={{ color: active ? "var(--accent)" : "var(--foreground-muted)" }}>
+        {children}
+      </span>
+      <span className="text-sm font-bold leading-tight" style={{ color: active ? "var(--accent)" : "var(--foreground)" }}>
+        {title}
+      </span>
+      <span
+        className="text-[11px] leading-tight ltr-num"
+        style={{ color: "var(--foreground-muted)" }}
+      >
+        {subtitle}
+      </span>
+    </button>
   );
 }

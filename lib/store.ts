@@ -337,7 +337,7 @@ export const actions = {
   },
 
   // ─────────────── Seating ───────────────
-  addTable(name: string, capacity: number, number?: number) {
+  addTable(name: string, capacity: number, number?: number, shape?: SeatingTable["shape"]) {
     const s = readState();
     // Auto-pick the next number (max existing + 1, defaulting to 1) so the
     // host doesn't have to keep track manually. Caller can still pass an
@@ -350,6 +350,10 @@ export const actions = {
       name: name.trim() || `שולחן ${nextNumber}`,
       capacity: Math.max(1, capacity),
       number: nextNumber,
+      // R126 — `shape` defaults to "round" at write time so existing data
+      // model assumptions ("if shape is missing it's round") stay locally
+      // accurate even though the renderer also handles undefined.
+      shape: shape ?? "round",
     };
     writeState({ ...s, tables: [...s.tables, table] });
     return table;

@@ -829,6 +829,29 @@ textarea:focus {
    (the "chairs cut off" complaint). 86% keeps every chair on screen
    and surrounded by floor, not floor-edge. */
 .table-3d .surface { width: 86%; overflow: visible; }
+
+/* R126 — knight (long banquet) variant of the table surface.
+   Overrides the round disc's aspect-ratio + border-radius so the
+   same `.surface` selector renders as a wide rectangle. Every
+   other property (background gradient, border, shadow, inner
+   content) is inherited from `.surface` so the visual language
+   stays consistent across both shapes — same gold rim, same warm
+   surface tone, same active/full state styling.
+     • 2.4:1 aspect = enough horizontal room for 10-12 chairs per
+       long edge (covers the 20-24 seat banquet table use case)
+     • Wider width (94% of wrapper) since chairs only hang above
+       and below — there's no chair envelope on the short ends, so
+       the 7% per-side reserve from the round variant isn't needed
+     • Slightly rounded corners (18px) instead of full circle
+       round-radius. Reads as "polished banquet table edge". */
+.table-3d .surface-knight {
+  width: 94%;
+  aspect-ratio: 2.4 / 1;
+  border-radius: 18px;
+}
+/* The chair container — `.surface` is `position: relative` already;
+   knight chairs are positioned with absolute pixel values for the
+   top/bottom edge offsets so they sit cleanly on the long rims. */
 /* R124 — hover scale moved from the button to the surface. The
    previous `scale(1.04)` on `.table-3d` itself scaled the entire
    grid cell — label + circle + count text + chair envelope — which

@@ -316,6 +316,20 @@ export interface ChecklistItem {
   dueDate?: string;
 }
 
+/**
+ * R126 — physical table shape:
+ *   • "round"  — the classic Israeli wedding round table, default for
+ *     every legacy row that doesn't have the field. Renders as a
+ *     circle with chairs evenly distributed on a 53%-radius ring.
+ *   • "knight" — long banquet / "Knights of the Round Table" rectangle,
+ *     typical of formal venues that mix 10/12-seat rounds with one or
+ *     two 18-24 seat head tables. Renders as a wide rectangle (2.4:1)
+ *     with chairs on both long edges. The host picks capacity so the
+ *     same shape covers everything from a small 14-seat banquet table
+ *     to a 24-seat head table.
+ */
+export type TableShape = "round" | "knight";
+
 export interface SeatingTable {
   id: string;
   name: string;
@@ -336,6 +350,8 @@ export interface SeatingTable {
    * guests with the same circle — the auto-arrangement does the rest.
    */
   circle?: string;
+  /** R126 — physical shape. Absent = round (legacy + back-compat). */
+  shape?: TableShape;
 }
 
 export interface VendorMessage {
