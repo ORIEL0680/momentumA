@@ -810,13 +810,15 @@ export default function VendorDashboardPage() {
             label="ביקורות"
             sub="דירוגים מאומתים מזוגות"
           />
+          {/* R140 — paid tiers paused during launch. Tile reframed
+              as a "you're in the launch window" reassurance. */}
           <QuickAction
             href="/#pricing"
             externalTab
             icon={<CreditCard size={22} aria-hidden />}
-            label={hasPaidTier ? "מסלול פרימיום" : "שדרוג מסלול"}
-            sub={hasPaidTier ? "פעיל — תודה" : "פתח פיצ׳רים מתקדמים"}
-            highlight={!hasPaidTier}
+            label="חינמי בתקופת השקה"
+            sub="כל הפיצ׳רים פתוחים — חודשיים"
+            highlight
           />
         </section>
 
