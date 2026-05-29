@@ -2120,10 +2120,10 @@ function SeatingTipsCard({
   // Evergreen tips — always show 2-3 of these.
   const evergreen: Array<{ icon: string; title: string; body: string; priority: number }> = [
     {
-      icon: "🎂",
-      title: "שולחן ילדים — אופציה משתלמת",
+      icon: "🕺",
+      title: "שולחנות ליד הרחבה — שמור לצעירים",
       body:
-        "ילדים מתחת ל-12 מעדיפים לשבת ביחד עם משחקים. חוסך כסאות יקרים ומשמח את ההורים.",
+        "החברים הצעירים שעושים שמח ורוקדים? תכניס אותם בקרבת הרחבה. הם יקפצו לרקוד כל הערב והאנרגיה תזרום.",
       priority: 50,
     },
     {
