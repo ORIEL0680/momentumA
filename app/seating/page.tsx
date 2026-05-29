@@ -802,11 +802,32 @@ export default function SeatingPage() {
                 </div>
               </div>
 
-              {/* R137 — side panel is now ONLY the unassigned list +
-                  a small legend. The table editor lives in the
-                  center-of-screen modal that opens on click. */}
+              {/* R131 — side panel order:
+                    1. CapacityOverviewCard — premium "chairs vs
+                       guests" headline so the host always knows
+                       where they stand on capacity
+                    2. UnassignedPanel — drag list (existing)
+                    3. SeatingTipsCard — rotating expert-feeling tips
+                       calibrated to the current state (reserves,
+                       singles, dietary, etc.)
+                    4. FloorLegendCard — small status legend (R137) */}
               <aside className="space-y-4">
+                <CapacityOverviewCard
+                  totalChairs={state.tables.reduce((sum, t) => sum + t.capacity, 0)}
+                  totalGuests={totals.total}
+                  assignedGuests={totals.assigned}
+                  tablesCount={state.tables.length}
+                />
                 <UnassignedPanel guests={unassigned} onDropGuest={handleDropOnUnassigned} />
+                <SeatingTipsCard
+                  totalChairs={state.tables.reduce((sum, t) => sum + t.capacity, 0)}
+                  totalGuests={totals.total}
+                  unassignedCount={unassigned.length}
+                  tablesCount={state.tables.length}
+                  fullTablesCount={tablesWithGuests.filter((r) => r.heads >= r.table.capacity).length}
+                  overTablesCount={tablesWithGuests.filter((r) => r.heads > r.table.capacity).length}
+                  hasKnightTable={state.tables.some((t) => t.shape === "knight")}
+                />
                 <FloorLegendCard
                   tablesCount={state.tables.length}
                   full={tablesWithGuests.filter((r) => r.heads >= r.table.capacity && r.heads <= r.table.capacity).length}
@@ -1864,6 +1885,345 @@ function TableDetailModal({
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+/**
+ * R131 — premium capacity overview card. Sits at the top of the side
+ * panel so the host always sees "X chairs · Y guests" at a glance,
+ * with the delta and a progress bar making over/under capacity
+ * instantly readable. Visual treatment matches the floor's gold-on-
+ * dark luxury language (gold rim, accent-glow shadow, gold-shimmer
+ * number for the headline metric).
+ */
+function CapacityOverviewCard({
+  totalChairs,
+  totalGuests,
+  assignedGuests,
+  tablesCount,
+}: {
+  totalChairs: number;
+  totalGuests: number;
+  assignedGuests: number;
+  tablesCount: number;
+}) {
+  const delta = totalChairs - totalGuests;
+  const fillPct =
+    totalChairs > 0 ? Math.min(100, (totalGuests / totalChairs) * 100) : 0;
+  const overCapacity = delta < 0;
+  const assignedPct =
+    totalGuests > 0 ? Math.round((assignedGuests / totalGuests) * 100) : 0;
+
+  const deltaLabel = overCapacity
+    ? `חסרים ${Math.abs(delta)} כיסאות`
+    : delta === 0
+      ? "תפוסה מלאה — אין רזרבה"
+      : `${delta} כיסאות פנויים`;
+  const deltaTone = overCapacity
+    ? "rgb(252,165,165)"
+    : delta <= 2
+      ? "var(--foreground-soft)"
+      : "var(--accent)";
+
+  return (
+    <div
+      className="rounded-2xl p-5 relative overflow-hidden"
+      style={{
+        background:
+          "linear-gradient(155deg, color-mix(in srgb, var(--accent) 14%, var(--surface-2)), color-mix(in srgb, var(--accent) 5%, var(--surface-1)))",
+        border: "1px solid var(--border-gold)",
+        boxShadow:
+          "0 18px 40px -20px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, transparent)",
+      }}
+    >
+      {/* Subtle gold halo top-right for depth. */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          top: "-30%",
+          right: "-20%",
+          width: "70%",
+          height: "70%",
+          background:
+            "radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%)",
+          filter: "blur(20px)",
+        }}
+      />
+
+      <div className="relative">
+        <div
+          className="text-[10px] uppercase tracking-[0.22em] font-bold inline-flex items-center gap-1.5"
+          style={{ color: "var(--accent)" }}
+        >
+          <Sparkles size={11} aria-hidden /> סטטוס תפוסה
+        </div>
+
+        {/* Two big numbers side-by-side: chairs vs guests. */}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div>
+            <div
+              className="text-xs"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              כיסאות
+            </div>
+            <div
+              className="ltr-num font-extrabold leading-none gradient-gold-shimmer"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(2rem, 6vw, 2.6rem)",
+              }}
+            >
+              {totalChairs}
+            </div>
+            <div
+              className="text-[11px] mt-1"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              ב-{tablesCount} שולחנות
+            </div>
+          </div>
+          <div>
+            <div
+              className="text-xs"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              מוזמנים
+            </div>
+            <div
+              className="ltr-num font-extrabold leading-none"
+              style={{
+                fontFamily: "var(--font-display), Georgia, serif",
+                fontSize: "clamp(2rem, 6vw, 2.6rem)",
+                color: "var(--foreground)",
+              }}
+            >
+              {totalGuests}
+            </div>
+            <div
+              className="text-[11px] mt-1"
+              style={{ color: "var(--foreground-muted)" }}
+            >
+              <span className="ltr-num">{assignedGuests}</span> כבר משובצים
+            </div>
+          </div>
+        </div>
+
+        {/* Capacity progress bar. Gold gradient at <100%, red when overflowing. */}
+        <div
+          className="mt-5 h-2 rounded-full overflow-hidden"
+          style={{
+            background: "color-mix(in srgb, var(--background) 60%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--accent) 12%, transparent)",
+          }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${fillPct}%`,
+              background: overCapacity
+                ? "linear-gradient(90deg, rgb(248,113,113), rgb(220,38,38))"
+                : "linear-gradient(90deg, var(--gold-100), var(--gold-500))",
+              boxShadow: overCapacity
+                ? "0 0 8px rgba(248,113,113,0.5)"
+                : "0 0 8px var(--accent-glow)",
+            }}
+          />
+        </div>
+
+        <div
+          className="mt-3 flex items-center justify-between text-xs font-semibold"
+          style={{ color: deltaTone }}
+        >
+          <span>{deltaLabel}</span>
+          <span className="ltr-num">{assignedPct}% משובצים</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * R131 — smart seating tips. Returns a rotated set of advice slips
+ * calibrated to the current host state: reserves, single guests,
+ * dietary planning, knight-table logistics, etc. Designed as a
+ * "premium concierge advice" feel — gold-bordered card with one
+ * highlighted tip at the top + 2-3 contextual ones below.
+ */
+function SeatingTipsCard({
+  totalChairs,
+  totalGuests,
+  unassignedCount,
+  tablesCount,
+  fullTablesCount,
+  overTablesCount,
+  hasKnightTable,
+}: {
+  totalChairs: number;
+  totalGuests: number;
+  unassignedCount: number;
+  tablesCount: number;
+  fullTablesCount: number;
+  overTablesCount: number;
+  hasKnightTable: boolean;
+}) {
+  // R131 — calibrate tips to the current state. The first tip is the
+  // most "actionable now" item; the rest are evergreen wisdom.
+  const tips: Array<{ icon: string; title: string; body: string; priority: number }> = [];
+
+  if (overTablesCount > 0) {
+    tips.push({
+      icon: "⚠️",
+      title: `${overTablesCount} שולחנות בעודף קיבולת`,
+      body: "פתח אותם, הזז אורחים לשולחנות עם מקום פנוי, או הוסף שולחן נוסף.",
+      priority: 100,
+    });
+  }
+  if (totalGuests > 0 && totalChairs < totalGuests + 2) {
+    tips.push({
+      icon: "🪑",
+      title: "השאר 1-2 כיסאות לכל שולחן כרזרבה",
+      body:
+        "באירוע ישראלי 5-10% מהאורחים מביאים בן/בת זוג ברגע האחרון. תכנן עודף קל.",
+      priority: 90,
+    });
+  }
+  if (unassignedCount > 0 && tablesCount > 0) {
+    tips.push({
+      icon: "🎯",
+      title: `${unassignedCount} אורחים עוד לא שובצו`,
+      body:
+        'גרור אותם לשולחן מתאים, או לחץ "סדר אוטומטית" כדי שה-AI ימלא חכם.',
+      priority: 85,
+    });
+  }
+  if (hasKnightTable) {
+    tips.push({
+      icon: "👑",
+      title: "שולחן אבירים = שולחן ראשי",
+      body:
+        "תן לו את האורחים שאתה רוצה לכבד — הורים, סבים, חברים קרובים. הוא הראשון שכולם רואים.",
+      priority: 70,
+    });
+  }
+  if (tablesCount >= 3) {
+    tips.push({
+      icon: "🤝",
+      title: "קבץ אורחים לפי חוג חברתי",
+      body:
+        'הוסף "חוג חברתי" לשולחן (כמו "חברים מהצבא") + לאורחים — האלגוריתם יעדיף אותם שם.',
+      priority: 60,
+    });
+  }
+
+  // Evergreen tips — always show 2-3 of these.
+  const evergreen: Array<{ icon: string; title: string; body: string; priority: number }> = [
+    {
+      icon: "🎂",
+      title: "שולחן ילדים — אופציה משתלמת",
+      body:
+        "ילדים מתחת ל-12 מעדיפים לשבת ביחד עם משחקים. חוסך כסאות יקרים ומשמח את ההורים.",
+      priority: 50,
+    },
+    {
+      icon: "🥂",
+      title: "משפחה קרובה ליד החופה",
+      body:
+        "הורים, סבים ומשפחת המעגל הראשון — קרוב לחופה כדי שיוכלו לראות הכל בלי לקום.",
+      priority: 45,
+    },
+    {
+      icon: "💌",
+      title: "אורחים שמגיעים לבד? קבץ אותם",
+      body:
+        "שלב 2-3 'בודדים' עם זוגות באותו חוג. בדרך כלל הם מצטרפים לשיחה במהירות.",
+      priority: 40,
+    },
+    {
+      icon: "🍽️",
+      title: "צמחונים ביחד — חוסך לוגיסטיקה",
+      body:
+        "בקש מהמלצרית להגיש מנה צמחונית לכל השולחן. חוסך 'מנת בשר → לא, אני צמחונית'.",
+      priority: 35,
+    },
+  ];
+
+  // Always end with at least 3 tips total. Sort priority desc.
+  const all = [...tips, ...evergreen].sort((a, b) => b.priority - a.priority).slice(0, 4);
+
+  return (
+    <div
+      className="rounded-2xl p-5 relative overflow-hidden"
+      style={{
+        background:
+          "linear-gradient(165deg, var(--surface-2), color-mix(in srgb, var(--accent) 4%, var(--surface-1)))",
+        border: "1px solid var(--border-gold)",
+        boxShadow:
+          "0 14px 36px -22px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, var(--accent) 14%, transparent)",
+      }}
+    >
+      <div
+        className="text-[10px] uppercase tracking-[0.22em] font-bold inline-flex items-center gap-1.5 mb-4"
+        style={{ color: "var(--accent)" }}
+      >
+        💡 טיפים מהמומחים
+      </div>
+
+      <ul className="space-y-3.5">
+        {all.map((t, idx) => (
+          <li
+            key={idx}
+            className="flex items-start gap-3"
+            style={
+              idx === 0
+                ? {
+                    padding: "12px",
+                    borderRadius: "12px",
+                    background:
+                      "color-mix(in srgb, var(--accent) 10%, transparent)",
+                    border: "1px solid var(--border-gold)",
+                  }
+                : undefined
+            }
+          >
+            <span
+              aria-hidden
+              className="text-xl leading-none shrink-0 mt-0.5"
+              style={{
+                filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))",
+              }}
+            >
+              {t.icon}
+            </span>
+            <div className="min-w-0">
+              <div
+                className="text-xs font-bold leading-snug"
+                style={{
+                  color: idx === 0 ? "var(--accent)" : "var(--foreground)",
+                }}
+              >
+                {t.title}
+              </div>
+              <div
+                className="text-[11px] mt-1 leading-relaxed"
+                style={{ color: "var(--foreground-soft)" }}
+              >
+                {t.body}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div
+        className="mt-4 pt-3 text-[10px] leading-relaxed flex items-center gap-2"
+        style={{ borderTop: "1px solid var(--border)", color: "var(--foreground-muted)" }}
+      >
+        <Sparkles size={10} aria-hidden style={{ color: "var(--accent)" }} />
+        טיפים מתעדכנים אוטומטית לפי הסטטוס שלך
+      </div>
+    </div>
   );
 }
 
