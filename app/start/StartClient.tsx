@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { PricingTiers } from "@/components/PricingTiers";
 import type { CoupleTier } from "@/lib/pricing";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { getSupabase } from "@/lib/supabase";
+import { applyCloudPayload, readEventId } from "@/lib/store";
+import type { AppState } from "@/lib/types";
 
 // R12 §3S — centralized; dot separator (was `:`).
 const SELECTED_TIER_KEY = STORAGE_KEYS.selectedTier;
@@ -27,6 +30,54 @@ export function StartClient() {
   // Default to free — the safest fallback if the user proceeds without
   // explicitly tapping a card.
   const [selectedTier, setSelectedTier] = useState<CoupleTier>("free");
+  // R140 — cloud backstop. The page-level inline script only checks
+  // localStorage at paint time; a returning user whose `app_states` row
+  // exists in the cloud but localStorage is empty would land here even
+  // though they already have an event. We do a one-shot Supabase query
+  // for THIS user's app_states; if found, hydrate localStorage + redirect
+  // to /dashboard. While the check is in flight we render a loader so
+  // the user never sees a tier picker they shouldn't.
+  const [cloudCheckDone, setCloudCheckDone] = useState(false);
+  useEffect(() => {
+    if (readEventId()) {
+      setCloudCheckDone(true);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const supabase = getSupabase();
+        if (!supabase) {
+          if (!cancelled) setCloudCheckDone(true);
+          return;
+        }
+        const { data: { user } } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user) {
+          setCloudCheckDone(true);
+          return;
+        }
+        const { data: row } = (await supabase
+          .from("app_states")
+          .select("payload")
+          .eq("user_id", user.id)
+          .maybeSingle()) as { data: { payload: AppState | null } | null };
+        if (cancelled) return;
+        if (row?.payload?.event?.id) {
+          applyCloudPayload(row.payload);
+          router.replace("/dashboard");
+          return;
+        }
+        setCloudCheckDone(true);
+      } catch (e) {
+        console.error("[start] cloud backstop failed:", e);
+        if (!cancelled) setCloudCheckDone(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   const handleContinue = () => {
     if (typeof window !== "undefined") {
@@ -40,6 +91,25 @@ export function StartClient() {
     }
     router.push("/onboarding?gate=ok");
   };
+
+  // R140 — while the cloud backstop is checking, render a calm loader
+  // instead of the tier picker. Otherwise a returning user briefly
+  // sees "choose your plan" before being whisked to /dashboard, which
+  // reads as "the app forgot my event".
+  if (!cloudCheckDone) {
+    return (
+      <>
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center" style={{ color: "var(--foreground-soft)" }}>
+            <Loader2 className="mx-auto mb-3 animate-spin" size={24} aria-hidden style={{ color: "var(--accent)" }} />
+            <p className="text-sm">טוען את האירוע שלך…</p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>

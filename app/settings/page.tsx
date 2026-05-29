@@ -272,20 +272,19 @@ export default function SettingsPage() {
               <Row label="תאריך הצטרפות" value={formatEventDate(user.createdAt, "short")} />
             </Section>
 
-            {/* Subscription */}
+            {/* Subscription — R140: paid tiers paused during launch. */}
             <Section icon={<CreditCard size={20} />} title="מנוי ותשלומים">
-              <div className="rounded-2xl p-4 flex items-center gap-4" style={{ background: "var(--input-bg)", border: "1px solid var(--border)" }}>
+              <div className="rounded-2xl p-4 flex items-center gap-4" style={{ background: "var(--input-bg)", border: "1px solid var(--border-gold)" }}>
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F4DEA9] to-[#A8884A] text-black flex items-center justify-center font-bold text-xs">
-                  חינם
+                  🎁
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold">המסלול הנוכחי: התחלה</div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>אירוע אחד · עד 50 מוזמנים</div>
+                  <div className="font-semibold">חינמי בתקופת ההשקה</div>
+                  <div className="text-xs mt-0.5" style={{ color: "var(--foreground-muted)" }}>כל הפיצ׳רים פתוחים · ללא הגבלת מוזמנים</div>
                 </div>
-                <Link href="/#pricing" className="btn-gold text-sm py-2 px-4">שדרג</Link>
               </div>
               <div className="text-xs leading-relaxed mt-3 px-1" style={{ color: "var(--foreground-muted)" }}>
-                💳 כשתשדרג, נתמוך בכרטיסי אשראי, Apple Pay, Google Pay ו-Bit. ביטול בכל רגע.
+                ✨ אנחנו בתקופת השקה — חודשיים ראשונים חינמיים לכולם. אין חיוב אוטומטי כשהמבצע נגמר.
               </div>
             </Section>
 

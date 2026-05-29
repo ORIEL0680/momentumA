@@ -2,8 +2,8 @@ import { headers } from "next/headers";
 import { StartClient } from "./StartClient";
 
 export const metadata = {
-  title: "בחר מסלול — Momentum",
-  description: "לפני שיוצאים לדרך, בחר את המסלול שמתאים לך.",
+  title: "חינמי לכולם — Momentum",
+  description: "כל הפיצ׳רים פתוחים בחינם לחודשיים — בלי כרטיס אשראי.",
 };
 
 /**
@@ -18,6 +18,17 @@ export const metadata = {
  * lives in the same client-side JSON blob (`momentum.app.v1`), so the
  * server can't see either. The script runs synchronously before paint,
  * so the user never sees a tier-picker they shouldn't.
+ *
+ * R140 — the inline script can ONLY check localStorage at paint time.
+ * For a returning user whose cloud `app_states` has data but
+ * localStorage is empty (signed out / new device / cleared cookies),
+ * the script falls through and the user lands on the tier picker.
+ * The client-side StartClient then runs a cloud backstop (mirrors
+ * the auth-callback + dashboard logic from R122) and redirects to
+ * /dashboard the moment the cloud confirms an event exists. The
+ * window between "page paints" and "redirect fires" is ~1s; the
+ * StartClient renders a calm loading state during it instead of
+ * the tier picker so the user never sees the wrong screen.
  */
 const ROUTING_SCRIPT = `
 (function(){

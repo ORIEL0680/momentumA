@@ -79,8 +79,19 @@ function OnboardingInner() {
       return;
     }
     if (!userHydrated || !user) return;
-    // Returning user with an event — skip the pricing gate.
-    if (state.event) return;
+    // R140 — returning user with an event MUST be sent to the dashboard
+    // when they're NOT explicitly editing. Pre-R140 the effect just
+    // `return`-ed when `state.event` existed, which silently let the
+    // onboarding questions render anyway. Net result: a returning
+    // user (sometimes after cloud-sync hydration finished mid-page)
+    // saw "what's your event type? when's the date?" again as if
+    // they were brand new. Now any visit to /onboarding with an
+    // existing event jumps straight to /dashboard unless `?edit=1`
+    // is set.
+    if (state.event) {
+      if (!isEdit) router.replace("/dashboard");
+      return;
+    }
     // First-time onboarding requires explicit consent that pricing was seen
     // (`?gate=ok`) OR an explicit edit intent (`?edit=1`).
     if (!isEdit && search.get("gate") !== "ok") {
