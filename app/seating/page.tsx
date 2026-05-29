@@ -1561,14 +1561,25 @@ function TableDetailModal({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            {/* R133 — labelled "ערוך פרטים" button so the host can find
+                the full-edit modal (name, shape, social circle) without
+                guessing what the pencil icon does. Capacity itself is
+                editable inline under the table preview — this button is
+                for the deeper edits. */}
             <button
               onClick={onEdit}
-              aria-label="ערוך שולחן"
-              className="p-2 rounded-full hover:bg-[var(--secondary-button-bg)]"
-              title="ערוך שולחן"
+              aria-label="ערוך פרטי שולחן"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition hover:scale-[1.03]"
+              style={{
+                background:
+                  "color-mix(in srgb, var(--accent) 12%, var(--surface-2))",
+                border: "1px solid var(--border-gold)",
+                color: "var(--accent)",
+              }}
+              title="ערוך פרטי שולחן"
             >
-              <Pencil size={15} style={{ color: "var(--foreground-muted)" }} />
+              <Pencil size={13} aria-hidden /> ערוך
             </button>
             <button
               onClick={() => {
@@ -1601,7 +1612,7 @@ function TableDetailModal({
               behind the modal (we keep pointer-events normal on it) and
               drop onto the preview. */}
           <div
-            className="relative flex items-center justify-center p-6 md:p-10"
+            className="relative flex flex-col items-center justify-center p-6 md:p-10"
             style={{
               background:
                 "radial-gradient(circle at 50% 35%, rgba(212,176,104,0.10), transparent 70%), var(--surface-1)",
@@ -1740,12 +1751,101 @@ function TableDetailModal({
                 )}
               </div>
             </motion.div>
-            <p
-              className="absolute bottom-3 left-0 right-0 text-center text-[11px]"
-              style={{ color: "var(--foreground-muted)" }}
-            >
-              💡 גרור אורח מהרשימה ישירות לכאן
-            </p>
+            {/* R133 — quick capacity editor sits right under the
+                preview so the host can correct "I made 12 chairs by
+                mistake" in two taps without leaving the modal. Live
+                updates the store on every click. Premium gold-on-
+                surface treatment matching the rest of the floor. */}
+            <div className="mt-5 w-full max-w-sm relative z-10">
+              <div
+                className="rounded-2xl p-3 flex items-center justify-between gap-3"
+                style={{
+                  background:
+                    "linear-gradient(165deg, color-mix(in srgb, var(--accent) 10%, var(--surface-2)), color-mix(in srgb, var(--accent) 3%, var(--surface-1)))",
+                  border: "1px solid var(--border-gold)",
+                  boxShadow:
+                    "0 10px 28px -16px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent)",
+                }}
+              >
+                <div className="min-w-0">
+                  <div
+                    className="text-[10px] uppercase tracking-[0.18em] font-bold"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    מקומות בשולחן
+                  </div>
+                  <div
+                    className="text-[11px] mt-0.5"
+                    style={{ color: "var(--foreground-muted)" }}
+                  >
+                    {table.capacity > heads
+                      ? `${table.capacity - heads} מקומות פנויים`
+                      : table.capacity === heads
+                        ? "תפוסה מלאה"
+                        : `${heads - table.capacity} בעודף`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      actions.updateTable(table.id, {
+                        capacity: Math.max(1, table.capacity - 1),
+                      })
+                    }
+                    disabled={table.capacity <= 1}
+                    className="w-9 h-9 rounded-full inline-flex items-center justify-center transition disabled:opacity-30 hover:scale-105"
+                    style={{
+                      background:
+                        "color-mix(in srgb, var(--accent) 14%, var(--surface-2))",
+                      border: "1px solid var(--border-gold)",
+                      color: "var(--accent)",
+                    }}
+                    aria-label="הפחת מקום אחד"
+                    title="הפחת מקום אחד"
+                  >
+                    <span className="text-lg leading-none font-bold">−</span>
+                  </button>
+                  <div
+                    className="font-extrabold ltr-num gradient-gold-shimmer leading-none px-2 min-w-[2.5rem] text-center"
+                    style={{
+                      fontFamily: "var(--font-display), Georgia, serif",
+                      fontSize: "1.85rem",
+                    }}
+                    aria-live="polite"
+                  >
+                    {table.capacity}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      actions.updateTable(table.id, {
+                        capacity: table.capacity + 1,
+                      })
+                    }
+                    className="w-9 h-9 rounded-full inline-flex items-center justify-center transition hover:scale-105"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                      border: "1px solid var(--border-gold)",
+                      color: "var(--gold-button-text)",
+                      boxShadow:
+                        "0 4px 12px -4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.22)",
+                    }}
+                    aria-label="הוסף מקום אחד"
+                    title="הוסף מקום אחד"
+                  >
+                    <span className="text-lg leading-none font-bold">+</span>
+                  </button>
+                </div>
+              </div>
+              <p
+                className="mt-2 text-center text-[11px]"
+                style={{ color: "var(--foreground-muted)" }}
+              >
+                💡 גרור אורח מהרשימה ישירות לכאן
+              </p>
+            </div>
           </div>
 
           {/* Right — guest editor: seated guests + add new + add existing. */}
