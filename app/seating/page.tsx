@@ -34,6 +34,68 @@ import {
 const DRAG_MIME = "application/x-momentum-guest";
 
 /**
+ * R127 — single source of truth for chair positioning across both
+ * the floor card (`Table3D`) and the center-detail preview
+ * (`TableDetailModal`). Pre-R127 the two surfaces had two copies
+ * of the chair math; when R126 added the knight shape, the modal
+ * was forgotten and a knight table opened in the modal showed up
+ * as a round disc with chairs squashed onto a circle.
+ *
+ * Round: chairs on a 53%-radius ring around the disc center.
+ * Knight: chairs along both long edges of a 2.4:1 rectangle —
+ *   ceil(N/2) on top, floor(N/2) on bottom; capacity 1 still
+ *   renders one chair (top).
+ */
+interface ChairLayout {
+  left: string;
+  top: string;
+  rot: number;
+  filled: boolean;
+}
+function buildChairs(
+  table: { capacity: number; shape?: "round" | "knight" },
+  heads: number,
+): ChairLayout[] {
+  const chairs: ChairLayout[] = [];
+  if (table.shape === "knight") {
+    const topCount = Math.ceil(table.capacity / 2);
+    const bottomCount = table.capacity - topCount;
+    for (let i = 0; i < topCount; i++) {
+      chairs.push({
+        left: `calc(${((i + 0.5) / topCount) * 100}% - 9px)`,
+        top: "-16px",
+        rot: 0,
+        filled: chairs.length < heads,
+      });
+    }
+    for (let i = 0; i < bottomCount; i++) {
+      chairs.push({
+        left: `calc(${((i + 0.5) / bottomCount) * 100}% - 9px)`,
+        top: "calc(100% - 4px)",
+        rot: 180,
+        filled: chairs.length < heads,
+      });
+    }
+    return chairs;
+  }
+  // Round (default).
+  const ring = 53;
+  for (let i = 0; i < table.capacity; i++) {
+    const angleFromTop = (i * 360) / table.capacity;
+    const rad = ((angleFromTop - 90) * Math.PI) / 180;
+    const dx = Math.cos(rad) * ring;
+    const dy = Math.sin(rad) * ring;
+    chairs.push({
+      left: `calc(50% + ${dx}% - 9px)`,
+      top: `calc(50% + ${dy}% - 10px)`,
+      rot: angleFromTop,
+      filled: i < heads,
+    });
+  }
+  return chairs;
+}
+
+/**
  * framer-motion overrides `onDragStart` with its own gesture-event signature
  * (`PointerEvent | MouseEvent | TouchEvent`). We use the browser's native
  * HTML5 drag-and-drop, which at runtime fires with `React.DragEvent` and a
@@ -57,6 +119,11 @@ export default function SeatingPage() {
   const [showAddTable, setShowAddTable] = useState(false);
   const [editingTable, setEditingTable] = useState<SeatingTable | null>(null);
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  // R127 — top-level shape filter so the host can focus the floor on
+  // just the round tables or just the knight (banquet) tables. "all"
+  // is the default; switching filters out the others. Cosmetic only
+  // — no data mutation, no impact on the smart-arrangement algorithm.
+  const [shapeFilter, setShapeFilter] = useState<"all" | "round" | "knight">("all");
   // R113 — default to FLAT view so the tables render as true circles
   // instead of the elliptical 28°-perspective version. Pre-R113 the
   // tilt was on by default; the floor looked cinematic but circles
@@ -576,6 +643,88 @@ export default function SeatingPage() {
                     The 3D toggle (R44 §3) was removed: webgl freezes on
                     mobile, the cinematic intro added ~120KB of three.js
                     to /seating's bundle for a feature few users needed. */}
+                {/* R127 — segmented filter at the top of the floor.
+                    Three pills: All / Round / Knight. Picking one
+                    filters the visible tables — pure cosmetic, no
+                    data mutation. Hidden when there are no knight
+                    tables yet (no value to filter). */}
+                {state.tables.some((t) => t.shape === "knight") && (
+                  <div className="mb-6 flex justify-center">
+                    <div
+                      className="inline-flex p-1 rounded-2xl gap-1"
+                      role="tablist"
+                      aria-label="סנן לפי צורת שולחן"
+                      style={{
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border-gold)",
+                        boxShadow:
+                          "0 8px 24px -16px var(--accent-glow), inset 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent)",
+                      }}
+                    >
+                      {(
+                        [
+                          { id: "all", label: "הכל", count: state.tables.length },
+                          {
+                            id: "round",
+                            label: "עגולים",
+                            count: state.tables.filter(
+                              (t) => t.shape !== "knight",
+                            ).length,
+                          },
+                          {
+                            id: "knight",
+                            label: "אבירים",
+                            count: state.tables.filter(
+                              (t) => t.shape === "knight",
+                            ).length,
+                          },
+                        ] as const
+                      ).map((opt) => {
+                        const on = shapeFilter === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={on}
+                            onClick={() => setShapeFilter(opt.id)}
+                            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition"
+                            style={
+                              on
+                                ? {
+                                    background:
+                                      "linear-gradient(135deg, var(--gold-100), var(--gold-500))",
+                                    color: "var(--gold-button-text)",
+                                    boxShadow:
+                                      "0 6px 18px -8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.18)",
+                                  }
+                                : {
+                                    color: "var(--foreground-soft)",
+                                  }
+                            }
+                          >
+                            {opt.label}
+                            <span
+                              className="text-[11px] ltr-num rounded-full px-1.5 py-0.5"
+                              style={{
+                                background: on
+                                  ? "rgba(0,0,0,0.18)"
+                                  : "color-mix(in srgb, var(--accent) 14%, transparent)",
+                                color: on
+                                  ? "var(--gold-button-text)"
+                                  : "var(--accent)",
+                                minWidth: 22,
+                                textAlign: "center",
+                              }}
+                            >
+                              {opt.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div
                   className="floor-3d"
                   data-many-tables={state.tables.length > 10 ? "true" : "false"}
@@ -598,7 +747,18 @@ export default function SeatingPage() {
                         generous because the name label sits above
                         the circle and needs its own headroom. */}
                     <div className="flex flex-wrap justify-center gap-x-10 gap-y-14 md:gap-y-20">
-                      {tablesWithGuests.map(({ table, heads }, i) => (
+                      {tablesWithGuests
+                        .filter(({ table }) => {
+                          // R127 — apply the segmented filter from the
+                          // top pills. "all" passes everything; "round"
+                          // matches tables with shape !== "knight" (so
+                          // legacy rows with no shape default to round
+                          // and still appear).
+                          if (shapeFilter === "all") return true;
+                          if (shapeFilter === "knight") return table.shape === "knight";
+                          return table.shape !== "knight";
+                        })
+                        .map(({ table, heads }, i) => (
                         <div
                           key={table.id}
                           // R126 — knight (long banquet) tables get a wider
@@ -971,60 +1131,11 @@ function Table3DInner({
   const overCapacity = heads > table.capacity;
   const stateClass = overCapacity ? "over" : fullness >= 1 ? "full" : "";
 
-  // R126 — chair positions support TWO table shapes:
-  //
-  //   • Round (default): chairs sit on a 53%-radius ring around the
-  //     circle. Each chair rotated so its back faces OUTWARD (away
-  //     from the table center).
-  //   • Knight (`shape === "knight"`): chairs distributed along the
-  //     long edges of a wide rectangle. Top edge: chair back faces
-  //     up (rot=0). Bottom edge: chair back faces down (rot=180).
-  //     Capacity is split as ceil(N/2) on top, floor(N/2) on bottom
-  //     so odd capacities still balance visually.
-  //
-  // Both shapes return the same `{left, top, rot, filled}` shape so
-  // the renderer downstream is one loop, not two branches.
+  // R126 / R127 — chair positions for both round + knight come from
+  // the module-level `buildChairs()` helper so the floor card and
+  // the center-detail modal stay in lockstep on every future tweak.
   const isKnight = table.shape === "knight";
-  const chairs: Array<{
-    left: string;
-    top: string;
-    rot: number;
-    filled: boolean;
-  }> = [];
-  if (isKnight) {
-    const topCount = Math.ceil(table.capacity / 2);
-    const bottomCount = table.capacity - topCount;
-    for (let i = 0; i < topCount; i++) {
-      chairs.push({
-        left: `calc(${((i + 0.5) / topCount) * 100}% - 9px)`,
-        top: "-16px",
-        rot: 0,
-        filled: chairs.length < heads,
-      });
-    }
-    for (let i = 0; i < bottomCount; i++) {
-      chairs.push({
-        left: `calc(${((i + 0.5) / bottomCount) * 100}% - 9px)`,
-        top: "calc(100% - 4px)",
-        rot: 180,
-        filled: chairs.length < heads,
-      });
-    }
-  } else {
-    const ring = 53; // % of surface = just outside the rim
-    for (let i = 0; i < table.capacity; i++) {
-      const angleFromTop = (i * 360) / table.capacity;
-      const rad = ((angleFromTop - 90) * Math.PI) / 180;
-      const dx = Math.cos(rad) * ring;
-      const dy = Math.sin(rad) * ring;
-      chairs.push({
-        left: `calc(50% + ${dx}% - 9px)`,
-        top: `calc(50% + ${dy}% - 10px)`,
-        rot: angleFromTop,
-        filled: i < heads,
-      });
-    }
-  }
+  const chairs = buildChairs(table, heads);
 
   return (
     <button
@@ -1339,20 +1450,14 @@ function TableDetailModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // R136 chair math — same formula as the floor card. Kept local to
-  // this modal so the preview stays in sync when capacity changes
-  // mid-session.
-  const chairs = Array.from({ length: table.capacity }).map((_, i) => {
-    const angleFromTop = (i * 360) / table.capacity;
-    const rad = ((angleFromTop - 90) * Math.PI) / 180;
-    const ring = 53;
-    return {
-      dx: Math.cos(rad) * ring,
-      dy: Math.sin(rad) * ring,
-      rot: angleFromTop,
-      filled: i < heads,
-    };
-  });
+  // R127 — chair math comes from the shared `buildChairs` helper so
+  // the modal preview matches the floor card for both round AND knight
+  // shapes. Pre-R127 the modal had its own copy of the round-table
+  // formula and rendered every table as a circle, so opening a
+  // newly-created knight table showed the wrong silhouette + chair
+  // arrangement.
+  const isKnight = table.shape === "knight";
+  const chairs = buildChairs(table, heads);
 
   const handleAddGuest = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -1491,7 +1596,11 @@ function TableDetailModal({
               if (gid) onDropGuest(table.id, gid);
             }}
           >
-            <div
+            {/* R127 — knight tables open in the modal as a wider
+                preview (max 540px) so all 20+ chairs are visible at
+                presentation scale. Round tables stay capped at 340px
+                so the disc reads as a calm centered card. */}
+            <motion.div
               className={[
                 "table-3d table-detail-preview",
                 stateClass,
@@ -1503,28 +1612,49 @@ function TableDetailModal({
                 .join(" ")}
               style={
                 {
-                  width: "min(86%, 340px)",
-                  // Override the floor's translateZ + tilt — inside the
-                  // modal we want a calm, centered, presentation-grade
-                  // preview, not the dramatic in-place lift.
+                  width: isKnight ? "min(94%, 540px)" : "min(86%, 340px)",
                   transform: "none",
                   animation: "none",
                 } as CSSProperties
               }
+              // R127 — Framer-driven entrance morph. The shape itself
+              // (round vs rectangle) doesn't morph between values
+              // because each table has a fixed shape; what morphs is
+              // the modal's mount: scale + opacity ease in so the
+              // preview "lands" instead of popping. Faster spring on
+              // knight (more horizontal real-estate, looks better
+              // settling quickly than wobbling).
+              initial={{ scale: 0.6, opacity: 0, rotate: -2 }}
+              animate={{ scale: 1, opacity: 1, rotate: 0 }}
+              transition={{
+                type: "spring",
+                damping: isKnight ? 24 : 20,
+                stiffness: 260,
+              }}
               aria-hidden
             >
               <div className="table-name-label" style={{ transform: "translateZ(0)" }}>
                 {table.name}
               </div>
-              <div className="surface relative" style={{ width: "100%", aspectRatio: "1" }}>
+              {/* R127 — surface honors the table's shape. Knight gets
+                  the rectangular 2.4:1 surface variant (same gold
+                  rim + gradient as round, but rectangular box). */}
+              <div
+                className={`surface relative ${isKnight ? "surface-knight" : ""}`}
+                style={
+                  isKnight
+                    ? { width: "100%" }
+                    : { width: "100%", aspectRatio: "1" }
+                }
+              >
                 {chairs.map((c, i) => (
                   <span
                     key={i}
                     className={`chair-v2 ${c.filled ? "filled" : ""}`}
                     style={
                       {
-                        left: `calc(50% + ${c.dx}% - 9px)`,
-                        top: `calc(50% + ${c.dy}% - 10px)`,
+                        left: c.left,
+                        top: c.top,
                         transform: `rotate(${c.rot}deg)`,
                         "--rot": `${c.rot}deg`,
                       } as CSSProperties
@@ -1578,7 +1708,7 @@ function TableDetailModal({
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
             <p
               className="absolute bottom-3 left-0 right-0 text-center text-[11px]"
               style={{ color: "var(--foreground-muted)" }}
