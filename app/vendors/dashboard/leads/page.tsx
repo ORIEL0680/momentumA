@@ -387,7 +387,16 @@ function LeadRow({
     <article className="card p-4">
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="font-bold">{lead.couple_name ?? "זוג"}</div>
+          {/* R134 — anonymous WhatsApp clicks have no couple identity
+              yet. Surface them with a clear "אורח אנונימי" + WhatsApp
+              source so the vendor knows it's a click signal, not a
+              full intro. */}
+          <div className="font-bold">
+            {lead.couple_name ??
+              (lead.source === "whatsapp_click"
+                ? "🟢 לחיצת WhatsApp"
+                : "זוג")}
+          </div>
           <div
             className="text-xs mt-0.5 flex items-center gap-3 flex-wrap ltr-num"
             style={{ color: "var(--foreground-muted)" }}
